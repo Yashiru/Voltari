@@ -13,7 +13,7 @@ describe.
 | #  | Document | Scope |
 |----|----------|-------|
 | 01 | Conventions and repository structure | Naming, engine/game separation, language, decision journal, `.gitignore`, CI |
-| 02 | Gen 4 fidelity contract | Scope, oracle, vector generation, `gen4-deviations.md` |
+| 02 | [Fidelity contract](02-fidelity-contract.md) — *draft* | Scope, oracle, vector generation, `gen4-deviations.md` |
 | 03 | Battle state model and RNG | Sides x slots, targeting, volatile vs persistent state, RNG streams, serialisation |
 | 04 | Turn state machine | Phases, command collection, speed ordering, anchor points for effects |
 | 05 | Core test strategy | Differential vectors, property-based tests, fuzzing, mutation testing, coverage floor |

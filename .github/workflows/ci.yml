@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [master, main]
+    branches: [main]
   pull_request:
 
 jobs:
@@ -21,6 +21,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GODOT_VERSION: "4.7.2"
+      # Pinned: a test dependency tracking a moving branch is not reproducible.
+      GDUNIT4_VERSION: "6.2.1"
     steps:
       - uses: actions/checkout@v4
 
@@ -33,14 +35,27 @@ jobs:
 
       - name: Install gdUnit4
         run: |
-          curl -sSL -o gdunit4.zip https://github.com/godot-gdunit-labs/gdUnit4/archive/refs/heads/master.zip
+          curl -sSL -o gdunit4.zip "https://github.com/godot-gdunit-labs/gdUnit4/archive/refs/tags/v${GDUNIT4_VERSION}.zip"
           unzip -q gdunit4.zip
           mkdir -p addons
-          mv gdUnit4-master/addons/gdUnit4 addons/gdUnit4
+          mv "gdUnit4-${GDUNIT4_VERSION}/addons/gdUnit4" addons/gdUnit4
           chmod +x addons/gdUnit4/runtest.sh
 
       - name: Import project
         run: godot --headless --import --quit
 
+      # --ignoreHeadlessMode is required: gdUnit4 refuses headless mode by
+      # default because UI tests need a display. The core is pure computation,
+      # so headless is the correct mode here.
       - name: Run test suite
-        run: ./addons/gdUnit4/runtest.sh --continue -a tests
+        env:
+          GODOT_BIN: /usr/local/bin/godot
+        run: ./addons/gdUnit4/runtest.sh --headless --ignoreHeadlessMode --continue -a tests
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: reports/
+          if-no-files-found: ignore

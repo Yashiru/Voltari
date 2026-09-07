@@ -7,6 +7,9 @@ export_presets.cfg
 # Third-party addons are not vendored — installed locally and in CI.
 /addons/gdUnit4/
 
+# gdUnit4 test reports
+/reports/
+
 # Content build artefacts, generated from content/*.yaml. Never hand-edited.
 /game/data/generated/
 

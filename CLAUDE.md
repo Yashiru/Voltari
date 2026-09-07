@@ -140,6 +140,28 @@ Conversation with the maintainer: **French**.
 
 ## Current state
 
-The repository holds specifications only. There is **no Godot project, no test
-suite and no CI yet** — spec 01 defines them. Do not invent or document commands
-that do not exist; if you need one, it means spec 01 needs writing first.
+Specifications and repository foundations. **No engine code yet** —
+`addons/voltari/` is still empty. Specs 02 onwards are unwritten; see
+`docs/specs/README.md`.
+
+Requires Godot 4.7.2 and Node 22. gdUnit4 is not vendored — install it into
+`addons/gdUnit4/` before running tests locally. CI installs it automatically at
+the version pinned in `.github/workflows/ci.yml`.
+
+Core purity lint:
+
+```bash
+node tools/purity-lint/purity-lint.mjs
+```
+
+Test suite:
+
+```bash
+GODOT_BIN=$(which godot) ./addons/gdUnit4/runtest.sh --headless --ignoreHeadlessMode --continue -a tests
+```
+
+`--ignoreHeadlessMode` is required: gdUnit4 refuses headless mode by default
+because UI tests need a display. The core is pure computation, so headless is
+correct here.
+
+Both must pass before opening a PR.

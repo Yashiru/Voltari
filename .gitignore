@@ -1,0 +1,18 @@
+# Godot 4
+.godot/
+/android/
+export_presets.cfg
+*.translation
+
+# Third-party addons are not vendored — installed locally and in CI.
+/addons/gdUnit4/
+
+# Content build artefacts, generated from content/*.yaml. Never hand-edited.
+/game/data/generated/
+
+# Oracle vector generation tooling
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db

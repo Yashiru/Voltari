@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+jobs:
+  purity-lint:
+    name: Core purity lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node tools/purity-lint/purity-lint.mjs
+
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    env:
+      GODOT_VERSION: "4.7.2"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Godot
+        run: |
+          BASE="Godot_v${GODOT_VERSION}-stable_linux.x86_64"
+          curl -sSLO "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}-stable/${BASE}.zip"
+          unzip -q "${BASE}.zip"
+          sudo install -m 755 "${BASE}" /usr/local/bin/godot
+
+      - name: Install gdUnit4
+        run: |
+          curl -sSL -o gdunit4.zip https://github.com/godot-gdunit-labs/gdUnit4/archive/refs/heads/master.zip
+          unzip -q gdunit4.zip
+          mkdir -p addons
+          mv gdUnit4-master/addons/gdUnit4 addons/gdUnit4
+          chmod +x addons/gdUnit4/runtest.sh
+
+      - name: Import project
+        run: godot --headless --import --quit
+
+      - name: Run test suite
+        run: ./addons/gdUnit4/runtest.sh --continue -a tests

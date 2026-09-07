@@ -22,7 +22,7 @@ describe.
 
 | #  | Document |
 |----|----------|
-| 06 | Effect system |
+| 06 | [Effect system](06-effect-system.md) — *draft* |
 | 07 | Battle log |
 | 08 | Gen 4 formulas |
 

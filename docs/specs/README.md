@@ -12,7 +12,7 @@ describe.
 
 | #  | Document | Scope |
 |----|----------|-------|
-| 01 | Conventions and repository structure | Naming, engine/game separation, language, decision journal, `.gitignore`, CI |
+| 01 | [Conventions and repository structure](01-conventions.md) — *draft* | Naming, engine/game separation, language, decision journal, `.gitignore`, CI |
 | 02 | [Fidelity contract](02-fidelity-contract.md) — *draft* | Scope, oracle, vector generation, `gen4-deviations.md` |
 | 03 | [Battle state model and RNG](03-battle-state-and-rng.md) — *draft* | Sides x slots, targeting, state scopes, decision interface, serialisation |
 | 04 | Turn state machine | Phases, command collection, speed ordering, anchor points for effects |

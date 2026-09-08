@@ -1,0 +1,4 @@
+#!/bin/sh
+# A push carries the whole history, not just the last commit, so this checks
+# more than the pre-commit hook does.
+exec node "$(git rev-parse --show-toplevel)/tools/placeholder-guard/placeholder-guard.mjs" --quiet

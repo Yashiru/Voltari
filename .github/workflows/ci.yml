@@ -6,6 +6,20 @@ on:
   pull_request:
 
 jobs:
+  placeholder-guard:
+    name: No third-party placeholders
+    runs-on: ubuntu-latest
+    steps:
+      # The whole history, not just this commit: a push carries every commit,
+      # so a file removed today is still published if it was ever committed.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node tools/placeholder-guard/placeholder-guard.mjs
+
   purity-lint:
     name: Core purity lint
     runs-on: ubuntu-latest

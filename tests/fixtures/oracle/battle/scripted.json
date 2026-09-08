@@ -1,0 +1,772 @@
+{
+  "oracle": "@pkmn/sim 0.10.11 gen4",
+  "ignored": {
+    "t:": "wall-clock timestamp, not a game event",
+    "gametype": "battle setup, not a turn event",
+    "player": "battle setup",
+    "teamsize": "battle setup",
+    "gen": "battle setup",
+    "tier": "battle setup",
+    "rule": "battle setup",
+    "start": "battle setup",
+    "turn": "Voltari emits turn_start with a number; compared separately",
+    "upkeep": "end-of-turn marker with no Voltari counterpart",
+    "split": "visibility marker; the private line that follows is the one read",
+    "-crit": "Voltari records criticals on the damage event, not as a message",
+    "-supereffective": "folded into the effectiveness event",
+    "-resisted": "folded into the effectiveness event",
+    "-immune": "folded into the effectiveness event",
+    "-damage": "handled explicitly",
+    "-heal": "handled explicitly",
+    "-fail": "Voltari has no failure taxonomy for these yet",
+    "-notarget": "Voltari reports NO_TARGET on move_failed",
+    "-miss": "Voltari reports MISSED on move_failed",
+    "-message": "flavour text",
+    "-anim": "presentation",
+    "-hint": "presentation",
+    "-activate": "effect system, not yet modelled",
+    "-start": "effect system, not yet modelled",
+    "-end": "effect system, not yet modelled",
+    "-status": "effect system, not yet modelled",
+    "-boost": "effect system, not yet modelled",
+    "-unboost": "effect system, not yet modelled",
+    "-weather": "effect system, not yet modelled",
+    "-sidestart": "effect system, not yet modelled",
+    "-sideend": "effect system, not yet modelled",
+    "-ability": "effect system, not yet modelled",
+    "-item": "effect system, not yet modelled",
+    "-enditem": "effect system, not yet modelled",
+    "win": "battle outcome, compared through the final state",
+    "": "blank separator"
+  },
+  "vectors": [
+    {
+      "id": "battle/0001-trade",
+      "policy": {
+        "damage_roll_index": 15,
+        "accuracy": "always",
+        "critical": "never",
+        "secondary": "never",
+        "speed_tie_winner_side": 0
+      },
+      "parties": [
+        [
+          {
+            "level": 50,
+            "types": [
+              "fighting"
+            ],
+            "base": [
+              90,
+              130,
+              80,
+              65,
+              85,
+              55
+            ],
+            "ivs": [
+              31,
+              31,
+              31,
+              31,
+              31,
+              31
+            ],
+            "evs": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "stats": [
+              165,
+              150,
+              100,
+              85,
+              105,
+              75
+            ],
+            "moves": [
+              {
+                "id": "s0p0_m0",
+                "type": "normal",
+                "category": "physical",
+                "power": 35,
+                "accuracy": 95,
+                "priority": 0,
+                "pp": 56
+              }
+            ]
+          }
+        ],
+        [
+          {
+            "level": 50,
+            "types": [
+              "normal"
+            ],
+            "base": [
+              255,
+              10,
+              10,
+              75,
+              135,
+              55
+            ],
+            "ivs": [
+              31,
+              31,
+              31,
+              31,
+              31,
+              31
+            ],
+            "evs": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "stats": [
+              330,
+              30,
+              30,
+              95,
+              155,
+              75
+            ],
+            "moves": [
+              {
+                "id": "s1p0_m0",
+                "type": "normal",
+                "category": "physical",
+                "power": 35,
+                "accuracy": 95,
+                "priority": 0,
+                "pp": 56
+              }
+            ]
+          }
+        ]
+      ],
+      "script": [
+        [
+          {
+            "kind": "move",
+            "index": 0
+          },
+          {
+            "kind": "move",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "kind": "move",
+            "index": 0
+          },
+          {
+            "kind": "move",
+            "index": 0
+          }
+        ]
+      ],
+      "expected": [
+        {
+          "kind": "move",
+          "side": 0,
+          "slot": 0,
+          "move_index": 0
+        },
+        {
+          "kind": "damage",
+          "side": 1,
+          "slot": 0,
+          "hp_after": 251
+        },
+        {
+          "kind": "move",
+          "side": 1,
+          "slot": 0,
+          "move_index": 0
+        },
+        {
+          "kind": "damage",
+          "side": 0,
+          "slot": 0,
+          "hp_after": 156
+        },
+        {
+          "kind": "move",
+          "side": 0,
+          "slot": 0,
+          "move_index": 0
+        },
+        {
+          "kind": "damage",
+          "side": 1,
+          "slot": 0,
+          "hp_after": 172
+        },
+        {
+          "kind": "move",
+          "side": 1,
+          "slot": 0,
+          "move_index": 0
+        },
+        {
+          "kind": "damage",
+          "side": 0,
+          "slot": 0,
+          "hp_after": 147
+        }
+      ]
+    },
+    {
+      "id": "battle/0002-priority",
+      "policy": {
+        "damage_roll_index": 15,
+        "accuracy": "always",
+        "critical": "never",
+        "secondary": "never",
+        "speed_tie_winner_side": 0
+      },
+      "parties": [
+        [
+          {
+            "level": 50,
+            "types": [
+              "water",
+              "psychic"
+            ],
+            "base": [
+              90,
+              65,
+              65,
+              40,
+              40,
+              15
+            ],
+            "ivs": [
+              31,
+              31,
+              31,
+              31,
+              31,
+              31
+            ],
+            "evs": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "stats": [
+              165,
+              85,
+              85,
+              60,
+              60,
+              35
+            ],
+            "moves": [
+              {
+                "id": "s0p0_m0",
+                "type": "normal",
+                "category": "physical",
+                "power": 40,
+                "accuracy": 100,
+                "priority": 1,
+                "pp": 48
+              },
+              {
+                "id": "s0p0_m1",
+                "type": "normal",
+                "category": "physical",
+                "power": 35,
+                "accuracy": 95,
+                "priority": 0,
+                "pp": 56
+              }
+            ]
+          }
+        ],
+        [
+          {
+            "level": 50,
+            "types": [
+              "electric"
+            ],
+            "base": [
+              65,
+              65,
+              60,
+              110,
+              95,
+              130
+            ],
+            "ivs": [
+              31,
+              31,
+              31,
+              31,
+              31,
+              31
+            ],
+            "evs": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "stats": [
+              140,
+              85,
+              80,
+              130,
+              115,
+              150
+            ],
+            "moves": [
+              {
+                "id": "s1p0_m0",
+                "type": "normal",
+                "category": "physical",
+                "power": 35,
+                "accuracy": 95,
+                "priority": 0,
+                "pp": 56
+              }
+            ]
+          }
+        ]
+      ],
+      "script": [
+        [
+          {
+            "kind": "move",
+            "index": 0
+          },
+          {
+            "kind": "move",
+            "index": 0
+          }
+        ]
+      ],
+      "expected": [
+        {
+          "kind": "move",
+          "side": 0,
+          "slot": 0,
+          "move_index": 0
+        },
+        {
+          "kind": "damage",
+          "side": 1,
+          "slot": 0,
+          "hp_after": 120
+        },
+        {
+          "kind": "move",
+          "side": 1,
+          "slot": 0,
+          "move_index": 0
+        },
+        {
+          "kind": "damage",
+          "side": 0,
+          "slot": 0,
+          "hp_after": 148
+        }
+      ]
+    },
+    {
+      "id": "battle/0003-effectiveness",
+      "policy": {
+        "damage_roll_index": 15,
+        "accuracy": "always",
+        "critical": "never",
+        "secondary": "never",
+        "speed_tie_winner_side": 0
+      },
+      "parties": [
+        [
+          {
+            "level": 50,
+            "types": [
+              "water"
+            ],
+            "base": [
+              130,
+              65,
+              60,
+              110,
+              95,
+              65
+            ],
+            "ivs": [
+              31,
+              31,
+              31,
+              31,
+              31,
+              31
+            ],
+            "evs": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "stats": [
+              205,
+              85,
+              80,
+              130,
+              115,
+              85
+            ],
+            "moves": [
+              {
+                "id": "s0p0_m0",
+                "type": "water",
+                "category": "special",
+                "power": 95,
+                "accuracy": 100,
+                "priority": 0,
+                "pp": 24
+              }
+            ]
+          }
+        ],
+        [
+          {
+            "level": 50,
+            "types": [
+              "ground",
+              "rock"
+            ],
+            "base": [
+              115,
+              140,
+              130,
+              55,
+              55,
+              40
+            ],
+            "ivs": [
+              31,
+              31,
+              31,
+              31,
+              31,
+              31
+            ],
+            "evs": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "stats": [
+              190,
+              160,
+              150,
+              75,
+              75,
+              60
+            ],
+            "moves": [
+              {
+                "id": "s1p0_m0",
+                "type": "normal",
+                "category": "physical",
+                "power": 35,
+                "accuracy": 95,
+                "priority": 0,
+                "pp": 56
+              }
+            ]
+          }
+        ]
+      ],
+      "script": [
+        [
+          {
+            "kind": "move",
+            "index": 0
+          },
+          {
+            "kind": "move",
+            "index": 0
+          }
+        ]
+      ],
+      "expected": [
+        {
+          "kind": "move",
+          "side": 0,
+          "slot": 0,
+          "move_index": 0
+        },
+        {
+          "kind": "effectiveness",
+          "side": 1,
+          "slot": 0,
+          "level": "super"
+        },
+        {
+          "kind": "damage",
+          "side": 1,
+          "slot": 0,
+          "hp_after": 0
+        },
+        {
+          "kind": "faint",
+          "side": 1,
+          "slot": 0
+        }
+      ]
+    },
+    {
+      "id": "battle/0004-switch",
+      "policy": {
+        "damage_roll_index": 15,
+        "accuracy": "always",
+        "critical": "never",
+        "secondary": "never",
+        "speed_tie_winner_side": 0
+      },
+      "parties": [
+        [
+          {
+            "level": 50,
+            "types": [
+              "fighting"
+            ],
+            "base": [
+              90,
+              130,
+              80,
+              65,
+              85,
+              55
+            ],
+            "ivs": [
+              31,
+              31,
+              31,
+              31,
+              31,
+              31
+            ],
+            "evs": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "stats": [
+              165,
+              150,
+              100,
+              85,
+              105,
+              75
+            ],
+            "moves": [
+              {
+                "id": "s0p0_m0",
+                "type": "normal",
+                "category": "physical",
+                "power": 35,
+                "accuracy": 95,
+                "priority": 0,
+                "pp": 56
+              }
+            ]
+          },
+          {
+            "level": 50,
+            "types": [
+              "normal"
+            ],
+            "base": [
+              160,
+              110,
+              65,
+              65,
+              110,
+              30
+            ],
+            "ivs": [
+              31,
+              31,
+              31,
+              31,
+              31,
+              31
+            ],
+            "evs": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "stats": [
+              235,
+              130,
+              85,
+              85,
+              130,
+              50
+            ],
+            "moves": [
+              {
+                "id": "s0p1_m0",
+                "type": "normal",
+                "category": "physical",
+                "power": 35,
+                "accuracy": 95,
+                "priority": 0,
+                "pp": 56
+              }
+            ]
+          }
+        ],
+        [
+          {
+            "level": 50,
+            "types": [
+              "normal"
+            ],
+            "base": [
+              255,
+              10,
+              10,
+              75,
+              135,
+              55
+            ],
+            "ivs": [
+              31,
+              31,
+              31,
+              31,
+              31,
+              31
+            ],
+            "evs": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "stats": [
+              330,
+              30,
+              30,
+              95,
+              155,
+              75
+            ],
+            "moves": [
+              {
+                "id": "s1p0_m0",
+                "type": "normal",
+                "category": "physical",
+                "power": 35,
+                "accuracy": 95,
+                "priority": 0,
+                "pp": 56
+              }
+            ]
+          }
+        ]
+      ],
+      "script": [
+        [
+          {
+            "kind": "switch",
+            "party": 1
+          },
+          {
+            "kind": "move",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "kind": "move",
+            "index": 0
+          },
+          {
+            "kind": "move",
+            "index": 0
+          }
+        ]
+      ],
+      "expected": [
+        {
+          "kind": "switch",
+          "side": 0,
+          "slot": 0
+        },
+        {
+          "kind": "move",
+          "side": 1,
+          "slot": 0,
+          "move_index": 0
+        },
+        {
+          "kind": "damage",
+          "side": 0,
+          "slot": 0,
+          "hp_after": 225
+        },
+        {
+          "kind": "move",
+          "side": 1,
+          "slot": 0,
+          "move_index": 0
+        },
+        {
+          "kind": "damage",
+          "side": 0,
+          "slot": 0,
+          "hp_after": 215
+        },
+        {
+          "kind": "move",
+          "side": 0,
+          "slot": 0,
+          "move_index": 0
+        },
+        {
+          "kind": "damage",
+          "side": 1,
+          "slot": 0,
+          "hp_after": 228
+        }
+      ]
+    }
+  ]
+}

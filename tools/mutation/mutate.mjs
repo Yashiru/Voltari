@@ -108,6 +108,18 @@ function applyMutant(source, mutant) {
   );
 }
 
+// A clean run of the suite takes about three seconds, so this is generous by a
+// factor of forty. It is sized for mutants that HANG rather than fail: one made
+// a loop unbounded, and at the previous fifteen-minute limit that single mutant
+// cost more than every other mutant in the pass put together.
+//
+// Too low would be worse than too high — a legitimate slow run would be counted
+// as caught, which hides a survivor instead of reporting one.
+const SUITE_TIMEOUT_MS = 120 * 1000;
+
+/// "survived" (the suite still passed), "caught" (it failed), or "hung" (it
+/// never finished). Hanging is caught too, but it is a different fact and the
+/// report keeps them apart.
 function runSuite(root, godot) {
   try {
     execFileSync("./addons/gdUnit4/runtest.sh", [
@@ -116,11 +128,11 @@ function runSuite(root, godot) {
       cwd: root,
       env: { ...process.env, GODOT_BIN: godot },
       stdio: "ignore",
-      timeout: 15 * 60 * 1000,
+      timeout: SUITE_TIMEOUT_MS,
     });
-    return true; // suite passed: the mutant survived
-  } catch {
-    return false; // suite failed or refused to build: the mutant was caught
+    return "survived";
+  } catch (error) {
+    return error.killed ? "hung" : "caught";
   }
 }
 
@@ -174,7 +186,7 @@ function main() {
   });
 
   // The baseline must be green, or every mutant would read as caught.
-  if (!runSuite(root, godot)) {
+  if (runSuite(root, godot) !== "survived") {
     console.error("The suite fails before any mutation. Fix that first.");
     rmSync(sandbox, { recursive: true, force: true });
     process.exit(1);
@@ -182,19 +194,21 @@ function main() {
 
   const survivors = [];
   let caught = 0;
+  let hung = 0;
 
   for (const [index, mutant] of selected.entries()) {
     const target = join(root, relative(REPO, mutant.path));
     const original = readFileSync(target, "utf8");
     writeFileSync(target, applyMutant(original, mutant));
 
-    const survived = runSuite(root, godot);
+    const verdict = runSuite(root, godot);
     writeFileSync(target, original);
 
-    if (survived) survivors.push(mutant);
+    if (verdict === "survived") survivors.push(mutant);
     else caught++;
+    if (verdict === "hung") hung++;
 
-    const label = survived ? "SURVIVED" : "caught";
+    const label = verdict === "survived" ? "SURVIVED" : verdict;
     process.stdout.write(
       `  [${index + 1}/${selected.length}] ${label.padEnd(8)} ` +
         `${relative(REPO, mutant.path)}:${mutant.line} ${mutant.was} -> ${mutant.replacement || "(removed)"}\n`,
@@ -205,6 +219,12 @@ function main() {
 
   const score = selected.length > 0 ? (caught / selected.length) * 100 : 0;
   console.log(`\nmutation score: ${score.toFixed(1)}%  (${caught} caught, ${survivors.length} survived)`);
+
+  if (hung > 0) {
+    console.log(
+      `${hung} of those hung the suite rather than failing it — an unbounded loop, not a broken assertion.`,
+    );
+  }
 
   if (survivors.length > 0) {
     console.log("\nSurvivors — each is a test the suite does not have:");

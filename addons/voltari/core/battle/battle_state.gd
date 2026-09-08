@@ -7,11 +7,10 @@ extends RefCounted
 ## free-for-all, and a four-trainer multi battle is still two sides of two slots
 ## (spec 03).
 ##
-## Field scope lives here — conditions affecting both sides.
-##
-## Effect instances are not modelled yet. They attach to these same four scopes
-## and arrive with the effect system (spec 06); adding them changes what the
-## scopes hold, not the shape of the state.
+## Field scope lives here — conditions affecting both sides. The other three
+## scopes hold their own instances, on VltSide, VltSlot and VltBattleCreature
+## (spec 03). Adding the effect system changed what the scopes hold, not the
+## shape of the state.
 
 const SIDE_COUNT: int = 2
 

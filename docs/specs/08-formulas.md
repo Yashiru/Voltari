@@ -43,8 +43,13 @@ the shape of the formula follows from what the oracle actually does.
 Gen 4 arithmetic is integer arithmetic with rounding at each step. The result
 depends on that rounding, so the discipline is not stylistic:
 
-- **No `float` anywhere in the damage path.** A multiplier of 1.5 is written
-  `value * 3 / 2`, never `value * 1.5`.
+- **No `float` anywhere in the damage path.** Multipliers are integer ratios,
+  never decimals.
+- **Modifiers use the oracle's fixed-point step, not naive fraction
+  arithmetic.** The oracle scales by a 4096 denominator and rounds to nearest
+  with halves going *down*. This was extracted, not assumed: real Gen 4 hardware
+  multiplied and divided plainly, so this is an inherited Showdown-versus-
+  cartridge divergence, accepted by decision 0002.
 - Rounding happens where the oracle rounds, not where it is convenient.
 - Type effectiveness is carried as an integer ratio, never as a decimal.
 - Intermediate values are never carried at higher precision "for accuracy" —

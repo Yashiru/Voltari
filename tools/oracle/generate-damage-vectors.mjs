@@ -13,7 +13,7 @@
 import { writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { Battle, Teams } from "@pkmn/sim";
+import { Battle, Dex, Teams } from "@pkmn/sim";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, "..", "..");
@@ -21,6 +21,22 @@ const OUT_DIR = join(REPO, "tests", "fixtures", "oracle", "procedure", "damage")
 const STAGE_ENUM = join(REPO, "addons", "voltari", "core", "formulas", "damage_stage.gd");
 
 const TOLERANCE = 0.1;
+const GEN4 = Dex.forGen(4);
+
+// Showdown's damageTaken encoding: 0 neutral, 1 super effective, 2 resisted,
+// 3 immune. The exponent is what stage 10 consumes; the chart lookup that
+// produces it is a separate procedure with its own vectors (spec 09).
+function effectivenessExponent(moveType, defenderTypes) {
+  let exponent = 0;
+  for (const type of defenderTypes) {
+    const code = GEN4.types.get(type).damageTaken[moveType];
+    if (code === 1) exponent += 1;
+    else if (code === 2) exponent -= 1;
+    else if (code === 3) return null; // immune: damage never reaches the pipeline
+  }
+  return exponent;
+}
+
 const ROLLS = 16; // The Gen 4 randomizer spans 85..100 inclusive.
 const MAX_IVS = { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 };
 const ZERO_EVS = { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 };
@@ -118,8 +134,14 @@ function describe(attacker, target, scenario) {
       types: target.types.map((t) => t.toLowerCase()),
     },
     context: {
+      stab: attacker.types.some((t) => t.toLowerCase() === scenario.moveType),
+      type_effectiveness_exponent: effectivenessExponent(
+        scenario.moveType[0].toUpperCase() + scenario.moveType.slice(1),
+        target.types,
+      ),
       critical: scenario.critical === true,
       weather: scenario.weatherId ?? null,
+      weather_modifier: scenario.weatherModifier ?? [1, 1],
       screens: scenario.screens ?? [],
       spread: scenario.gametype === "doubles",
     },
@@ -223,6 +245,7 @@ const SCENARIOS = [
     defenders: [BULKY],
     weather: "raindance",
     weatherId: "rain",
+    weatherModifier: [3, 2],
     movePower: 40,
     moveType: "water",
     moveCategory: "special",

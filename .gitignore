@@ -19,3 +19,9 @@ node_modules/
 # OS
 .DS_Store
 Thumbs.db
+
+# Third-party placeholder models, used to test gameplay until the real assets
+# arrive. They must never enter this repository — the IP is 100% original.
+# Installed by pogo_assets/_tools/pipeline.py, which refuses to write here
+# unless git confirms this path is ignored.
+/game/assets/placeholders/

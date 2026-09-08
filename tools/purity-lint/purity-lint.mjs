@@ -8,6 +8,7 @@
 // Usage: node tools/purity-lint/purity-lint.mjs [rootDir]
 
 import { readdirSync, readFileSync, statSync, existsSync } from "node:fs";
+import { stripCommentsAndStrings, collectScripts } from "../lib/gdscript.mjs";
 import { join, relative } from "node:path";
 
 const LINTED_DIRS = ["addons/voltari/core", "addons/voltari/rules"];
@@ -41,74 +42,6 @@ const FORBIDDEN = [
   { pattern: /\bpreload\s*\(/, reason: "file I/O; data is injected by a loader" },
 ];
 
-// Replaces comments and string literals with spaces, preserving line structure
-// and column positions so reported locations stay accurate.
-function stripCommentsAndStrings(source) {
-  const out = [];
-  let i = 0;
-
-  while (i < source.length) {
-    const rest = source.slice(i);
-    const tripleMatch = /^("""|''')/.exec(rest);
-
-    if (tripleMatch) {
-      const quote = tripleMatch[1];
-      const end = source.indexOf(quote, i + 3);
-      const stop = end === -1 ? source.length : end + 3;
-      for (; i < stop; i++) out.push(source[i] === "\n" ? "\n" : " ");
-      continue;
-    }
-
-    const char = source[i];
-
-    if (char === "#") {
-      while (i < source.length && source[i] !== "\n") {
-        out.push(" ");
-        i++;
-      }
-      continue;
-    }
-
-    if (char === '"' || char === "'") {
-      const quote = char;
-      out.push(" ");
-      i++;
-      while (i < source.length && source[i] !== quote && source[i] !== "\n") {
-        // Skip escaped characters so \" does not end the literal early.
-        if (source[i] === "\\" && i + 1 < source.length) {
-          out.push(" ");
-          i++;
-        }
-        out.push(" ");
-        i++;
-      }
-      if (i < source.length && source[i] === quote) {
-        out.push(" ");
-        i++;
-      }
-      continue;
-    }
-
-    out.push(char);
-    i++;
-  }
-
-  return out.join("");
-}
-
-function collectScripts(dir) {
-  const found = [];
-  for (const entry of readdirSync(dir)) {
-    const path = join(dir, entry);
-    if (statSync(path).isDirectory()) {
-      found.push(...collectScripts(path));
-    } else if (entry.endsWith(".gd")) {
-      found.push(path);
-    }
-  }
-  return found;
-}
-
 function lintFile(root, path) {
   const violations = [];
   const lines = stripCommentsAndStrings(readFileSync(path, "utf8")).split("\n");
@@ -138,7 +71,7 @@ function main() {
   for (const dir of LINTED_DIRS) {
     const absolute = join(root, dir);
     if (!existsSync(absolute)) continue;
-    for (const path of collectScripts(absolute)) {
+    for (const path of collectScripts(absolute, readdirSync, statSync, join)) {
       scanned++;
       violations.push(...lintFile(root, path));
     }

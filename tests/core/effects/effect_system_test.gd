@@ -235,6 +235,44 @@ func test_collection_order_is_stable() -> void:
 		assert_array(_collection_order(state)).is_equal(first)
 
 
+func test_removing_an_effect() -> void:
+	var state: VltBattleState = _battle()
+	var at: VltSlotRef = VltSlotRef.at(0, 0)
+	VltEffectDispatch.apply(state, _registry, VltBurn.ID, at, null)
+
+	assert_bool(VltEffectDispatch.remove(state, VltBurn.define(), at)).is_true()
+	assert_int(state.creature_at(at).effects.size()).is_equal(0)
+
+	# Removing what is not there reports so rather than pretending.
+	assert_bool(VltEffectDispatch.remove(state, VltBurn.define(), at)).is_false()
+
+	state.slot_at(at).vacate()
+	assert_bool(VltEffectDispatch.remove(state, VltBurn.define(), at)).is_false()
+
+
+func test_field_scoped_effects_belong_to_no_side() -> void:
+	# Field scope was the one path nothing exercised, so the mutation harness
+	# found it before a battle did.
+	var weather: VltEffectDefinition = VltEffectDefinition.create(
+		"test_field", VltEffectDefinition.Scope.FIELD
+	)
+	var registry: VltEffectRegistry = VltEffectRegistry.new()
+	registry.register(weather)
+
+	var state: VltBattleState = _battle()
+	assert_bool(VltEffectDispatch.apply(state, registry, "test_field", null, null)).is_true()
+	assert_int(state.effects.size()).is_equal(1)
+
+	var active: Array[VltEffectDispatch.Active] = VltEffectDispatch.active_effects(state, registry)
+	assert_int(active.size()).is_equal(1)
+	assert_object(active[0].owner).override_failure_message(
+		"a field effect must have no owner"
+	).is_null()
+
+	assert_bool(VltEffectDispatch.remove(state, weather, null)).is_true()
+	assert_int(state.effects.size()).is_equal(0)
+
+
 func test_every_registered_effect_is_exercised() -> void:
 	# The meta-test of spec 06: an effect with no test is unverified content
 	# wearing the costume of a feature.

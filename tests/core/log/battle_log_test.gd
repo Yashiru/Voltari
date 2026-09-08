@@ -150,6 +150,55 @@ func test_a_survivor_never_reads_as_zero_to_an_opponent() -> void:
 	assert_int(opponent_view.current_hp).is_equal(1)
 
 
+func test_a_heal_reads_as_a_percentage_to_an_opponent() -> void:
+	# Heal reduces by the same rule as damage and had no test of its own, so its
+	# scaling answered to nothing — the damage tests would have passed either way.
+	var target: VltSlotRef = VltSlotRef.at(SIDE_ONE, 0)
+	var event: VltLogHeal = VltLogHeal.create(target, 50, 150, 200)
+
+	var owner_view: VltLogHeal = event.for_viewer(SIDE_ONE) as VltLogHeal
+	assert_int(owner_view.current_hp).is_equal(150)
+	assert_int(owner_view.max_hp).is_equal(200)
+
+	var opponent_view: VltLogHeal = event.for_viewer(SIDE_ZERO) as VltLogHeal
+	assert_int(opponent_view.max_hp).is_equal(VltLogHeal.REDUCED_SCALE)
+	assert_int(opponent_view.current_hp).is_equal(75)
+	assert_int(opponent_view.amount).is_equal(25)
+
+
+func test_a_sliver_of_healing_never_reads_as_none_at_all() -> void:
+	var target: VltSlotRef = VltSlotRef.at(SIDE_ONE, 0)
+	var event: VltLogHeal = VltLogHeal.create(target, 1, 1, 400)
+	assert_int((event.for_viewer(SIDE_ZERO) as VltLogHeal).amount).is_equal(1)
+
+
+func test_replaying_a_move_whose_actor_is_gone_changes_nothing() -> void:
+	# A log outlives the state it describes: it is replayed onto snapshots, and a
+	# viewer replays a filtered copy of it. An event whose slot has emptied, or
+	# whose index the occupant does not have, must do nothing rather than reach
+	# for what is not there.
+	var state: VltBattleState = _battle()
+	var actor: VltSlotRef = VltSlotRef.at(SIDE_ZERO, 0)
+	var target: VltSlotRef = VltSlotRef.at(SIDE_ONE, 0)
+
+	var event: VltLogMoveUsed = VltLogMoveUsed.create(actor, "move_0", 0, 3, target)
+	state.slot_at(actor).vacate()
+	event.apply(state)
+	assert_bool(state.slot_at(actor).is_empty()).is_true()
+
+	state.slot_at(actor).occupy(0)
+
+	# One past the last move, not far past it: the boundary is where an index
+	# check is wrong or right, and any larger number would pass either way.
+	var beyond: VltLogMoveUsed = VltLogMoveUsed.create(
+		actor, "move_0", state.creature_at(actor).moves.size(), 3, target
+	)
+	beyond.apply(state)
+	assert_int(state.creature_at(actor).moves[0].pp).override_failure_message(
+		"an index the occupant does not have must leave its moves alone"
+	).is_equal(10)
+
+
 func test_owner_only_events_are_dropped_for_the_other_side() -> void:
 	var event: VltLogTurnStart = VltLogTurnStart.create(4)
 	event.visibility = VltLogEvent.Visibility.OWNER_ONLY

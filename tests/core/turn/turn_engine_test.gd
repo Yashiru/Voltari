@@ -191,6 +191,25 @@ func test_a_speed_tie_is_decided_not_drawn() -> void:
 	assert_int(_first_move_used(outcome.log).actor.side).is_equal(1)
 
 
+func test_a_settled_race_is_never_put_to_the_decider() -> void:
+	# A tie needs priority AND speed to match. Asking about a pair that differs
+	# on one of them would reorder a race that was already decided — and would
+	# spend a decision the oracle never makes, which is the sequence the
+	# differential compares.
+	#
+	# Only a policy that answers "the later one" can show it: with the default,
+	# a spurious question gets an answer that happens to change nothing.
+	var state: VltBattleState = _battle(1)
+	var decider: VltScriptedDecider = _scripted()
+	decider.speed_tie_winner = VltScriptedDecider.TieWinner.LATER
+
+	var outcome: VltTurnOutcome = _engine.resolve(state, [_move(0, 0), _move(1, 0)], decider)
+
+	assert_int(_first_move_used(outcome.log).actor.side).override_failure_message(
+		"side 1 is faster, so there is no tie here to decide"
+	).is_equal(1)
+
+
 func test_switches_resolve_in_canonical_order() -> void:
 	# Switches are ordered by position alone — no speed, no decider. Submitting
 	# them in reverse is the only way to tell the rule apart from "whatever order

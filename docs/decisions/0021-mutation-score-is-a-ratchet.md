@@ -56,3 +56,15 @@ rather than against an ideal.
 `effect_dispatch.gd` is the known weak point and the obvious next target. Its
 ordering rules — priority, then speed, then the deterministic tiebreak — are
 precisely the kind of logic that survives naive tests and decides battles.
+
+## Afterwards
+
+The measurement above is kept as written, since it is what the decision was
+taken on. **The live baseline is in spec 05** and moves as the ratchet turns; it
+reached 80% once `effect_dispatch.gd` was covered.
+
+That pass is also the evidence for the sampling caution above. Sampled across
+the core, the file showed 12 survivors; run exhaustively it showed 23, and the
+file score was 53% rather than the 71% the core-wide figure suggested. It also
+found a defect rather than only thin tests — see decision 0022. A per-module
+number needs a per-module run.

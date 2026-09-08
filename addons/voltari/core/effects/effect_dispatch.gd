@@ -24,28 +24,44 @@ class Active:
 		owner = at
 
 
-## Every active effect, in a canonical order: field, then each side, then each
-## position with its slot-scoped effects before its creature-scoped ones.
+## Every place effects live on the field, each as [scope, owner, container].
+##
+## One traversal, because collection, counting down and expiry must agree on
+## what "on the field" means; three walks would be three chances to disagree.
+## The order is canonical: field, then each side, then each position with its
+## slot-scoped effects before its creature-scoped ones.
+##
+## Benched creatures are absent by design. Nothing can attach to one — apply()
+## requires an occupied slot — so nothing there can count down or expire.
+static func _holders(state: VltBattleState) -> Array:
+	var found: Array = [[VltEffectDefinition.Scope.FIELD, null, state.effects]]
+
+	for side: int in range(VltBattleState.SIDE_COUNT):
+		found.append(
+			[VltEffectDefinition.Scope.SIDE, VltSlotRef.at(side, 0), state.sides[side].effects]
+		)
+
+	for reference: VltSlotRef in state.all_refs():
+		found.append([VltEffectDefinition.Scope.SLOT, reference, state.slot_at(reference).effects])
+
+		var creature: VltBattleCreature = state.creature_at(reference)
+		if creature != null:
+			found.append([VltEffectDefinition.Scope.CREATURE, reference, creature.effects])
+
+	return found
+
+
+## Every active effect, in the canonical order above.
 static func active_effects(
 	state: VltBattleState, registry: VltEffectRegistry
 ) -> Array[Active]:
 	var found: Array[Active] = []
 
-	for instance: VltEffectInstance in state.effects:
-		_append(found, instance, registry, null)
-
-	for side: int in range(VltBattleState.SIDE_COUNT):
-		for instance: VltEffectInstance in state.sides[side].effects:
-			_append(found, instance, registry, VltSlotRef.at(side, 0))
-
-	for reference: VltSlotRef in state.all_refs():
-		for instance: VltEffectInstance in state.slot_at(reference).effects:
-			_append(found, instance, registry, reference)
-
-		var creature: VltBattleCreature = state.creature_at(reference)
-		if creature != null:
-			for instance: VltEffectInstance in creature.effects:
-				_append(found, instance, registry, reference)
+	for holder: Array in _holders(state):
+		var owner: VltSlotRef = holder[1]
+		var container: Array[VltEffectInstance] = holder[2]
+		for instance: VltEffectInstance in container:
+			_append(found, instance, registry, owner)
 
 	return found
 
@@ -189,18 +205,22 @@ static func run_triggers(
 ##
 ## `at` names the position the effect attaches to; the scope decides which
 ## container it actually lands in.
+## `log` may be null when no turn is running — building a battle that starts with
+## a burn is not a battle event. During a turn it must be given, or the change
+## is invisible to replay and invariant 8 fails.
 static func apply(
 	state: VltBattleState,
 	registry: VltEffectRegistry,
 	id: String,
 	at: VltSlotRef,
-	source: VltSlotRef
+	source: VltSlotRef,
+	log: VltBattleLog = null
 ) -> bool:
 	var definition: VltEffectDefinition = registry.definition(id)
-	if not _can_hold(state, definition.scope, at):
+	if not can_hold(state, definition.scope, at):
 		return false
 
-	var container: Array[VltEffectInstance] = _container_for(state, definition.scope, at)
+	var container: Array[VltEffectInstance] = container_for(state, definition.scope, at)
 	var existing: VltEffectInstance = null
 	for instance: VltEffectInstance in container:
 		if instance.definition_id == id:
@@ -213,33 +233,88 @@ static func apply(
 				return false
 			VltEffectDefinition.Stacking.REFRESH:
 				existing.remaining = definition.default_duration
-				return true
 			VltEffectDefinition.Stacking.STACKING:
 				existing.layers += 1
-				return true
+		_record(log, existing, definition.scope, at)
+		return true
 
-	container.append(VltEffectInstance.create(id, source, definition.default_duration))
+	var applied: VltEffectInstance = VltEffectInstance.create(
+		id, source, definition.default_duration
+	)
+	container.append(applied)
+	_record(log, applied, definition.scope, at)
 	return true
 
 
 static func remove(
-	state: VltBattleState, definition: VltEffectDefinition, at: VltSlotRef
+	state: VltBattleState,
+	definition: VltEffectDefinition,
+	at: VltSlotRef,
+	log: VltBattleLog = null
 ) -> bool:
-	if not _can_hold(state, definition.scope, at):
+	if not can_hold(state, definition.scope, at):
 		return false
 
-	var container: Array[VltEffectInstance] = _container_for(state, definition.scope, at)
+	var container: Array[VltEffectInstance] = container_for(state, definition.scope, at)
 	for index: int in range(container.size()):
 		if container[index].definition_id == definition.id:
 			container.remove_at(index)
+			if log != null:
+				log.append(VltLogEffectChanged.removal(definition.id, definition.scope, at))
 			return true
 	return false
+
+
+static func _record(
+	log: VltBattleLog,
+	instance: VltEffectInstance,
+	scope: VltEffectDefinition.Scope,
+	at: VltSlotRef
+) -> void:
+	if log != null:
+		log.append(VltLogEffectChanged.create(instance, scope, at))
+
+
+## Counts every timed effect down by one, and reports the resulting value.
+##
+## Central rather than per-effect: the engine already owned expiry, so leaving
+## the decrement to each effect split one mechanism between two owners and let a
+## new timed effect forget its own countdown — which yields an effect that never
+## ends and nothing that says so.
+static func tick_durations(state: VltBattleState, log: VltBattleLog) -> void:
+	for holder: Array in _holders(state):
+		var scope: VltEffectDefinition.Scope = holder[0]
+		var owner: VltSlotRef = holder[1]
+		var container: Array[VltEffectInstance] = holder[2]
+
+		for instance: VltEffectInstance in container:
+			if not instance.expires or instance.remaining <= 0:
+				continue
+			instance.remaining -= 1
+			_record(log, instance, scope, owner)
+
+
+## Drops effects whose duration ran out. Effects with no duration stay until
+## something removes them.
+static func expire(state: VltBattleState, log: VltBattleLog) -> void:
+	for holder: Array in _holders(state):
+		var scope: VltEffectDefinition.Scope = holder[0]
+		var owner: VltSlotRef = holder[1]
+		var container: Array[VltEffectInstance] = holder[2]
+
+		for index: int in range(container.size() - 1, -1, -1):
+			var instance: VltEffectInstance = container[index]
+			if not instance.expires or instance.remaining > 0:
+				continue
+			container.remove_at(index)
+			if log != null:
+				log.append(VltLogEffectChanged.removal(instance.definition_id, scope, owner))
 
 
 ## A typed array cannot be null, so "no container" is a separate question from
 ## "which container". Creature scope is the only one that can be absent: an
 ## empty slot has no creature to attach to.
-static func _can_hold(
+static func can_hold(
 	state: VltBattleState, scope: VltEffectDefinition.Scope, at: VltSlotRef
 ) -> bool:
 	if scope == VltEffectDefinition.Scope.FIELD:
@@ -251,7 +326,7 @@ static func _can_hold(
 	return true
 
 
-static func _container_for(
+static func container_for(
 	state: VltBattleState, scope: VltEffectDefinition.Scope, at: VltSlotRef
 ) -> Array[VltEffectInstance]:
 	if scope == VltEffectDefinition.Scope.FIELD:

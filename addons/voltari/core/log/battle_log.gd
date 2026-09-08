@@ -22,6 +22,7 @@ const KINDS: Array[String] = [
 	VltLogMoveUsed.KIND,
 	VltLogMoveFailed.KIND,
 	VltLogPendingInput.KIND,
+	VltLogEffectChanged.KIND,
 ]
 
 var events: Array[VltLogEvent] = []
@@ -96,6 +97,8 @@ static func event_from_dict(data: Dictionary) -> VltLogEvent:
 			return VltLogMoveFailed.from_dict(data)
 		VltLogPendingInput.KIND:
 			return VltLogPendingInput.from_dict(data)
+		VltLogEffectChanged.KIND:
+			return VltLogEffectChanged.from_dict(data)
 
 	assert(false, "no deserialiser for log event kind \"%s\"" % data["kind"])
 	return null

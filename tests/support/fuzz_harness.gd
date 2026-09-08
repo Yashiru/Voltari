@@ -34,7 +34,7 @@ static func run_case(
 	chart: VltTypeChart, effects: VltEffectRegistry
 ) -> Report:
 	var generator: VltFuzzDecider = VltFuzzDecider.new(seed_value)
-	var state: VltBattleState = _generate_battle(generator, moves)
+	var state: VltBattleState = _generate_battle(generator, moves, effects)
 	var engine: VltTurnEngine = VltTurnEngine.new(moves, chart, effects)
 	var decider: VltSeededDecider = VltSeededDecider.new(seed_value ^ 0x5BF03635)
 
@@ -152,7 +152,9 @@ static func _battle_over(state: VltBattleState) -> bool:
 
 
 static func _generate_battle(
-	generator: VltFuzzDecider, moves: Dictionary[String, VltMoveDefinition]
+	generator: VltFuzzDecider,
+	moves: Dictionary[String, VltMoveDefinition],
+	effects: VltEffectRegistry
 ) -> VltBattleState:
 	var move_ids: Array[String] = []
 	for id: String in moves.keys():
@@ -165,7 +167,29 @@ static func _generate_battle(
 		for _index: int in range(party_size):
 			state.sides[side].party.append(_generate_creature(generator, move_ids))
 		state.sides[side].slots[0].occupy(0)
+
+	_seed_effects(generator, state, effects)
 	return state
+
+
+## Puts registered effects on the field before the first turn.
+##
+## Without this the fuzzer registered effects and applied none, so no generated
+## battle ever held one: the effect system sat outside the reach of every
+## invariant while looking covered. Timed effects also count down and expire over
+## a run, which is how invariant 8 reaches them at all.
+static func _seed_effects(
+	generator: VltFuzzDecider, state: VltBattleState, effects: VltEffectRegistry
+) -> void:
+	var ids: Array[String] = effects.ids()
+	if ids.is_empty():
+		return
+
+	for reference: VltSlotRef in state.all_refs():
+		if not generator.chance(50):
+			continue
+		@warning_ignore("return_value_discarded")
+		VltEffectDispatch.apply(state, effects, generator.pick_string(ids), reference, null)
 
 
 static func _generate_creature(

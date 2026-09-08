@@ -68,7 +68,10 @@ func resolve(
 	VltEffectDispatch.run_triggers(
 		working, _effects, VltTurnAnchor.Anchor.RESIDUAL, decider, log
 	)
-	_expire_effects(working)
+	# Durations are counted down here, for every effect at once, rather than by
+	# each effect declaring its own countdown trigger.
+	VltEffectDispatch.tick_durations(working, log)
+	VltEffectDispatch.expire(working, log)
 
 	return _finish(working, log)
 
@@ -367,25 +370,6 @@ func _stat_with_stage(state: VltBattleState, reference: VltSlotRef, stat: int) -
 
 
 # --- finishing and resuming -------------------------------------------------
-
-
-## Drops effects whose duration ran out. Effects with no duration stay until
-## something removes them.
-func _expire_effects(state: VltBattleState) -> void:
-	_drop_expired(state.effects)
-	for side: VltSide in state.sides:
-		_drop_expired(side.effects)
-		for slot: VltSlot in side.slots:
-			_drop_expired(slot.effects)
-		for creature: VltBattleCreature in side.party:
-			_drop_expired(creature.effects)
-
-
-func _drop_expired(instances: Array[VltEffectInstance]) -> void:
-	for index: int in range(instances.size() - 1, -1, -1):
-		var instance: VltEffectInstance = instances[index]
-		if instance.expires and instance.remaining <= 0:
-			instances.remove_at(index)
 
 
 func _finish(state: VltBattleState, log: VltBattleLog) -> VltTurnOutcome:

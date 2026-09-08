@@ -6,6 +6,7 @@ extends GdUnitTestSuite
 const PARTY_SIZE: int = 2
 const SIDE_ZERO: int = 0
 const SIDE_ONE: int = 1
+const FIELD_EFFECT: String = "test_field"
 
 
 func _creature(species: String) -> VltBattleCreature:
@@ -69,6 +70,23 @@ func _play(state: VltBattleState) -> VltBattleLog:
 	log.append(VltLogSwitchOut.create(target, 0))
 	state.slot_at(target).occupy(1)
 	log.append(VltLogSwitchIn.create(target, 1, state.creature_at(target).species_id))
+
+	# An effect appearing and then counting down, so replay exercises both
+	# creating an instance and reassigning one that is already there.
+	var screen: VltEffectInstance = VltEffectInstance.create(
+		VltReflect.ID, attacker, VltReflect.DURATION
+	)
+	state.sides[SIDE_ONE].effects.append(screen)
+	log.append(VltLogEffectChanged.create(screen, VltEffectDefinition.Scope.SIDE, target))
+	screen.remaining -= 1
+	log.append(VltLogEffectChanged.create(screen, VltEffectDefinition.Scope.SIDE, target))
+
+	# And one going away, at field scope, which has no owning position.
+	var weather: VltEffectInstance = VltEffectInstance.create(FIELD_EFFECT, null, 1)
+	state.effects.append(weather)
+	log.append(VltLogEffectChanged.create(weather, VltEffectDefinition.Scope.FIELD, null))
+	state.effects.remove_at(0)
+	log.append(VltLogEffectChanged.removal(FIELD_EFFECT, VltEffectDefinition.Scope.FIELD, null))
 
 	state.awaiting_replacement = [VltSlotRef.at(SIDE_ONE, 0)]
 	log.append(VltLogPendingInput.create(state.awaiting_replacement))

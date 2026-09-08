@@ -8,7 +8,9 @@ extends RefCounted
 ## the roster needs it yet.
 ##
 ## The duration is backed by the oracle: battle/0006-screen runs six turns, so
-## the differential sees the damage jump back up when the screen lapses.
+## the differential sees the damage jump back up when the screen lapses. Counting
+## it down is the engine's job, not this effect's — it declares how long it lasts
+## and nothing more.
 
 const ID: String = "reflect"
 const DURATION: int = 5
@@ -31,17 +33,6 @@ class HalvePhysical:
 		modifiers.contribute(VltDamageStage.Stage.MODIFIER_PHASE_1, 1, 2)
 
 
-class CountDown:
-	extends VltTrigger
-
-	func _init() -> void:
-		super(VltTurnAnchor.Anchor.RESIDUAL)
-
-	func run(context: VltEffectContext) -> void:
-		if context.instance.remaining > 0:
-			context.instance.remaining -= 1
-
-
 static func define() -> VltEffectDefinition:
 	return (
 		VltEffectDefinition
@@ -53,5 +44,4 @@ static func define() -> VltEffectDefinition:
 			DURATION
 		)
 		. with_modifier(HalvePhysical.new())
-		. with_trigger(CountDown.new())
 	)

@@ -140,6 +140,42 @@ func test_residual_damage_replays() -> void:
 	)
 
 
+func test_a_screen_countdown_replays() -> void:
+	# The regression: counting a screen down used to mutate `remaining` with no
+	# event, so the replay produced a screen that had forgotten a turn passed.
+	# The burn test above could not see it — its trigger emits damage, so the
+	# state it changes travels in the log by accident of what it does.
+	var state: VltBattleState = _battle()
+	VltEffectDispatch.apply(state, _registry, VltReflect.ID, VltSlotRef.at(1, 0), null)
+
+	var outcome: VltTurnOutcome = _attack(state, 0)
+	assert_int(outcome.state.sides[1].effects[0].remaining).is_equal(VltReflect.DURATION - 1)
+
+	var replayed: VltBattleState = state.clone()
+	outcome.log.replay_onto(replayed)
+
+	assert_str(JSON.stringify(replayed.to_dict())).is_equal(
+		JSON.stringify(outcome.state.to_dict())
+	)
+
+
+func test_an_expiring_screen_replays() -> void:
+	# The other half: the removal must travel too, or the replay keeps a screen
+	# the battle has already dropped.
+	var state: VltBattleState = _battle()
+	VltEffectDispatch.apply(state, _registry, VltReflect.ID, VltSlotRef.at(1, 0), null)
+
+	for _turn: int in range(VltReflect.DURATION - 1):
+		state = _attack(state, 0).state
+
+	var outcome: VltTurnOutcome = _attack(state, 0)
+	assert_int(outcome.state.sides[1].effects.size()).is_equal(0)
+
+	var replayed: VltBattleState = state.clone()
+	outcome.log.replay_onto(replayed)
+	assert_int(replayed.sides[1].effects.size()).is_equal(0)
+
+
 func test_a_screen_protects_the_side_not_the_creature() -> void:
 	# Side scope earning its keep: the screen keeps working after a switch.
 	var state: VltBattleState = _battle()

@@ -9,7 +9,12 @@
 // pull request, for any change touching the effect system or the turn machine.
 //
 // Usage:
-//   node tools/mutation/mutate.mjs [--limit N] [--seed N] [--list]
+//   node tools/mutation/mutate.mjs [--limit N] [--seed N] [--list] [--file SUBSTRING]
+//
+// `--file` narrows to paths containing SUBSTRING, which is how a module gets
+// covered exhaustively rather than sampled. Raise --limit alongside it: a
+// sampled score for one file is noise, and the point of narrowing is to stop
+// sampling.
 
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
@@ -42,11 +47,12 @@ const OPERATORS = [
 ];
 
 function parseArgs(argv) {
-  const args = { limit: 40, seed: 1, list: false };
+  const args = { limit: 40, seed: 1, list: false, file: "" };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--limit") args.limit = Number(argv[++i]);
     else if (argv[i] === "--seed") args.seed = Number(argv[++i]);
     else if (argv[i] === "--list") args.list = true;
+    else if (argv[i] === "--file") args.file = argv[++i];
   }
   return args;
 }
@@ -139,8 +145,18 @@ function main() {
     }
   }
 
-  const selected = shuffled(all, args.seed).slice(0, args.limit);
-  console.log(`${all.length} mutation site(s) in the core; running ${selected.length}.`);
+  const scoped = args.file ? all.filter((mutant) => mutant.path.includes(args.file)) : all;
+  if (args.file && scoped.length === 0) {
+    console.error(`no mutation site matches "${args.file}".`);
+    process.exit(1);
+  }
+
+  const selected = shuffled(scoped, args.seed).slice(0, args.limit);
+  const scope = args.file ? `matching "${args.file}"` : "in the core";
+  console.log(`${scoped.length} mutation site(s) ${scope}; running ${selected.length}.`);
+  if (selected.length < scoped.length) {
+    console.log(`  (${scoped.length - selected.length} not run — raise --limit for an exhaustive pass.)`);
+  }
 
   if (args.list) {
     for (const mutant of selected) {

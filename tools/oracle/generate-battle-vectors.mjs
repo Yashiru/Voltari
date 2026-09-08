@@ -211,9 +211,37 @@ function describeCreature(pokemon, moveIds, prefix) {
   };
 }
 
+// A turn is declared once, in neutral terms, and both sides of the differential
+// are rendered from it. Writing the oracle's choice strings and Voltari's
+// commands separately meant maintaining the same turn twice, in two notations,
+// with nothing to catch them drifting apart.
+//
+// Showdown numbers a move's target by slot: a foe is `slot + 1`, an ally is
+// negative. Singles takes no target at all.
+function renderChoices(turn, slotsPerSide) {
+  const perSide = [[], []];
+
+  for (const command of turn) {
+    if (command.kind === "switch") {
+      perSide[command.side].push(`switch ${command.party + 1}`);
+      continue;
+    }
+    if (slotsPerSide === 1) {
+      perSide[command.side].push(`move ${command.index + 1}`);
+      continue;
+    }
+    const target = command.target.slot + 1;
+    const signed = command.target.side === command.side ? -target : target;
+    perSide[command.side].push(`move ${command.index + 1} ${signed}`);
+  }
+
+  return perSide.map((choices) => choices.join(", "));
+}
+
 function run(scenario) {
+  const slotsPerSide = scenario.slots_per_side ?? 1;
   const battle = new Battle({
-    formatid: "gen4customgame",
+    formatid: slotsPerSide === 2 ? "gen4doublescustomgame" : "gen4customgame",
     seed: [1, 2, 3, 4],
     p1: { name: "P1", team: Teams.pack(scenario.sides[0].map(set)) },
     p2: { name: "P2", team: Teams.pack(scenario.sides[1].map(set)) },
@@ -281,9 +309,9 @@ function run(scenario) {
   }
 
   const startIndex = battle.log.length;
-  for (const turn of scenario.script) {
+  for (const turn of scenario.turns) {
     if (battle.ended) break;
-    battle.makeChoices(...turn);
+    battle.makeChoices(...renderChoices(turn, slotsPerSide));
   }
 
   const projected = project(battle.log.slice(startIndex), movesByPokemon);
@@ -296,10 +324,11 @@ function run(scenario) {
 
   return {
     id: scenario.id,
+    slots_per_side: slotsPerSide,
     policy: scenario.policy,
     conditions,
     parties,
-    script: scenario.script_commands,
+    script: scenario.turns,
     expected: projected.events,
   };
 }
@@ -314,80 +343,107 @@ const POLICY = {
   speed_tie_winner: "earlier",
 };
 
+// A tie is only observable when the policy would REORDER it. Under "earlier"
+// nothing moves, so a tie vector run that way proves nothing.
+const LATER = { ...POLICY, speed_tie_winner: "later" };
+
+const strike = (side, slot, index, targetSide, targetSlot) => ({
+  side,
+  slot,
+  kind: "move",
+  index,
+  target: { side: targetSide, slot: targetSlot },
+});
+
+/// One turn of a singles battle: both leads attack each other.
+const trade = (left = 0, right = 0) => [strike(0, 0, left, 1, 0), strike(1, 0, right, 0, 0)];
+
+const swap = (side, party) => ({ side, slot: 0, kind: "switch", party });
+
+const TACKLER = (species) => ({ species, moves: ["Tackle"] });
+
 const SCENARIOS = [
   {
     id: "battle/0005-burn",
     policy: POLICY,
-    sides: [
-      [{ species: "Machamp", moves: ["Tackle"] }],
-      [{ species: "Blissey", moves: ["Tackle"] }],
-    ],
+    sides: [[TACKLER("Machamp")], [TACKLER("Blissey")]],
     conditions: [{ status: "brn" }, {}],
-    script: [["move 1", "move 1"], ["move 1", "move 1"]],
-    script_commands: [
-      [{ kind: "move", index: 0 }, { kind: "move", index: 0 }],
-      [{ kind: "move", index: 0 }, { kind: "move", index: 0 }],
-    ],
+    turns: [trade(), trade()],
   },
   {
     id: "battle/0006-screen",
     policy: POLICY,
-    sides: [
-      [{ species: "Machamp", moves: ["Tackle"] }],
-      [{ species: "Blissey", moves: ["Tackle"] }],
-    ],
+    sides: [[TACKLER("Machamp")], [TACKLER("Blissey")]],
     conditions: [{}, { side_conditions: ["reflect"] }],
     // Long enough for the screen to expire and damage to jump back up.
-    script: Array.from({ length: 6 }, () => ["move 1", "move 1"]),
-    script_commands: Array.from({ length: 6 }, () => [
-      { kind: "move", index: 0 },
-      { kind: "move", index: 0 },
-    ]),
+    turns: Array.from({ length: 6 }, () => trade()),
   },
   {
     id: "battle/0001-trade",
     policy: POLICY,
-    sides: [
-      [{ species: "Machamp", moves: ["Tackle"] }],
-      [{ species: "Blissey", moves: ["Tackle"] }],
-    ],
-    script: [["move 1", "move 1"], ["move 1", "move 1"]],
-    script_commands: [
-      [{ kind: "move", index: 0 }, { kind: "move", index: 0 }],
-      [{ kind: "move", index: 0 }, { kind: "move", index: 0 }],
-    ],
+    sides: [[TACKLER("Machamp")], [TACKLER("Blissey")]],
+    turns: [trade(), trade()],
   },
   {
     id: "battle/0002-priority",
     policy: POLICY,
     sides: [
       [{ species: "Slowpoke", moves: ["Quick Attack", "Tackle"] }],
-      [{ species: "Jolteon", moves: ["Tackle"] }],
+      [TACKLER("Jolteon")],
     ],
-    script: [["move 1", "move 1"]],
-    script_commands: [[{ kind: "move", index: 0 }, { kind: "move", index: 0 }]],
+    turns: [trade()],
   },
   {
     id: "battle/0003-effectiveness",
     policy: POLICY,
-    sides: [
-      [{ species: "Vaporeon", moves: ["Surf"] }],
-      [{ species: "Rhyperior", moves: ["Tackle"] }],
-    ],
-    script: [["move 1", "move 1"]],
-    script_commands: [[{ kind: "move", index: 0 }, { kind: "move", index: 0 }]],
+    sides: [[{ species: "Vaporeon", moves: ["Surf"] }], [TACKLER("Rhyperior")]],
+    turns: [trade()],
   },
   {
     id: "battle/0004-switch",
     policy: POLICY,
+    sides: [[TACKLER("Machamp"), TACKLER("Snorlax")], [TACKLER("Blissey")]],
+    turns: [[swap(0, 1), strike(1, 0, 0, 0, 0)], trade()],
+  },
+  {
+    id: "battle/0007-doubles-tie",
+    slots_per_side: 2,
+    policy: LATER,
+    // Four of one species, so all four speeds are equal and the whole turn is
+    // one tie. This is the case a pair cannot reach: the engine breaks ties by
+    // walking adjacent pairs, and reversing the tied run — the obvious reading —
+    // agrees on two and diverges on four.
     sides: [
-      [{ species: "Machamp", moves: ["Tackle"] }, { species: "Snorlax", moves: ["Tackle"] }],
-      [{ species: "Blissey", moves: ["Tackle"] }],
+      [TACKLER("Machamp"), TACKLER("Machamp")],
+      [TACKLER("Machamp"), TACKLER("Machamp")],
     ],
-    script: [["switch 2", "move 1"], ["move 1", "move 1"]],
-    script_commands: [
-      [{ kind: "switch", party: 1 }, { kind: "move", index: 0 }],
-      [{ kind: "move", index: 0 }, { kind: "move", index: 0 }],
+    turns: [
+      [
+        strike(0, 0, 0, 1, 0),
+        strike(0, 1, 0, 1, 1),
+        strike(1, 0, 0, 0, 0),
+        strike(1, 1, 0, 0, 1),
+      ],
+    ],
+  },
+  {
+    id: "battle/0008-doubles-allies",
+    slots_per_side: 2,
+    policy: LATER,
+    // Only the two allies tie; the opposing pair is fast and slow. So the tie
+    // sits in the middle of the order rather than spanning it, which is where a
+    // walk over the wrong range would show.
+    sides: [
+      [TACKLER("Machamp"), TACKLER("Machamp")],
+      [TACKLER("Jolteon"), TACKLER("Snorlax")],
+    ],
+    turns: [
+      [
+        strike(0, 0, 0, 1, 0),
+        strike(0, 1, 0, 1, 1),
+        strike(1, 0, 0, 0, 0),
+        strike(1, 1, 0, 0, 1),
+      ],
     ],
   },
 ];

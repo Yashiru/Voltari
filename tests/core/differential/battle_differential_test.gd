@@ -82,7 +82,8 @@ func _category(name: String) -> VltMoveDefinition.Category:
 ## Builds the battle and the move registry from the recorded numbers. The
 ## creature the oracle used is irrelevant: only its statistics crossed over.
 func _setup(vector: Dictionary) -> Array:
-	var state: VltBattleState = VltBattleState.create(1)
+	var slots_per_side: int = _num(vector["slots_per_side"])
+	var state: VltBattleState = VltBattleState.create(slots_per_side)
 	var registry: Dictionary[String, VltMoveDefinition] = {}
 	var parties: Array = _list(vector, "parties")
 
@@ -123,7 +124,9 @@ func _setup(vector: Dictionary) -> Array:
 
 			state.sides[side].party.append(creature)
 
-		state.sides[side].slots[0].occupy(0)
+		# The first N party members lead, which is how the oracle was set up too.
+		for slot: int in range(slots_per_side):
+			state.sides[side].slots[slot].occupy(slot)
 
 	# Conditions the oracle set up before its script ran. The generator recorded
 	# them in Voltari vocabulary; the mapping stayed on the tooling side.
@@ -161,17 +164,29 @@ func _decider(policy: Dictionary) -> VltScriptedDecider:
 	return decider
 
 
-func _commands_for(turn: Array, state: VltBattleState) -> Array[VltCommand]:
+## Each command names its own position and target. Positional entries could not
+## express a four-command turn, and reading the actor from an array index made
+## the fixture depend on an ordering nothing declared.
+func _commands_for(turn: Array) -> Array[VltCommand]:
 	var commands: Array[VltCommand] = []
-	for side: int in range(turn.size()):
-		var entry: Dictionary = _dict(turn[side])
-		var actor: VltSlotRef = VltSlotRef.at(side, 0)
-		if _text(entry["kind"]) == "switch":
-			commands.append(VltCommand.switch_to(actor, _num(entry["party"])))
-		else:
-			commands.append(
-				VltCommand.use_move(actor, _num(entry["index"]), VltSlotRef.at(1 - side, 0))
+
+	for entry: Variant in turn:
+		var command: Dictionary = _dict(entry)
+		var actor: VltSlotRef = VltSlotRef.at(_num(command["side"]), _num(command["slot"]))
+
+		if _text(command["kind"]) == "switch":
+			commands.append(VltCommand.switch_to(actor, _num(command["party"])))
+			continue
+
+		var target: Dictionary = _dict(command["target"])
+		commands.append(
+			VltCommand.use_move(
+				actor,
+				_num(command["index"]),
+				VltSlotRef.at(_num(target["side"]), _num(target["slot"]))
 			)
+		)
+
 	return commands
 
 
@@ -258,7 +273,7 @@ func test_every_scripted_battle_matches_the_oracle() -> void:
 
 		for turn_entry: Variant in _list(vector, "script"):
 			var outcome: VltTurnOutcome = engine.resolve(
-				state, _commands_for(_array(turn_entry), state), decider
+				state, _commands_for(_array(turn_entry)), decider
 			)
 			if outcome.status == VltTurnOutcome.Status.REJECTED:
 				break

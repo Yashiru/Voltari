@@ -105,9 +105,18 @@ rather than a habit:
 
 ### Target
 
-A **ratchet**, measured rather than chosen: the recorded baseline is **71%** over
-100 mutants, and it may not go down. See decision 0021 for the measurement and
-for why survivors fall into two categories that are treated differently.
+A **ratchet**, measured rather than chosen: the recorded baseline is **80%** over
+100 mutants, and it may not go down. See decision 0021 for why the target is a
+measurement rather than a number, and for the two categories survivors fall into.
+
+This line is the ratchet itself, so it moves only upward and only with a run
+behind it. It read 71% when 0021 was written; closing the ordering gap in
+`effect_dispatch.gd` — 53% to 81% on an exhaustive pass over that file — carried
+the core figure to 80%.
+
+Narrow a pass to one module with `--file`, and raise `--limit` to cover it
+exhaustively. A sampled score for a single file is noise: this one read 12
+survivors when sampled across the core and 23 when the file was run in full.
 
 ## 5. Speed budget
 

@@ -41,7 +41,3 @@ func numerator_for(stage: VltDamageStage.Stage) -> int:
 
 func denominator_for(stage: VltDamageStage.Stage) -> int:
 	return _denominators[stage]
-
-
-func is_neutral(stage: VltDamageStage.Stage) -> bool:
-	return _numerators[stage] == _denominators[stage]

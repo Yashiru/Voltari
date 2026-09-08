@@ -126,19 +126,44 @@ func test_a_burn_contributes_nothing_outside_an_action() -> void:
 	var no_move: VltDamageModifiers = VltEffectDispatch.collect_modifiers(
 		state, _registry, at, VltSlotRef.at(1, 0), null
 	)
-	_assert_neutral(no_move, "an actor with no move")
+	_assert_neutral(no_move, VltDamageStage.Stage.BURN, "an actor with no move")
 
 	var no_actor: VltDamageModifiers = VltEffectDispatch.collect_modifiers(
 		state, _registry, null, VltSlotRef.at(1, 0), _moves[PHYSICAL]
 	)
-	_assert_neutral(no_actor, "a move with no actor")
+	_assert_neutral(no_actor, VltDamageStage.Stage.BURN, "a move with no actor")
 
 
-func _assert_neutral(modifiers: VltDamageModifiers, what: String) -> void:
+func test_a_screen_contributes_nothing_outside_an_action() -> void:
+	# The same guard as the burn, on the other effect and the other stage. It
+	# reads three things from the context and each has to be checked on its own.
+	var state: VltBattleState = _battle()
+	var target: VltSlotRef = VltSlotRef.at(1, 0)
+	var actor: VltSlotRef = VltSlotRef.at(0, 0)
+	VltEffectDispatch.apply(state, _registry, VltReflect.ID, target, null)
+
+	var no_move: VltDamageModifiers = VltEffectDispatch.collect_modifiers(
+		state, _registry, actor, target, null
+	)
+	_assert_neutral(
+		no_move, VltDamageStage.Stage.MODIFIER_PHASE_1, "a target with no move"
+	)
+
+	var no_target: VltDamageModifiers = VltEffectDispatch.collect_modifiers(
+		state, _registry, actor, null, _moves[PHYSICAL]
+	)
+	_assert_neutral(
+		no_target, VltDamageStage.Stage.MODIFIER_PHASE_1, "a move with no target"
+	)
+
+
+func _assert_neutral(
+	modifiers: VltDamageModifiers, stage: VltDamageStage.Stage, what: String
+) -> void:
 	assert_int(
-		modifiers.numerator_for(VltDamageStage.Stage.BURN)
+		modifiers.numerator_for(stage)
 	).override_failure_message("%s must contribute nothing" % what).is_equal(1)
-	assert_int(modifiers.denominator_for(VltDamageStage.Stage.BURN)).is_equal(1)
+	assert_int(modifiers.denominator_for(stage)).is_equal(1)
 
 
 func test_a_burn_does_not_touch_a_creature_that_already_fainted() -> void:

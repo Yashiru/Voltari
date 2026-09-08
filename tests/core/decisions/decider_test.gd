@@ -169,6 +169,43 @@ func test_scripted_speed_ties_are_declared_not_drawn() -> void:
 	assert_bool(decider.speed_tie(earlier, ally).equals(earlier)).is_true()
 
 
+func test_a_seeded_speed_tie_comes_from_the_sequence() -> void:
+	# Pinned at fixed seeds because the sequence IS the contract: every fuzz
+	# case and every seeded replay is reproduced from it, so a change here is a
+	# change to all of them and should have to be written down.
+	var first: VltSlotRef = VltSlotRef.at(0, 0)
+	var second: VltSlotRef = VltSlotRef.at(1, 0)
+
+	assert_bool(VltSeededDecider.new(1).speed_tie(first, second).equals(second)).is_true()
+	assert_bool(VltSeededDecider.new(2).speed_tie(first, second).equals(first)).is_true()
+
+
+func test_consecutive_seeds_are_not_correlated() -> void:
+	# xorshift32's first output is a simple function of its seed, so seeding it
+	# raw made the first speed tie alternate with the seed's low bit — seed after
+	# seed, 010101… The fuzzer walks seeds 1, 2, 3…, so half of its ties were
+	# settled by the case number instead of explored.
+	#
+	# The seed is scattered before it becomes generator state. This is the test
+	# that says so, and it fails if that step is ever dropped.
+	var first: VltSlotRef = VltSlotRef.at(0, 0)
+	var second: VltSlotRef = VltSlotRef.at(1, 0)
+
+	var winners: Array[bool] = []
+	for seed_value: int in range(1, 33):
+		winners.append(VltSeededDecider.new(seed_value).speed_tie(first, second).equals(first))
+
+	var repeats: int = 0
+	for index: int in range(1, winners.size()):
+		if winners[index] == winners[index - 1]:
+			repeats += 1
+
+	# Strict alternation gives exactly zero. Independent draws give around half.
+	assert_int(repeats).override_failure_message(
+		"consecutive seeds alternate, so the seed is reaching the state unmixed"
+	).is_greater(5)
+
+
 func test_both_implementations_answer_the_same_questions() -> void:
 	# Substitutability is what makes the differential possible at all.
 	var seeded: VltDecider = _seeded()

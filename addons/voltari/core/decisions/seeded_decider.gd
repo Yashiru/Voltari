@@ -17,14 +17,35 @@ extends VltDecider
 const DAMAGE_ROLL_COUNT: int = 16
 const MASK_32: int = 0xFFFFFFFF
 
+## splitmix32's finalising constants. Used to scatter the seed, never to
+## generate: one round of avalanche, then xorshift does the work.
+const MIX_A: int = 0x85EBCA6B
+const MIX_B: int = 0xC2B2AE35
+
 var _state: int = 0
 
 
 func _init(seed_value: int) -> void:
+	_state = _scatter(seed_value & MASK_32)
 	# Zero is a fixed point of xorshift, so it would emit nothing but zero.
-	_state = seed_value & MASK_32
 	if _state == 0:
 		_state = 0x9E3779B9
+
+
+## Spreads a seed across all 32 bits before it becomes generator state.
+##
+## Without this, xorshift32's first output is a simple function of its seed, so
+## consecutive seeds give correlated first draws — measurably so: the first speed
+## tie alternated with the seed's low bit, seed after seed. The fuzzer walks
+## seeds 1, 2, 3…, so half its ties were decided by the case number rather than
+## explored. Seeding is where that is fixed; the generator itself is fine.
+static func _scatter(value: int) -> int:
+	var mixed: int = value
+	mixed = (mixed ^ (mixed >> 16)) & MASK_32
+	mixed = (mixed * MIX_A) & MASK_32
+	mixed = (mixed ^ (mixed >> 13)) & MASK_32
+	mixed = (mixed * MIX_B) & MASK_32
+	return (mixed ^ (mixed >> 16)) & MASK_32
 
 
 ## State stays inside [0, 2^32), which keeps `>>` logical: GDScript integers are

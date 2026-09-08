@@ -191,6 +191,32 @@ func test_a_speed_tie_is_decided_not_drawn() -> void:
 	assert_int(_first_move_used(outcome.log).actor.side).is_equal(1)
 
 
+func test_a_command_survives_serialisation() -> void:
+	# Commands cross the wire in the request/response cycle the suspended turn
+	# was designed around (decision 0012), so they round-trip like the state
+	# does. Nothing exercised that until an exhaustive mutation pass said so.
+	var attack: VltCommand = VltCommand.use_move(
+		VltSlotRef.at(0, 1), 2, VltSlotRef.at(1, 0)
+	)
+	var restored: VltCommand = VltCommand.from_dict(attack.to_dict())
+
+	assert_int(restored.kind).is_equal(attack.kind)
+	assert_bool(restored.actor.equals(attack.actor)).is_true()
+	assert_int(restored.move_index).is_equal(2)
+	assert_bool(restored.target.equals(attack.target)).override_failure_message(
+		"the target must survive the round trip"
+	).is_true()
+
+	# A switch names no target, and the absence has to survive too — an empty
+	# reference and a missing one are not the same thing.
+	var switch: VltCommand = VltCommand.switch_to(VltSlotRef.at(1, 0), 1)
+	var switched: VltCommand = VltCommand.from_dict(switch.to_dict())
+
+	assert_object(switched.target).is_null()
+	assert_int(switched.party_index).is_equal(1)
+	assert_bool(switched.actor.equals(switch.actor)).is_true()
+
+
 func test_a_settled_race_is_never_put_to_the_decider() -> void:
 	# A tie needs priority AND speed to match. Asking about a pair that differs
 	# on one of them would reorder a race that was already decided — and would

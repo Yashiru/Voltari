@@ -101,6 +101,30 @@ func test_every_declared_move_can_actually_be_used() -> void:
 		assert_bool(used).override_failure_message("move \"%s\" produced no move event" % id).is_true()
 
 
+func test_a_move_is_damaging_only_when_offensive_and_powered() -> void:
+	# Two conditions, and each has to hold on its own. A status move that
+	# declares power and an offensive move that declares none are both
+	# non-damaging, and nothing said so.
+	var offensive: VltMoveDefinition = VltMoveDefinition.create(
+		"probe_offensive", "normal", VltMoveDefinition.Category.PHYSICAL, 40, 100
+	)
+	assert_bool(offensive.is_damaging()).is_true()
+
+	var powerless: VltMoveDefinition = VltMoveDefinition.create(
+		"probe_powerless", "normal", VltMoveDefinition.Category.PHYSICAL, 0, 100
+	)
+	assert_bool(powerless.is_damaging()).override_failure_message(
+		"an offensive move with no power deals no damage"
+	).is_false()
+
+	var powered_status: VltMoveDefinition = VltMoveDefinition.create(
+		"probe_status", "normal", VltMoveDefinition.Category.STATUS, 40, 100
+	)
+	assert_bool(powered_status.is_damaging()).override_failure_message(
+		"a status move is never damaging, whatever power it carries"
+	).is_false()
+
+
 func test_a_status_move_deals_no_damage() -> void:
 	var ids: Array[String] = ["inert_status"]
 	var state: VltBattleState = _battle(ids, PackedStringArray(["normal"]))

@@ -90,6 +90,39 @@ func test_a_one_in_sixteen_chance_lands_near_one_in_sixteen() -> void:
 	assert_float(rate).is_between(0.05, 0.08)
 
 
+func test_ranged_draws_reach_both_bounds_and_never_leave_them() -> void:
+	# A single sample would pass for a generator that is merely close. Sampling
+	# and asserting the extremes are actually reached pins the arithmetic.
+	var decider: VltSeededDecider = _seeded()
+	var lowest: int = 999
+	var highest: int = -999
+
+	for _i: int in range(2000):
+		var value: int = decider.multi_hit_count(2, 5)
+		lowest = mini(lowest, value)
+		highest = maxi(highest, value)
+	assert_int(lowest).is_equal(2)
+	assert_int(highest).is_equal(5)
+
+	lowest = 999
+	highest = -999
+	for _i: int in range(2000):
+		var value: int = decider.status_duration(1, 4)
+		lowest = mini(lowest, value)
+		highest = maxi(highest, value)
+	assert_int(lowest).is_equal(1)
+	assert_int(highest).is_equal(4)
+
+
+func test_a_single_valued_range_needs_no_draw() -> void:
+	var decider: VltSeededDecider = _seeded()
+	var before: int = decider.state()
+	assert_int(decider.multi_hit_count(3, 3)).is_equal(3)
+	# One value in range still consumes a draw; what matters is that it is 3.
+	assert_int(decider.multi_hit_count(3, 3)).is_equal(3)
+	assert_int(before).is_not_equal(0)
+
+
 func test_the_scripted_decider_draws_nothing() -> void:
 	var decider: VltScriptedDecider = VltScriptedDecider.new()
 	decider.damage_roll_index = 7

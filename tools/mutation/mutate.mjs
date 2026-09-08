@@ -1,0 +1,203 @@
+#!/usr/bin/env node
+// Mutation harness for the simulation core (decision 0014).
+//
+// Injects a defect, runs the suite, and records whether the suite noticed. A
+// surviving mutant is a hole in the tests, not a bug in the code — which is why
+// this is the metric that replaced line coverage as the objective (0005).
+//
+// On demand, never in CI. Expected to be run, and its score recorded in the
+// pull request, for any change touching the effect system or the turn machine.
+//
+// Usage:
+//   node tools/mutation/mutate.mjs [--limit N] [--seed N] [--list]
+
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { dirname, join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
+import { tmpdir } from "node:os";
+import { readdirSync, statSync } from "node:fs";
+import { stripCommentsAndStrings, collectScripts } from "../lib/gdscript.mjs";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const REPO = join(HERE, "..", "..");
+const CORE_DIRS = ["addons/voltari/core", "addons/voltari/loaders"];
+
+// Each operator rewrites one token into another that is still valid GDScript
+// but means something different. Anything the tests do not distinguish is a gap
+// they should have closed.
+const OPERATORS = [
+  { name: "comparison", from: /(?<![<>=!+\-*/])<(?![<=])/g, to: "<=" },
+  { name: "comparison", from: /(?<![<>=!+\-*/])>(?![>=])/g, to: ">=" },
+  { name: "equality", from: /==/g, to: "!=" },
+  { name: "equality", from: /!=/g, to: "==" },
+  { name: "arithmetic", from: /(?<![+\-*/=<>!])\+(?![+=])/g, to: "-" },
+  { name: "arithmetic", from: /(?<![+\-*/=<>!])-(?![-=>])/g, to: "+" },
+  { name: "arithmetic", from: /(?<![*/])\*(?![*=])/g, to: "/" },
+  { name: "boolean", from: /\band\b/g, to: "or" },
+  { name: "boolean", from: /\bor\b/g, to: "and" },
+  { name: "boolean", from: /\bnot\b/g, to: "" },
+  { name: "literal", from: /\btrue\b/g, to: "false" },
+  { name: "literal", from: /\bfalse\b/g, to: "true" },
+];
+
+function parseArgs(argv) {
+  const args = { limit: 40, seed: 1, list: false };
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === "--limit") args.limit = Number(argv[++i]);
+    else if (argv[i] === "--seed") args.seed = Number(argv[++i]);
+    else if (argv[i] === "--list") args.list = true;
+  }
+  return args;
+}
+
+// Deterministic ordering, so a run is reproducible and two runs on the same
+// code compare like for like.
+function shuffled(items, seed) {
+  let state = seed >>> 0 || 1;
+  const next = () => {
+    state ^= (state << 13) >>> 0;
+    state ^= state >>> 17;
+    state ^= (state << 5) >>> 0;
+    return state >>> 0;
+  };
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = next() % (i + 1);
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
+// Mutation sites are found on code with comments and strings blanked out, then
+// applied to the original text at the same offsets — so a `+` inside a comment
+// is never a candidate, and the file stays byte-identical elsewhere.
+function mutantsFor(path, source) {
+  const code = stripCommentsAndStrings(source);
+  const found = [];
+
+  for (const operator of OPERATORS) {
+    for (const match of code.matchAll(operator.from)) {
+      const line = source.slice(0, match.index).split("\n").length;
+      found.push({
+        path,
+        line,
+        operator: operator.name,
+        offset: match.index,
+        length: match[0].length,
+        replacement: operator.to,
+        was: match[0],
+      });
+    }
+  }
+
+  return found;
+}
+
+function applyMutant(source, mutant) {
+  return (
+    source.slice(0, mutant.offset) +
+    mutant.replacement +
+    source.slice(mutant.offset + mutant.length)
+  );
+}
+
+function runSuite(root, godot) {
+  try {
+    execFileSync("./addons/gdUnit4/runtest.sh", [
+      "--headless", "--ignoreHeadlessMode", "--continue", "-a", "tests",
+    ], {
+      cwd: root,
+      env: { ...process.env, GODOT_BIN: godot },
+      stdio: "ignore",
+      timeout: 15 * 60 * 1000,
+    });
+    return true; // suite passed: the mutant survived
+  } catch {
+    return false; // suite failed or refused to build: the mutant was caught
+  }
+}
+
+function main() {
+  const args = parseArgs(process.argv.slice(2));
+
+  const godot = (() => {
+    try {
+      return execFileSync("which", ["godot"], { encoding: "utf8" }).trim();
+    } catch {
+      console.error("godot is not on the PATH; the harness needs it to run the suite.");
+      process.exit(1);
+    }
+  })();
+
+  const all = [];
+  for (const dir of CORE_DIRS) {
+    const absolute = join(REPO, dir);
+    if (!existsSync(absolute)) continue;
+    for (const path of collectScripts(absolute, readdirSync, statSync, join)) {
+      all.push(...mutantsFor(path, readFileSync(path, "utf8")));
+    }
+  }
+
+  const selected = shuffled(all, args.seed).slice(0, args.limit);
+  console.log(`${all.length} mutation site(s) in the core; running ${selected.length}.`);
+
+  if (args.list) {
+    for (const mutant of selected) {
+      console.log(`  ${relative(REPO, mutant.path)}:${mutant.line}  ${mutant.was} -> ${mutant.replacement || "(removed)"}`);
+    }
+    return;
+  }
+
+  // A copy, so a crash mid-run cannot leave the real tree mutated.
+  const sandbox = mkdtempSync(join(tmpdir(), "voltari-mutation-"));
+  const root = join(sandbox, "repo");
+  cpSync(REPO, root, {
+    recursive: true,
+    filter: (source) => !source.includes("/.git") && !source.includes("node_modules"),
+  });
+
+  // The baseline must be green, or every mutant would read as caught.
+  if (!runSuite(root, godot)) {
+    console.error("The suite fails before any mutation. Fix that first.");
+    rmSync(sandbox, { recursive: true, force: true });
+    process.exit(1);
+  }
+
+  const survivors = [];
+  let caught = 0;
+
+  for (const [index, mutant] of selected.entries()) {
+    const target = join(root, relative(REPO, mutant.path));
+    const original = readFileSync(target, "utf8");
+    writeFileSync(target, applyMutant(original, mutant));
+
+    const survived = runSuite(root, godot);
+    writeFileSync(target, original);
+
+    if (survived) survivors.push(mutant);
+    else caught++;
+
+    const label = survived ? "SURVIVED" : "caught";
+    process.stdout.write(
+      `  [${index + 1}/${selected.length}] ${label.padEnd(8)} ` +
+        `${relative(REPO, mutant.path)}:${mutant.line} ${mutant.was} -> ${mutant.replacement || "(removed)"}\n`,
+    );
+  }
+
+  rmSync(sandbox, { recursive: true, force: true });
+
+  const score = selected.length > 0 ? (caught / selected.length) * 100 : 0;
+  console.log(`\nmutation score: ${score.toFixed(1)}%  (${caught} caught, ${survivors.length} survived)`);
+
+  if (survivors.length > 0) {
+    console.log("\nSurvivors — each is a test the suite does not have:");
+    for (const mutant of survivors) {
+      console.log(
+        `  ${relative(REPO, mutant.path)}:${mutant.line}  ${mutant.was} -> ${mutant.replacement || "(removed)"}`,
+      );
+    }
+  }
+}
+
+main();

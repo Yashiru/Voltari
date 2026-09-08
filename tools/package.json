@@ -10,7 +10,8 @@
     "oracle:types": "node oracle/generate-type-chart.mjs",
     "content:build": "node content/build-content.mjs",
     "content:chart": "node content/render-type-chart.mjs",
-    "oracle:stats": "node oracle/generate-stat-vectors.mjs"
+    "oracle:stats": "node oracle/generate-stat-vectors.mjs",
+    "mutation": "node mutation/mutate.mjs"
   },
   "dependencies": {
     "@pkmn/sim": "0.10.11"

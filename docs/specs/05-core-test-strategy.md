@@ -123,6 +123,8 @@ memory, and never touches the scene tree.
 - **gdUnit4** for the runner and assertions (decision 0006).
 - **In-house** property-based generators, shrinker and mutation harness. No mature
   GDScript library exists for any of the three; the cost is accepted.
+  Fuzzing lives in `tests/fuzz/`, its harness in `tests/support/`, and the
+  mutation harness in `tools/mutation/`.
 - **Nano Coverage** for the line-coverage floor only.
 
 The suite stays hermetic: running it requires neither network nor npm. Oracle

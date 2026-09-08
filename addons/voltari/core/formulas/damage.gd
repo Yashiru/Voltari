@@ -9,12 +9,18 @@ extends RefCounted
 ##
 ## Verified against tests/fixtures/oracle/procedure/damage/stages.json.
 
-## Fixed stage ratios, as the oracle applies them.
-const BURN: Array[int] = [1, 2]
-const SCREEN: Array[int] = [1, 2]
-const SPREAD: Array[int] = [3, 4]
+## Ratios the pipeline owns rather than receives: a critical is a decision, and
+## STAB is intrinsic to the attacker. Everything else is contributed by effects.
 const CRITICAL: Array[int] = [2, 1]
 const STAB: Array[int] = [3, 2]
+
+## Stages that take a contributed ratio, in pipeline order.
+const CONTRIBUTED_STAGES: Array[int] = [
+	VltDamageStage.Stage.BURN,
+	VltDamageStage.Stage.MODIFIER_PHASE_1,
+	VltDamageStage.Stage.SPREAD,
+	VltDamageStage.Stage.WEATHER,
+]
 
 ## The oracle's modifier arithmetic: a 4096-denominator fixed-point step with
 ## round-half-down, applied uniformly across generations. Real Gen 4 hardware
@@ -37,16 +43,15 @@ static func base_damage(level: int, base_power: int, attack: int, defense: int) 
 static func compute(input: VltDamageInput) -> int:
 	var damage: int = base_damage(input.level, input.base_power, input.attack, input.defense)
 
-	if input.is_burned:
-		damage = modify(damage, BURN[0], BURN[1])
-
-	if input.has_screen:
-		damage = modify(damage, SCREEN[0], SCREEN[1])
-
-	if input.is_spread:
-		damage = modify(damage, SPREAD[0], SPREAD[1])
-
-	damage = modify(damage, input.weather_numerator, input.weather_denominator)
+	# Contributed stages, in the order the oracle applies them. A stage nobody
+	# contributed to is 1/1 and still runs, because `modify` is not the identity
+	# on every value and skipping it would change the rounding.
+	for stage: int in CONTRIBUTED_STAGES:
+		damage = modify(
+			damage,
+			input.modifiers.numerator_for(stage as VltDamageStage.Stage),
+			input.modifiers.denominator_for(stage as VltDamageStage.Stage),
+		)
 
 	# Sits here, not in the base damage. See tools/oracle/gen4-damage-stages.md.
 	damage += 2

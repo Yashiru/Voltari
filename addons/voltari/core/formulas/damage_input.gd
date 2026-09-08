@@ -17,17 +17,14 @@ var base_power: int = 0
 var attack: int = 0
 var defense: int = 1
 
-## Stage switches. Their ratios are fixed by the oracle and live in VltDamage.
-var is_burned: bool = false
-var has_screen: bool = false
-var is_spread: bool = false
+## What each stage contributes. Effects fill this; the formula never learns what
+## a burn or a screen is (spec 06).
+var modifiers: VltDamageModifiers = VltDamageModifiers.new()
+
+## Decided rather than contributed: one is answered by the decision interface,
+## the other is intrinsic to the attacker.
 var is_critical: bool = false
 var has_stab: bool = false
-
-## Weather varies with the move and the condition, so it arrives as a ratio.
-## 1/1 means no weather modifier applies.
-var weather_numerator: int = 1
-var weather_denominator: int = 1
 
 ## The forced damage roll, 85 to 100 inclusive (spec 03: a decision, not a draw).
 var damage_roll: int = 100

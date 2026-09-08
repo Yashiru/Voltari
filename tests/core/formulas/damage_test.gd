@@ -44,13 +44,20 @@ func _decode(entry: Variant, roll: int) -> VltDamageInput:
 	input.base_power = int(move["power"] as float)
 	input.attack = int((attacker["attack"] if is_physical else attacker["special_attack"]) as float)
 	input.defense = int((defender["defense"] if is_physical else defender["special_defense"]) as float)
-	input.is_burned = is_physical and str(attacker["status"]) == "brn"
-	input.has_screen = not (context["screens"] as Array).is_empty()
-	input.is_spread = context["spread"] as bool
 	input.is_critical = context["critical"] as bool
 	input.has_stab = context["stab"] as bool
-	input.weather_numerator = int(weather[0] as float)
-	input.weather_denominator = int(weather[1] as float)
+
+	# The vector describes conditions; effects will contribute these ratios once
+	# they exist. Until then the test plays the part of the effect system.
+	if is_physical and str(attacker["status"]) == "brn":
+		input.modifiers.contribute(VltDamageStage.Stage.BURN, 1, 2)
+	if not (context["screens"] as Array).is_empty():
+		input.modifiers.contribute(VltDamageStage.Stage.MODIFIER_PHASE_1, 1, 2)
+	if context["spread"] as bool:
+		input.modifiers.contribute(VltDamageStage.Stage.SPREAD, 3, 4)
+	input.modifiers.contribute(
+		VltDamageStage.Stage.WEATHER, int(weather[0] as float), int(weather[1] as float)
+	)
 	input.damage_roll = roll
 	input.type_effectiveness_exponent = int(context["type_effectiveness_exponent"] as float)
 	return input

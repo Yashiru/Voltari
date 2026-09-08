@@ -19,10 +19,20 @@ An effect owns a list of components. Every component is one of exactly three
 types, mirroring the three mechanisms that were decided separately:
 
 ```
-VltModifier   anchor, priority,  apply(ctx, value: int) -> int
+VltModifier   stage,  priority,  contribute(ctx, modifiers) -> void
 VltVeto       anchor, priority,  blocks(ctx) -> bool
 VltTrigger    anchor, priority,  run(ctx) -> void
 ```
+
+A modifier **contributes a ratio** rather than returning a value. Several
+modifiers on one stage therefore compose *before* the stage runs; applying them
+one after another would round at each application and change the result, and
+per-step rounding is the specification (spec 08).
+
+Modifiers attach to **formula stages**, vetoes and triggers to **turn anchors**.
+That split is not a compromise: a turn phase has no value to modify, and a
+formula stage is not a moment at which something can be blocked. It also avoids
+one enumeration having to span both spaces.
 
 Three types is the whole vocabulary. A component that needs a fourth kind of
 behaviour is a signal that the anchor set is wrong, not that the vocabulary
@@ -175,7 +185,9 @@ sufficient.
 
 ## Open points
 
-- The anchor enumeration closes with spec 08, once the formula stages are fixed.
+- Modifier spaces beyond damage — speed, accuracy — get their own stage
+  enumerations when those formulas are staged. Only the damage pipeline is
+  staged today.
 - The event queue's depth limit needs a number, chosen once real cascades exist.
 - Whether component instances may be shared between definitions, or must be
   constructed per definition, is decided when the first shared component appears.

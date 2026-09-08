@@ -1,0 +1,253 @@
+extends GdUnitTestSuite
+
+## The effect system: scopes, stacking, ordering, and two effects proving the
+## mechanism carries real behaviour.
+
+const CHART_PAYLOAD: String = "res://content/generated/type-chart.json"
+const PHYSICAL: String = "phys"
+const SPECIAL: String = "spec"
+
+var _chart: VltTypeChart
+var _registry: VltEffectRegistry
+var _moves: Dictionary[String, VltMoveDefinition]
+
+
+func before() -> void:
+	_chart = VltTypeChartLoader.from_payload(_read_json(CHART_PAYLOAD))
+	_registry = VltEffectRegistry.new()
+	_registry.register(VltBurn.define())
+	_registry.register(VltReflect.define())
+	_moves = {
+		PHYSICAL: VltMoveDefinition.create(
+			PHYSICAL, "normal", VltMoveDefinition.Category.PHYSICAL, 40,
+			VltMoveDefinition.ALWAYS_HITS
+		),
+		SPECIAL: VltMoveDefinition.create(
+			SPECIAL, "normal", VltMoveDefinition.Category.SPECIAL, 40,
+			VltMoveDefinition.ALWAYS_HITS
+		),
+	}
+
+
+@warning_ignore_start("unsafe_cast")
+func _read_json(path: String) -> Dictionary:
+	var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+	assert_object(file).is_not_null()
+	var text: String = file.get_as_text()
+	file.close()
+	return JSON.parse_string(text) as Dictionary
+@warning_ignore_restore("unsafe_cast")
+
+
+func _creature() -> VltBattleCreature:
+	var input: VltStatInput = VltStatInput.new()
+	input.base = PackedInt32Array([150, 100, 100, 100, 100, 100])
+	input.ivs = PackedInt32Array([31, 31, 31, 31, 31, 31])
+	input.evs = PackedInt32Array([0, 0, 0, 0, 0, 0])
+	input.level = 50
+
+	var creature: VltBattleCreature = VltBattleCreature.create(
+		input, "anonymous", PackedStringArray(["water"])
+	)
+	creature.moves.append(VltMoveSlot.create(PHYSICAL, 20))
+	creature.moves.append(VltMoveSlot.create(SPECIAL, 20))
+	return creature
+
+
+func _battle() -> VltBattleState:
+	var state: VltBattleState = VltBattleState.create(1)
+	for side: int in range(VltBattleState.SIDE_COUNT):
+		state.sides[side].party.append(_creature())
+		state.sides[side].party.append(_creature())
+		state.sides[side].slots[0].occupy(0)
+	return state
+
+
+func _engine() -> VltTurnEngine:
+	return VltTurnEngine.new(_moves, _chart, _registry)
+
+
+func _scripted() -> VltScriptedDecider:
+	var decider: VltScriptedDecider = VltScriptedDecider.new()
+	decider.damage_roll_index = 15
+	decider.accuracy = VltScriptedDecider.Answer.ALWAYS
+	decider.critical = VltScriptedDecider.Answer.NEVER
+	return decider
+
+
+func _attack(state: VltBattleState, move_index: int) -> VltTurnOutcome:
+	var command: VltCommand = VltCommand.use_move(
+		VltSlotRef.at(0, 0), move_index, VltSlotRef.at(1, 0)
+	)
+	return _engine().resolve(state, [command], _scripted())
+
+
+func _damage_dealt(outcome: VltTurnOutcome, at: VltSlotRef) -> int:
+	for event: VltLogEvent in outcome.log.events:
+		if event.kind() != VltLogDamage.KIND:
+			continue
+		var hit: VltLogDamage = event as VltLogDamage
+		if hit.target.equals(at):
+			return hit.amount
+	return 0
+
+
+# --- the effects themselves -------------------------------------------------
+
+
+func test_a_burn_halves_physical_damage_but_not_special() -> void:
+	var target: VltSlotRef = VltSlotRef.at(1, 0)
+
+	var clean: int = _damage_dealt(_attack(_battle(), 0), target)
+
+	var burned: VltBattleState = _battle()
+	VltEffectDispatch.apply(burned, _registry, VltBurn.ID, VltSlotRef.at(0, 0), null)
+	var reduced: int = _damage_dealt(_attack(burned, 0), target)
+
+	assert_int(reduced).is_less(clean)
+	assert_int(reduced).is_between(clean / 2 - 1, clean / 2 + 1)
+
+	# The same burn must leave a special move untouched.
+	var special_clean: int = _damage_dealt(_attack(_battle(), 1), target)
+	var special_burned: VltBattleState = _battle()
+	VltEffectDispatch.apply(special_burned, _registry, VltBurn.ID, VltSlotRef.at(0, 0), null)
+	assert_int(_damage_dealt(_attack(special_burned, 1), target)).is_equal(special_clean)
+
+
+func test_a_burn_costs_hp_at_the_end_of_the_turn() -> void:
+	var state: VltBattleState = _battle()
+	VltEffectDispatch.apply(state, _registry, VltBurn.ID, VltSlotRef.at(0, 0), null)
+
+	var outcome: VltTurnOutcome = _attack(state, 0)
+	var burned: VltBattleCreature = outcome.state.creature_at(VltSlotRef.at(0, 0))
+
+	assert_int(burned.current_hp).is_less(burned.max_hp())
+	assert_int(_damage_dealt(outcome, VltSlotRef.at(0, 0))).is_greater(0)
+
+
+func test_residual_damage_replays() -> void:
+	# Invariant 8 against an effect: a trigger that mutates without emitting
+	# would break the replay, which is exactly how such a bug gets caught.
+	var state: VltBattleState = _battle()
+	VltEffectDispatch.apply(state, _registry, VltBurn.ID, VltSlotRef.at(0, 0), null)
+
+	var outcome: VltTurnOutcome = _attack(state, 0)
+	var replayed: VltBattleState = state.clone()
+	outcome.log.replay_onto(replayed)
+
+	assert_str(JSON.stringify(replayed.to_dict())).is_equal(
+		JSON.stringify(outcome.state.to_dict())
+	)
+
+
+func test_a_screen_protects_the_side_not_the_creature() -> void:
+	# Side scope earning its keep: the screen keeps working after a switch.
+	var state: VltBattleState = _battle()
+	var target: VltSlotRef = VltSlotRef.at(1, 0)
+	var clean: int = _damage_dealt(_attack(_battle(), 0), target)
+
+	VltEffectDispatch.apply(state, _registry, VltReflect.ID, target, null)
+	var screened: int = _damage_dealt(_attack(state, 0), target)
+	assert_int(screened).is_less(clean)
+
+	# Replace the defender; the screen belongs to the side, so it still applies.
+	state.slot_at(target).vacate()
+	state.slot_at(target).occupy(1)
+	assert_int(_damage_dealt(_attack(state, 0), target)).is_equal(screened)
+
+
+func test_a_screen_expires_after_its_duration() -> void:
+	var state: VltBattleState = _battle()
+	var target: VltSlotRef = VltSlotRef.at(1, 0)
+	VltEffectDispatch.apply(state, _registry, VltReflect.ID, target, null)
+
+	for _turn: int in range(VltReflect.DURATION):
+		assert_int(state.sides[1].effects.size()).is_equal(1)
+		state = _attack(state, 0).state
+
+	assert_int(state.sides[1].effects.size()).is_equal(0)
+
+
+# --- the mechanism ----------------------------------------------------------
+
+
+func test_stacking_rules_are_honoured() -> void:
+	var state: VltBattleState = _battle()
+	var at: VltSlotRef = VltSlotRef.at(0, 0)
+
+	# UNIQUE: reapplying does nothing and is not an error.
+	assert_bool(VltEffectDispatch.apply(state, _registry, VltBurn.ID, at, null)).is_true()
+	assert_bool(VltEffectDispatch.apply(state, _registry, VltBurn.ID, at, null)).is_false()
+	assert_int(state.creature_at(at).effects.size()).is_equal(1)
+
+	# REFRESH: reapplying restarts the duration.
+	VltEffectDispatch.apply(state, _registry, VltReflect.ID, at, null)
+	state.sides[0].effects[0].remaining = 1
+	assert_bool(VltEffectDispatch.apply(state, _registry, VltReflect.ID, at, null)).is_true()
+	assert_int(state.sides[0].effects[0].remaining).is_equal(VltReflect.DURATION)
+	assert_int(state.sides[0].effects.size()).is_equal(1)
+
+
+func test_slot_scoped_state_clears_when_the_occupant_leaves() -> void:
+	var state: VltBattleState = _battle()
+	var at: VltSlotRef = VltSlotRef.at(0, 0)
+	state.slot_at(at).effects.append(VltEffectInstance.create(VltBurn.ID, null, 0))
+
+	state.slot_at(at).occupy(1)
+	assert_int(state.slot_at(at).effects.size()).is_equal(0)
+
+
+func test_creature_scoped_effects_follow_the_creature() -> void:
+	var state: VltBattleState = _battle()
+	var at: VltSlotRef = VltSlotRef.at(0, 0)
+	VltEffectDispatch.apply(state, _registry, VltBurn.ID, at, null)
+
+	state.slot_at(at).occupy(1)
+	assert_int(state.sides[0].party[0].effects.size()).is_equal(1)
+	assert_int(state.sides[0].party[1].effects.size()).is_equal(0)
+
+
+func test_effects_survive_serialisation() -> void:
+	var state: VltBattleState = _battle()
+	VltEffectDispatch.apply(state, _registry, VltBurn.ID, VltSlotRef.at(0, 0), null)
+	VltEffectDispatch.apply(state, _registry, VltReflect.ID, VltSlotRef.at(1, 0), null)
+
+	var restored: VltBattleState = VltBattleState.from_dict(state.to_dict())
+	assert_str(JSON.stringify(restored.to_dict())).is_equal(JSON.stringify(state.to_dict()))
+	assert_int(restored.sides[1].effects[0].remaining).is_equal(VltReflect.DURATION)
+
+
+func test_an_effect_cannot_attach_to_an_empty_slot() -> void:
+	var state: VltBattleState = _battle()
+	var at: VltSlotRef = VltSlotRef.at(0, 0)
+	state.slot_at(at).vacate()
+	assert_bool(VltEffectDispatch.apply(state, _registry, VltBurn.ID, at, null)).is_false()
+
+
+func test_collection_order_is_stable() -> void:
+	var state: VltBattleState = _battle()
+	VltEffectDispatch.apply(state, _registry, VltBurn.ID, VltSlotRef.at(0, 0), null)
+	VltEffectDispatch.apply(state, _registry, VltBurn.ID, VltSlotRef.at(1, 0), null)
+	VltEffectDispatch.apply(state, _registry, VltReflect.ID, VltSlotRef.at(0, 0), null)
+
+	var first: PackedStringArray = _collection_order(state)
+	for _repeat: int in range(20):
+		assert_array(_collection_order(state)).is_equal(first)
+
+
+func test_every_registered_effect_is_exercised() -> void:
+	# The meta-test of spec 06: an effect with no test is unverified content
+	# wearing the costume of a feature.
+	var covered: PackedStringArray = PackedStringArray([VltBurn.ID, VltReflect.ID])
+	for id: String in _registry.ids():
+		assert_bool(covered.has(id)).override_failure_message(
+			"effect \"%s\" is registered but no test exercises it" % id
+		).is_true()
+
+
+func _collection_order(state: VltBattleState) -> PackedStringArray:
+	var order: PackedStringArray = PackedStringArray()
+	for active: VltEffectDispatch.Active in VltEffectDispatch.active_effects(state, _registry):
+		var where: String = str(active.owner) if active.owner != null else "field"
+		order.append("%s@%s" % [active.instance.definition_id, where])
+	return order

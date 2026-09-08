@@ -27,11 +27,18 @@ const CRITICAL_DENOMINATOR: int = 16
 
 var _moves: Dictionary[String, VltMoveDefinition] = {}
 var _chart: VltTypeChart = null
+var _effects: VltEffectRegistry = null
 
 
-func _init(move_registry: Dictionary[String, VltMoveDefinition], chart: VltTypeChart) -> void:
+func _init(
+	move_registry: Dictionary[String, VltMoveDefinition],
+	chart: VltTypeChart,
+	effects: VltEffectRegistry = null
+) -> void:
 	_moves = move_registry
 	_chart = chart
+	# An engine with no effects registered is a valid engine; it just has none.
+	_effects = effects if effects != null else VltEffectRegistry.new()
 
 
 # --- entry point ------------------------------------------------------------
@@ -57,7 +64,11 @@ func resolve(
 	for command: VltCommand in _ordered(working, commands, decider):
 		_run_action(working, command, decider, log)
 
-	# ANCHOR: RESIDUAL — nothing to drain until effects exist.
+	# ANCHOR: RESIDUAL
+	VltEffectDispatch.run_triggers(
+		working, _effects, VltTurnAnchor.Anchor.RESIDUAL, decider, log
+	)
+	_expire_effects(working)
 
 	return _finish(working, log)
 
@@ -274,9 +285,14 @@ func _run_move(
 		log.append(VltLogMoveFailed.create(command.actor, VltLogMoveFailed.Reason.NO_TARGET))
 		return
 
-	# ANCHOR: MOVE_VETO. Type immunity is already a veto rather than a zero
-	# multiplier, which is the shape every other veto will take.
+	# ANCHOR: MOVE_VETO. Type immunity is a veto rather than a zero multiplier,
+	# which is the shape every registered veto takes too.
 	if _chart.is_immune(move.type, target.types):
+		log.append(VltLogMoveFailed.create(command.actor, VltLogMoveFailed.Reason.IMMUNE))
+		return
+	if VltEffectDispatch.is_vetoed(
+		state, _effects, VltTurnAnchor.Anchor.MOVE_VETO, command.actor, command.target, move
+	):
 		log.append(VltLogMoveFailed.create(command.actor, VltLogMoveFailed.Reason.IMMUNE))
 		return
 
@@ -309,9 +325,10 @@ func _deal_damage(
 	input.base_power = move.power
 	input.attack = _offence(state, command.actor, move)
 	input.defense = _defence(state, command.target, move)
-	input.is_burned = (
-		actor.status == VltBattleCreature.Status.BURN
-		and move.category == VltMoveDefinition.Category.PHYSICAL
+	# Every stage ratio is contributed by effects. The engine does not know what
+	# a burn or a screen is, and adding one changes nothing here (spec 06).
+	input.modifiers = VltEffectDispatch.collect_modifiers(
+		state, _effects, command.actor, command.target, move
 	)
 	input.is_critical = decider.critical_hit(CRITICAL_NUMERATOR, CRITICAL_DENOMINATOR)
 	input.has_stab = actor.types.has(move.type)
@@ -350,6 +367,25 @@ func _stat_with_stage(state: VltBattleState, reference: VltSlotRef, stat: int) -
 
 
 # --- finishing and resuming -------------------------------------------------
+
+
+## Drops effects whose duration ran out. Effects with no duration stay until
+## something removes them.
+func _expire_effects(state: VltBattleState) -> void:
+	_drop_expired(state.effects)
+	for side: VltSide in state.sides:
+		_drop_expired(side.effects)
+		for slot: VltSlot in side.slots:
+			_drop_expired(slot.effects)
+		for creature: VltBattleCreature in side.party:
+			_drop_expired(creature.effects)
+
+
+func _drop_expired(instances: Array[VltEffectInstance]) -> void:
+	for index: int in range(instances.size() - 1, -1, -1):
+		var instance: VltEffectInstance = instances[index]
+		if instance.expires and instance.remaining <= 0:
+			instances.remove_at(index)
 
 
 func _finish(state: VltBattleState, log: VltBattleLog) -> VltTurnOutcome:

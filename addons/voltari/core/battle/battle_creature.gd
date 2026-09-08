@@ -36,6 +36,10 @@ var current_hp: int = 0
 var status: Status = Status.NONE
 var moves: Array[VltMoveSlot] = []
 
+## Creature-scoped effects. They follow the creature out of the field, and out
+## of the battle unless their reset rule says otherwise.
+var effects: Array[VltEffectInstance] = []
+
 
 static func create(input: VltStatInput, species: String, creature_types: PackedStringArray) -> VltBattleCreature:
 	var creature: VltBattleCreature = VltBattleCreature.new()
@@ -78,10 +82,17 @@ func clone() -> VltBattleCreature:
 	for slot: VltMoveSlot in moves:
 		copy.moves.append(slot.clone())
 
+	for instance: VltEffectInstance in effects:
+		copy.effects.append(instance.clone())
+
 	return copy
 
 
 func to_dict() -> Dictionary:
+	var serialised_effects: Array = []
+	for instance: VltEffectInstance in effects:
+		serialised_effects.append(instance.to_dict())
+
 	var serialised_moves: Array = []
 	for slot: VltMoveSlot in moves:
 		serialised_moves.append(slot.to_dict())
@@ -99,6 +110,7 @@ func to_dict() -> Dictionary:
 		"current_hp": current_hp,
 		"status": status,
 		"moves": serialised_moves,
+		"effects": serialised_effects,
 	}
 
 
@@ -119,5 +131,8 @@ static func from_dict(data: Dictionary) -> VltBattleCreature:
 	creature.moves = []
 	for entry: Variant in data["moves"]:
 		creature.moves.append(VltMoveSlot.from_dict(entry))
+
+	for entry: Variant in data["effects"]:
+		creature.effects.append(VltEffectInstance.from_dict(entry))
 
 	return creature

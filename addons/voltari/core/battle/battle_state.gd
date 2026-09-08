@@ -25,6 +25,9 @@ var turn: int = 0
 ## cycle a network needs comes for free (decision 0012).
 var awaiting_replacement: Array[VltSlotRef] = []
 
+## Field-scoped effects: conditions affecting both sides.
+var effects: Array[VltEffectInstance] = []
+
 
 static func create(slots_per_side: int) -> VltBattleState:
 	var state: VltBattleState = VltBattleState.new()
@@ -81,6 +84,9 @@ func clone() -> VltBattleState:
 	for reference: VltSlotRef in awaiting_replacement:
 		copy.awaiting_replacement.append(VltSlotRef.at(reference.side, reference.slot))
 
+	for instance: VltEffectInstance in effects:
+		copy.effects.append(instance.clone())
+
 	return copy
 
 
@@ -88,6 +94,10 @@ func to_dict() -> Dictionary:
 	var serialised_sides: Array = []
 	for side: VltSide in sides:
 		serialised_sides.append(side.to_dict())
+
+	var serialised_effects: Array = []
+	for instance: VltEffectInstance in effects:
+		serialised_effects.append(instance.to_dict())
 
 	var pending: Array = []
 	for reference: VltSlotRef in awaiting_replacement:
@@ -99,6 +109,7 @@ func to_dict() -> Dictionary:
 		"weather_turns": weather_turns,
 		"turn": turn,
 		"awaiting_replacement": pending,
+		"effects": serialised_effects,
 	}
 
 
@@ -114,5 +125,8 @@ static func from_dict(data: Dictionary) -> VltBattleState:
 
 	for entry: Variant in data["awaiting_replacement"]:
 		state.awaiting_replacement.append(VltSlotRef.from_array(PackedInt32Array(entry)))
+
+	for entry: Variant in data["effects"]:
+		state.effects.append(VltEffectInstance.from_dict(entry))
 
 	return state

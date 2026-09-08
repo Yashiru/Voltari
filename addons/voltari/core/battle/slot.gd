@@ -16,6 +16,9 @@ const STAGE_LIMIT: int = 6
 var occupant: int = EMPTY
 var stat_stages: PackedInt32Array = PackedInt32Array()
 
+## Slot-scoped effects. Cleared with everything else when the occupant leaves.
+var effects: Array[VltEffectInstance] = []
+
 
 func _init() -> void:
 	stat_stages.resize(VltStats.STAT_COUNT)
@@ -29,6 +32,7 @@ func is_empty() -> bool:
 ## reason — switching, fainting, or being dragged out.
 func vacate() -> void:
 	occupant = EMPTY
+	effects.clear()
 	for stat: int in range(VltStats.STAT_COUNT):
 		stat_stages[stat] = 0
 
@@ -47,15 +51,22 @@ func clone() -> VltSlot:
 	var copy: VltSlot = VltSlot.new()
 	copy.occupant = occupant
 	copy.stat_stages = stat_stages.duplicate()
+	for instance: VltEffectInstance in effects:
+		copy.effects.append(instance.clone())
 	return copy
 
 
 func to_dict() -> Dictionary:
-	return {"occupant": occupant, "stat_stages": stat_stages}
+	var serialised: Array = []
+	for instance: VltEffectInstance in effects:
+		serialised.append(instance.to_dict())
+	return {"occupant": occupant, "stat_stages": stat_stages, "effects": serialised}
 
 
 static func from_dict(data: Dictionary) -> VltSlot:
 	var slot: VltSlot = VltSlot.new()
 	slot.occupant = data["occupant"]
 	slot.stat_stages = PackedInt32Array(data["stat_stages"])
+	for entry: Variant in data["effects"]:
+		slot.effects.append(VltEffectInstance.from_dict(entry))
 	return slot

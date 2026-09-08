@@ -10,6 +10,10 @@ extends RefCounted
 var party: Array[VltBattleCreature] = []
 var slots: Array[VltSlot] = []
 
+## Side-scoped effects: hazards, screens. They survive switching, which is the
+## whole reason the scope exists.
+var effects: Array[VltEffectInstance] = []
+
 
 static func create(slot_count: int) -> VltSide:
 	assert(slot_count > 0, "a side needs at least one slot")
@@ -53,6 +57,9 @@ func clone() -> VltSide:
 	for slot: VltSlot in slots:
 		copy.slots.append(slot.clone())
 
+	for instance: VltEffectInstance in effects:
+		copy.effects.append(instance.clone())
+
 	return copy
 
 
@@ -65,7 +72,11 @@ func to_dict() -> Dictionary:
 	for slot: VltSlot in slots:
 		serialised_slots.append(slot.to_dict())
 
-	return {"party": serialised_party, "slots": serialised_slots}
+	var serialised_effects: Array = []
+	for instance: VltEffectInstance in effects:
+		serialised_effects.append(instance.to_dict())
+
+	return {"party": serialised_party, "slots": serialised_slots, "effects": serialised_effects}
 
 
 static func from_dict(data: Dictionary) -> VltSide:
@@ -76,5 +87,8 @@ static func from_dict(data: Dictionary) -> VltSide:
 
 	for entry: Variant in data["slots"]:
 		side.slots.append(VltSlot.from_dict(entry))
+
+	for entry: Variant in data["effects"]:
+		side.effects.append(VltEffectInstance.from_dict(entry))
 
 	return side

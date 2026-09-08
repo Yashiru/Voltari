@@ -69,14 +69,18 @@ answers *what clears it*. They are separate declarations.
 The core never draws a random number. It asks for a **decision**, by name:
 
 ```
-damage_roll()                      -> int    # index 0..15
-accuracy_check(chance: int)        -> bool
-critical_hit(stage: int)           -> bool
-secondary_triggers(chance: int)    -> bool
-speed_tie(a: SlotRef, b: SlotRef)  -> SlotRef
-multi_hit_count()                  -> int
-status_duration(kind: StatusKind)  -> int
+damage_roll()                             -> int    # index 0..15
+accuracy_check(chance)                    -> bool   # percentage
+critical_hit(numerator, denominator)      -> bool   # Gen 4 rates are fractions
+secondary_triggers(chance)                -> bool   # percentage
+speed_tie(first, second)                  -> SlotRef
+multi_hit_count(minimum, maximum)         -> int
+status_duration(minimum, maximum)         -> int
 ```
+
+Probabilities arrive as explicit chances. The *rates* — what a critical stage is
+worth, how long sleep lasts — are formulas derived from the oracle (spec 08) and
+do not belong to the decider, which only answers whether a given chance came up.
 
 The list above is illustrative, not closed by this document — but the *interface*
 is closed at any point in time, and that is the property that matters:

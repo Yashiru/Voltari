@@ -21,7 +21,7 @@
 // assuming the filter meant one file.
 
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
@@ -124,23 +124,52 @@ const SUITE_TIMEOUT_MS = 120 * 1000;
 /// "survived" (the suite still passed), "caught" (it failed), or "hung" (it
 /// never finished). Hanging is caught too, but it is a different fact and the
 /// report keeps them apart.
+///
+/// The child is put in its own process GROUP and the group is what gets killed.
+///
+/// What we launch is a wrapper script that spawns Godot, so signalling the
+/// wrapper alone leaves Godot running. Each survivor then holds a core at 100%
+/// and they accumulate over a long pass until the machine is starved — which
+/// reads as "mutation testing is slow" rather than as the leak it is. Neither
+/// Node's own `timeout` option nor coreutils `timeout` reliably reached the
+/// grandchild here; both were tried and both left Godot alive.
 function runSuite(root, godot) {
-  try {
-    execFileSync("./addons/gdUnit4/runtest.sh", [
-      "--headless", "--ignoreHeadlessMode", "--continue", "-a", "tests",
-    ], {
-      cwd: root,
-      env: { ...process.env, GODOT_BIN: godot },
-      stdio: "ignore",
-      timeout: SUITE_TIMEOUT_MS,
+  return new Promise((resolve) => {
+    const child = spawn(
+      "./addons/gdUnit4/runtest.sh",
+      ["--headless", "--ignoreHeadlessMode", "--continue", "-a", "tests"],
+      {
+        cwd: root,
+        env: { ...process.env, GODOT_BIN: godot },
+        stdio: "ignore",
+        detached: true, // makes the child a group leader, so -pid reaches the tree
+      },
+    );
+
+    let timedOut = false;
+    const deadline = setTimeout(() => {
+      timedOut = true;
+      try {
+        process.kill(-child.pid, "SIGKILL");
+      } catch {
+        // Already gone between the timer firing and the signal.
+      }
+    }, SUITE_TIMEOUT_MS);
+
+    child.on("exit", (code) => {
+      clearTimeout(deadline);
+      if (timedOut) resolve("hung");
+      else resolve(code === 0 ? "survived" : "caught");
     });
-    return "survived";
-  } catch (error) {
-    return error.killed ? "hung" : "caught";
-  }
+
+    child.on("error", () => {
+      clearTimeout(deadline);
+      resolve("caught");
+    });
+  });
 }
 
-function main() {
+async function main() {
   const args = parseArgs(process.argv.slice(2));
 
   const godot = (() => {
@@ -200,7 +229,7 @@ function main() {
   });
 
   // The baseline must be green, or every mutant would read as caught.
-  if (runSuite(root, godot) !== "survived") {
+  if ((await runSuite(root, godot)) !== "survived") {
     console.error("The suite fails before any mutation. Fix that first.");
     rmSync(sandbox, { recursive: true, force: true });
     process.exit(1);
@@ -215,7 +244,7 @@ function main() {
     const original = readFileSync(target, "utf8");
     writeFileSync(target, applyMutant(original, mutant));
 
-    const verdict = runSuite(root, godot);
+    const verdict = await runSuite(root, godot);
     writeFileSync(target, original);
 
     if (verdict === "survived") survivors.push(mutant);
@@ -250,4 +279,4 @@ function main() {
   }
 }
 
-main();
+await main();

@@ -6,7 +6,7 @@ extends GdUnitTestSuite
 ## into the engine and that every declared move actually works in a turn. A
 ## move that loads but cannot be used is content that only looks present.
 
-const MOVES_PAYLOAD: String = "res://content/generated/moves.json"
+const MOVES_DIR: String = "res://content/generated/moves"
 const CHART_PAYLOAD: String = "res://content/generated/type-chart.json"
 
 var _registry: Dictionary[String, VltMoveDefinition]
@@ -15,7 +15,7 @@ var _engine: VltTurnEngine
 
 
 func before() -> void:
-	_registry = VltMoveRegistryLoader.from_payload(_read_json(MOVES_PAYLOAD))
+	_registry = VltMoveRegistryLoader.from_entries(VltContentPayloads.read_indexed(MOVES_DIR))
 	_chart = VltTypeChartLoader.from_payload(_read_json(CHART_PAYLOAD))
 	_engine = VltTurnEngine.new(_registry, _chart)
 
@@ -68,6 +68,27 @@ func test_the_authored_roster_loads() -> void:
 		var move: VltMoveDefinition = _registry[id]
 		assert_str(move.id).is_equal(id)
 		assert_int(move.max_pp).is_greater(0)
+
+
+func test_the_index_lists_exactly_the_payloads_on_disk() -> void:
+	# Checked against the directory, not against the registry: the registry was
+	# built from the index, so comparing the two would only prove the index
+	# agrees with itself. An index that has drifted is worse than none — it
+	# enumerates a roster that is not there.
+	var directory: DirAccess = DirAccess.open(MOVES_DIR)
+	assert_object(directory).override_failure_message(
+		"missing %s — run `npm --prefix tools run content:build`" % MOVES_DIR
+	).is_not_null()
+
+	var on_disk: PackedStringArray = PackedStringArray()
+	for file: String in directory.get_files():
+		if file.ends_with(".json") and file != "index.json":
+			on_disk.append(file.get_basename())
+	on_disk.sort()
+
+	assert_array(VltContentPayloads.ids_in(MOVES_DIR)).override_failure_message(
+		"the index and the built payloads disagree"
+	).is_equal(on_disk)
 
 
 func test_every_move_type_exists_in_the_type_chart() -> void:

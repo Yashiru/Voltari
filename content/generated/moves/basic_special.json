@@ -1,0 +1,10 @@
+{
+  "id": "basic_special",
+  "type": "normal",
+  "category": "special",
+  "power": 40,
+  "accuracy": 100,
+  "priority": 0,
+  "pp": 40,
+  "target": "single_foe"
+}

@@ -1,0 +1,10 @@
+{
+  "id": "heavy_physical",
+  "type": "normal",
+  "category": "physical",
+  "power": 120,
+  "accuracy": 70,
+  "priority": 0,
+  "pp": 8,
+  "target": "single_foe"
+}

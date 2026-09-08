@@ -1,0 +1,9 @@
+# Skips the accuracy check rather than rolling 100 — a distinct branch.
+
+type: normal
+category: physical
+power: 60
+accuracy: always
+priority: 0
+pp: 32
+target: single_foe

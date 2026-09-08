@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "ids": [
+    "basic_physical",
+    "basic_special",
+    "ghost_special",
+    "ground_physical",
+    "heavy_physical",
+    "inert_status",
+    "priority_physical",
+    "unerring_physical",
+    "water_special"
+  ]
+}

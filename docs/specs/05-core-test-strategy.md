@@ -105,22 +105,29 @@ rather than a habit:
 
 ### Target
 
-A **ratchet**, measured rather than chosen: the recorded baseline is **82%** over
+A **ratchet**, measured rather than chosen: the recorded baseline is **84%** over
 100 mutants, and it may not go down. See decision 0021 for why the target is a
 measurement rather than a number, and for the two categories survivors fall into.
 
 This line is the ratchet itself, so it moves only upward and only with a run
 behind it. It read 71% when 0021 was written. Covering `effect_dispatch.gd`
-(53% to 81%), `turn_engine.gd` (86% to 94%) and `burn.gd` (71% to 100%) carried
-it to 82%.
+(53% to 81%), `turn_engine.gd` (86% to 94%), `burn.gd`, `log_heal.gd` and
+`log_move_used.gd` (each to 100%) carried it to 84%.
 
-**Do not read the remaining 18% as work left.** Most of it cannot be killed by
-any passing test: eleven survivors are `assert` calls in abstract bases and
+**The remaining 16% is not work left.** Every survivor in that sample is one
+that no passing test can kill. Eleven are `assert` calls in abstract bases and
 preconditions, where the original aborts on the very input that would tell the
-mutant apart, and four are comparisons guarded by an inequality on the line
-above, where `>` and `>=` cannot differ. Three are real. A pass whose survivors
-are all of the first two kinds is a pass that found nothing, and saying so is
+mutant apart. Five are equivalent: four comparisons guarded by an inequality on
+the line above, where `>` and `>=` cannot differ, and one field default that all
+three constructors overwrite before anything reads it.
+
+So **84% is this sample's ceiling, not a milestone on the way to 100%**. A pass
+whose survivors are all of those two kinds found nothing, and reporting that is
 more useful than reporting a percentage.
+
+It is a ceiling for the *sample*, though, not a claim about the core: the
+sampled hundred is drawn from far more sites, and every exhaustive module pass
+so far has found real gaps the sample had missed.
 
 Narrow a pass to one module with `--file`, and raise `--limit` to cover it
 exhaustively. A sampled score for a single file is noise: this one read 12

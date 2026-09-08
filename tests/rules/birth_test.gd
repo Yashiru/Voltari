@@ -36,6 +36,22 @@ func test_the_authored_species_load() -> void:
 		assert_int(species.base_stats.size()).is_equal(VltStats.STAT_COUNT)
 
 
+func test_the_genderless_sentinel_cannot_be_a_real_ratio() -> void:
+	# A gender ratio is eighths female, 0 to 8. If the sentinel ever fell inside
+	# that range, a species with no gender would silently read as one-eighth
+	# female — the same trap NO_SIDE carries in the log, and the same guard.
+	assert_int(VltSpecies.GENDERLESS).override_failure_message(
+		"GENDERLESS must sit outside the range of real ratios"
+	).is_less(0)
+
+	for eighths: int in range(9):
+		assert_int(VltSpecies.GENDERLESS).is_not_equal(eighths)
+
+	# And the authored species that declares none reads back as none.
+	assert_int(_species["placeholder_genderless"].gender_ratio).is_equal(VltSpecies.GENDERLESS)
+	assert_int(_species["placeholder_base"].gender_ratio).is_equal(4)
+
+
 func test_a_creature_is_born_complete() -> void:
 	# Nothing may be left to decide later: a half-built creature reaching the
 	# core is a defect the core has no vocabulary to describe.

@@ -194,6 +194,28 @@ func test_the_order_is_the_same_every_time() -> void:
 		assert_array(_run(state)).is_equal(reference)
 
 
+func test_two_effects_on_one_position_keep_their_order() -> void:
+	# Nothing separates these: same priority, same creature, so every rule in the
+	# comparator falls through to the last one. It must still answer "not before"
+	# in both directions, or the sort has no consistent order to work from and
+	# the result depends on the algorithm rather than on the rules.
+	_register(VltRecordingEffects.trigger_effect(
+		"attached_first", VltEffectDefinition.Scope.CREATURE, ANCHOR, 0
+	))
+	_register(VltRecordingEffects.trigger_effect(
+		"attached_second", VltEffectDefinition.Scope.CREATURE, ANCHOR, 0
+	))
+
+	var state: VltBattleState = _battle()
+	var at: VltSlotRef = VltSlotRef.at(0, 0)
+	_apply(state, "attached_first", at)
+	_apply(state, "attached_second", at)
+
+	assert_array(_run(state)).is_equal(
+		PackedStringArray(["attached_first", "attached_second"])
+	)
+
+
 func test_modifiers_are_ordered_by_the_same_rules() -> void:
 	# collect_modifiers shares the comparator with triggers. Ratios multiply, so
 	# the damage cannot reveal the order — only the calls can.

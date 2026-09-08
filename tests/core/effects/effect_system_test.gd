@@ -176,6 +176,24 @@ func test_an_expiring_screen_replays() -> void:
 	assert_int(replayed.sides[1].effects.size()).is_equal(0)
 
 
+func test_counting_down_never_goes_past_zero() -> void:
+	# An effect already at zero is waiting to be dropped, not waiting to be
+	# counted further. Ticking it again would make the duration negative, which
+	# no expiry check would ever catch since it only asks for <= 0.
+	var state: VltBattleState = _battle()
+	var spent: VltEffectInstance = VltEffectInstance.create(VltReflect.ID, null, 1)
+	spent.remaining = 0
+	state.sides[0].effects.append(spent)
+
+	var log: VltBattleLog = VltBattleLog.new()
+	VltEffectDispatch.tick_durations(state, log)
+
+	assert_int(spent.remaining).is_equal(0)
+	assert_bool(log.is_empty()).override_failure_message(
+		"an effect that did not move must not report that it did"
+	).is_true()
+
+
 func test_a_screen_protects_the_side_not_the_creature() -> void:
 	# Side scope earning its keep: the screen keeps working after a switch.
 	var state: VltBattleState = _battle()

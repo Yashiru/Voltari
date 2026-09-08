@@ -78,6 +78,17 @@ Scripted battles replayed on both engines, compared event by event. This is
 where resolution **order** is asserted — the actual risk of the project, and
 something procedure vectors structurally cannot reach.
 
+A vector declares `slots_per_side`, and **doubles vectors are not optional
+extras**. Ordering rules that coincide in singles come apart on a wider field: a
+side never submits two commands with one slot, so ties between allies cannot
+arise and ordering by side is indistinguishable from ordering by position. Both
+were wrong at some point and no singles vector could have said so.
+
+Each command names its own position and target rather than sitting at an index.
+A turn is declared once, and the oracle's choice strings and our commands are
+rendered from it — writing both by hand meant maintaining one turn in two
+notations with nothing to catch them drifting.
+
 ## 5. Forced decision protocol
 
 Our engine uses its own RNG (decision from the initial draft), so seeds cannot be

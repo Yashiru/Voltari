@@ -52,3 +52,9 @@ this is a renaming of the policy and not a change of behaviour.
 Ties of three or more still deserve a vector once doubles enter the
 differential. Both sides now implement the same walk, but nothing yet proves
 they agree on it.
+
+**Closed.** `battle/0007-doubles-tie` and `battle/0008-doubles-allies` put four
+creatures on the field under the "later" policy, and the two engines agree.
+Truncating the engine's tie walk to its first adjacent pair fails both and
+leaves every singles vector passing, so the vectors demonstrably reach what a
+pair could not.

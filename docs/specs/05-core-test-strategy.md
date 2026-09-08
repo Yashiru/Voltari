@@ -118,6 +118,12 @@ Narrow a pass to one module with `--file`, and raise `--limit` to cover it
 exhaustively. A sampled score for a single file is noise: this one read 12
 survivors when sampled across the core and 23 when the file was run in full.
 
+**A module pass and a core sample answer different questions**, and neither
+substitutes for the other. Covering `turn_engine.gd` took it from 86% to 94%
+exhaustively and left the core sample sitting at 80%, because none of the
+mutants it killed were among the hundred that sample draws. Read the core figure
+as the ratchet and the module figure as the work.
+
 ## 5. Speed budget
 
 Mutation testing multiplies suite runtime by the number of mutants: a five-second

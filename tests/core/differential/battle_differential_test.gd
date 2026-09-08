@@ -153,7 +153,11 @@ func _decider(policy: Dictionary) -> VltScriptedDecider:
 		if _text(policy["critical"]) == "always"
 		else VltScriptedDecider.Answer.NEVER
 	)
-	decider.speed_tie_winner_side = _num(policy["speed_tie_winner_side"])
+	decider.speed_tie_winner = (
+		VltScriptedDecider.TieWinner.LATER
+		if _text(policy["speed_tie_winner"]) == "later"
+		else VltScriptedDecider.TieWinner.EARLIER
+	)
 	return decider
 
 

@@ -64,6 +64,34 @@ func _battle(fast_side: int = 0) -> VltBattleState:
 	return state
 
 
+## A doubles field. The engine has always taken a slot count and nothing ever
+## passed it two, so every rule that only differs between one slot a side and two
+## — ordering within a side, a target that falls to an ally's attack — answered
+## to nothing.
+##
+## `tied` makes both slots of a side equally fast, which is the only way a speed
+## tie between allies can arise: singles cannot produce one, since a side never
+## submits two commands.
+func _doubles(fast_side: int = 0, tied: bool = false) -> VltBattleState:
+	var state: VltBattleState = VltBattleState.create(2)
+	var normal: PackedStringArray = PackedStringArray(["normal"])
+	var moves: Array[String] = [TACKLE, QUICK, SPOOK]
+
+	for side: int in range(VltBattleState.SIDE_COUNT):
+		var speed: int = 150 if side == fast_side else 50
+		for index: int in range(3):
+			# The second slot is a step slower, so position order and speed order
+			# are distinguishable rather than accidentally identical.
+			var own: int = speed if tied or index == 0 else speed - 10
+			state.sides[side].party.append(
+				_creature("pair_%d_%d" % [side, index], normal, own, moves)
+			)
+		state.sides[side].slots[0].occupy(0)
+		state.sides[side].slots[1].occupy(1)
+
+	return state
+
+
 func _scripted(roll: int = 15) -> VltScriptedDecider:
 	var decider: VltScriptedDecider = VltScriptedDecider.new()
 	decider.damage_roll_index = roll
@@ -74,6 +102,30 @@ func _scripted(roll: int = 15) -> VltScriptedDecider:
 
 func _move(side: int, index: int) -> VltCommand:
 	return VltCommand.use_move(VltSlotRef.at(side, 0), index, VltSlotRef.at(1 - side, 0))
+
+
+## A tackle from one named position at another, for fields wider than one slot.
+func _strike(side: int, slot: int, target_side: int, target_slot: int) -> VltCommand:
+	return VltCommand.use_move(
+		VltSlotRef.at(side, slot), 0, VltSlotRef.at(target_side, target_slot)
+	)
+
+
+func _actor_order(log: VltBattleLog) -> PackedStringArray:
+	var order: PackedStringArray = PackedStringArray()
+	for event: VltLogEvent in log.events:
+		if event.kind() == VltLogMoveUsed.KIND:
+			var used: VltLogMoveUsed = event as VltLogMoveUsed
+			order.append("%d:%d" % [used.actor.side, used.actor.slot])
+	return order
+
+
+func _switch_in_order(log: VltBattleLog) -> PackedInt32Array:
+	var order: PackedInt32Array = PackedInt32Array()
+	for event: VltLogEvent in log.events:
+		if event.kind() == VltLogSwitchIn.KIND:
+			order.append((event as VltLogSwitchIn).target.side)
+	return order
 
 
 func test_a_turn_deals_damage_and_leaves_the_input_state_untouched() -> void:
@@ -133,10 +185,96 @@ func test_a_speed_tie_is_decided_not_drawn() -> void:
 		state.sides[side].slots[0].occupy(0)
 
 	var decider: VltScriptedDecider = _scripted()
-	decider.speed_tie_winner_side = 1
+	decider.speed_tie_winner = VltScriptedDecider.TieWinner.LATER
 
 	var outcome: VltTurnOutcome = _engine.resolve(state, [_move(0, 0), _move(1, 0)], decider)
 	assert_int(_first_move_used(outcome.log).actor.side).is_equal(1)
+
+
+func test_switches_resolve_in_canonical_order() -> void:
+	# Switches are ordered by position alone — no speed, no decider. Submitting
+	# them in reverse is the only way to tell the rule apart from "whatever order
+	# they arrived in".
+	var state: VltBattleState = _battle()
+	var commands: Array[VltCommand] = [
+		VltCommand.switch_to(VltSlotRef.at(1, 0), 1),
+		VltCommand.switch_to(VltSlotRef.at(0, 0), 1),
+	]
+
+	var outcome: VltTurnOutcome = _engine.resolve(state, commands, _scripted())
+	assert_array(_switch_in_order(outcome.log)).is_equal(PackedInt32Array([0, 1]))
+
+
+func test_a_doubles_turn_orders_four_commands_by_speed() -> void:
+	# Four distinct speeds, so the order is decided entirely by the rules and
+	# nothing falls through to a tie. Submitted backwards, so the result cannot
+	# be the order they arrived in.
+	var state: VltBattleState = _doubles(1)
+	var commands: Array[VltCommand] = [
+		_strike(0, 1, 1, 1), _strike(0, 0, 1, 0), _strike(1, 1, 0, 1), _strike(1, 0, 0, 0)
+	]
+
+	var outcome: VltTurnOutcome = _engine.resolve(state, commands, _scripted())
+
+	assert_array(_actor_order(outcome.log)).is_equal(
+		PackedStringArray(["1:0", "1:1", "0:0", "0:1"])
+	)
+
+
+func test_two_allies_at_the_same_speed_are_a_tie_the_decider_answers() -> void:
+	# Allies can tie, and only in doubles. The engine must ask rather than settle
+	# it from position, which is what makes the answer reproducible.
+	var state: VltBattleState = _doubles(0, true)
+	var commands: Array[VltCommand] = [_strike(0, 0, 1, 0), _strike(0, 1, 1, 1)]
+
+	# Two policies that answer this tie differently. If the engine settled it
+	# from position instead of asking, both would give the same order.
+	var favours_earlier: VltScriptedDecider = _scripted()
+	favours_earlier.speed_tie_winner = VltScriptedDecider.TieWinner.EARLIER
+	var favours_later: VltScriptedDecider = _scripted()
+	favours_later.speed_tie_winner = VltScriptedDecider.TieWinner.LATER
+
+	assert_array(
+		_actor_order(_engine.resolve(state, commands, favours_earlier).log)
+	).is_equal(PackedStringArray(["0:0", "0:1"]))
+	assert_array(
+		_actor_order(_engine.resolve(state, commands, favours_later).log)
+	).is_equal(PackedStringArray(["0:1", "0:0"]))
+
+
+func test_a_doubles_turn_is_deterministic() -> void:
+	var state: VltBattleState = _doubles(0, true)
+	var commands: Array[VltCommand] = [
+		_strike(0, 0, 1, 0), _strike(0, 1, 1, 1), _strike(1, 0, 0, 0), _strike(1, 1, 0, 1)
+	]
+
+	var first: VltTurnOutcome = _engine.resolve(state, commands, VltSeededDecider.new(7))
+	var second: VltTurnOutcome = _engine.resolve(state, commands, VltSeededDecider.new(7))
+
+	assert_str(JSON.stringify(first.log.to_array())).is_equal(
+		JSON.stringify(second.log.to_array())
+	)
+	assert_int(_actor_order(first.log).size()).is_equal(4)
+
+
+func test_a_target_an_ally_already_knocked_out_is_not_hit_again() -> void:
+	# Both slots aim at the same creature and the first one fells it. The second
+	# must report that it had no target, not compute damage against a corpse —
+	# and only doubles can produce that within one turn.
+	var state: VltBattleState = _doubles(0)
+	state.sides[1].party[0].current_hp = 1
+
+	var commands: Array[VltCommand] = [_strike(0, 0, 1, 0), _strike(0, 1, 1, 0)]
+	var outcome: VltTurnOutcome = _engine.resolve(state, commands, _scripted())
+
+	var reasons: PackedInt32Array = PackedInt32Array()
+	for event: VltLogEvent in outcome.log.events:
+		if event.kind() == VltLogMoveFailed.KIND:
+			reasons.append((event as VltLogMoveFailed).reason)
+
+	assert_array(reasons).override_failure_message(
+		"the second attacker must report NO_TARGET"
+	).is_equal(PackedInt32Array([VltLogMoveFailed.Reason.NO_TARGET]))
 
 
 func test_an_immune_target_blocks_the_move_upstream() -> void:
@@ -199,6 +337,67 @@ func test_the_turn_finishes_once_the_replacement_arrives() -> void:
 	assert_bool(finished.is_complete()).is_true()
 	assert_int(finished.state.slot_at(VltSlotRef.at(1, 0)).occupant).is_equal(1)
 	assert_bool(finished.state.awaiting_replacement.is_empty()).is_true()
+
+
+func test_a_replacement_must_answer_the_slot_that_was_asked() -> void:
+	# Answering with a switch nobody asked for would let a side take a free
+	# switch on its opponent's faint. Every rejection here leaves the suspended
+	# state untouched, so the request can simply be answered again.
+	var suspended: VltTurnOutcome = _suspend()
+	var snapshot: String = JSON.stringify(suspended.state.to_dict())
+
+	var wrong_slot: Array[VltCommand] = [VltCommand.switch_to(VltSlotRef.at(0, 0), 1)]
+	_assert_rejected(suspended.state, wrong_slot, "a slot that was not asked")
+
+	var not_a_switch: Array[VltCommand] = [_move(1, 0)]
+	_assert_rejected(suspended.state, not_a_switch, "a replacement that is not a switch")
+
+	var too_many: Array[VltCommand] = [
+		VltCommand.switch_to(VltSlotRef.at(1, 0), 1),
+		VltCommand.switch_to(VltSlotRef.at(0, 0), 1),
+	]
+	_assert_rejected(suspended.state, too_many, "more replacements than were asked for")
+
+	_assert_rejected(suspended.state, [], "no replacement at all")
+
+	assert_str(JSON.stringify(suspended.state.to_dict())).override_failure_message(
+		"a rejected replacement must leave the suspended turn as it was"
+	).is_equal(snapshot)
+
+
+func test_a_replacement_cannot_send_out_a_fainted_creature() -> void:
+	var state: VltBattleState = _battle()
+	state.sides[1].party[0].current_hp = 1
+	state.sides[1].party[1].current_hp = 0
+
+	# With nothing left to send, the turn is never suspended in the first place.
+	var outcome: VltTurnOutcome = _engine.resolve(state, [_move(0, 0)], _scripted())
+	assert_bool(outcome.is_complete()).is_true()
+
+	# And a switch to a fainted creature is refused outside a suspension too.
+	var fresh: VltBattleState = _battle()
+	fresh.sides[0].party[1].current_hp = 0
+	_assert_rejected(
+		fresh, [VltCommand.switch_to(VltSlotRef.at(0, 0), 1)], "a switch to a fainted creature"
+	)
+
+
+func _suspend() -> VltTurnOutcome:
+	var state: VltBattleState = _battle()
+	state.sides[1].party[0].current_hp = 1
+	var outcome: VltTurnOutcome = _engine.resolve(state, [_move(0, 0)], _scripted())
+	assert_int(outcome.status).is_equal(VltTurnOutcome.Status.NEEDS_INPUT)
+	return outcome
+
+
+func _assert_rejected(
+	state: VltBattleState, commands: Array[VltCommand], what: String
+) -> void:
+	var outcome: VltTurnOutcome = _engine.resolve(state, commands, _scripted())
+	assert_int(outcome.status).override_failure_message(
+		"%s must be rejected, got status %d" % [what, outcome.status]
+	).is_equal(VltTurnOutcome.Status.REJECTED)
+	assert_str(outcome.rejection).is_not_empty()
 
 
 func test_a_side_with_nothing_left_is_not_asked_to_replace() -> void:

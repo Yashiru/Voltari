@@ -48,7 +48,7 @@
         "accuracy": "always",
         "critical": "never",
         "secondary": "never",
-        "speed_tie_winner_side": 0
+        "speed_tie_winner": "earlier"
       },
       "conditions": [
         {
@@ -253,7 +253,7 @@
         "accuracy": "always",
         "critical": "never",
         "secondary": "never",
-        "speed_tie_winner_side": 0
+        "speed_tie_winner": "earlier"
       },
       "conditions": [
         {
@@ -582,7 +582,7 @@
         "accuracy": "always",
         "critical": "never",
         "secondary": "never",
-        "speed_tie_winner_side": 0
+        "speed_tie_winner": "earlier"
       },
       "conditions": [],
       "parties": [
@@ -769,7 +769,7 @@
         "accuracy": "always",
         "critical": "never",
         "secondary": "never",
-        "speed_tie_winner_side": 0
+        "speed_tie_winner": "earlier"
       },
       "conditions": [],
       "parties": [
@@ -932,7 +932,7 @@
         "accuracy": "always",
         "critical": "never",
         "secondary": "never",
-        "speed_tie_winner_side": 0
+        "speed_tie_winner": "earlier"
       },
       "conditions": [],
       "parties": [
@@ -1085,7 +1085,7 @@
         "accuracy": "always",
         "critical": "never",
         "secondary": "never",
-        "speed_tie_winner_side": 0
+        "speed_tie_winner": "earlier"
       },
       "conditions": [],
       "parties": [

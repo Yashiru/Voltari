@@ -150,12 +150,23 @@ func test_the_scripted_decider_answers_per_decision_kind() -> void:
 
 func test_scripted_speed_ties_are_declared_not_drawn() -> void:
 	var decider: VltScriptedDecider = VltScriptedDecider.new()
-	var side_zero: VltSlotRef = VltSlotRef.at(0, 0)
-	var side_one: VltSlotRef = VltSlotRef.at(1, 0)
+	var earlier: VltSlotRef = VltSlotRef.at(0, 0)
+	var later: VltSlotRef = VltSlotRef.at(1, 0)
 
-	decider.speed_tie_winner_side = 1
-	assert_bool(decider.speed_tie(side_zero, side_one).equals(side_one)).is_true()
-	assert_bool(decider.speed_tie(side_one, side_zero).equals(side_one)).is_true()
+	decider.speed_tie_winner = VltScriptedDecider.TieWinner.EARLIER
+	assert_bool(decider.speed_tie(earlier, later).equals(earlier)).is_true()
+
+	decider.speed_tie_winner = VltScriptedDecider.TieWinner.LATER
+	assert_bool(decider.speed_tie(earlier, later).equals(later)).is_true()
+
+	# The same policy answers a tie between two allies, which a winner named by
+	# side cannot: both references carry the same side, so it has nothing to
+	# choose on and the answer falls out of how the policy is written.
+	var ally: VltSlotRef = VltSlotRef.at(0, 1)
+	assert_bool(decider.speed_tie(earlier, ally).equals(ally)).is_true()
+
+	decider.speed_tie_winner = VltScriptedDecider.TieWinner.EARLIER
+	assert_bool(decider.speed_tie(earlier, ally).equals(earlier)).is_true()
 
 
 func test_both_implementations_answer_the_same_questions() -> void:

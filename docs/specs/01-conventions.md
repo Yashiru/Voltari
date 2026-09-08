@@ -26,13 +26,25 @@ addons/voltari/       the reusable engine
   core/               L0  — simulation core, purity-enforced
   deciders/           L0bis — AI, player input
   rules/              L1  — out-of-battle rules, purity-enforced
+  loaders/            the typing boundary: parsed data in, typed objects out
 game/                 this game: scenes, assets, presentation
   assets/
 content/              YAML source of truth
+  generated/          build output, committed; CI checks it is current
 tests/                test suites, mirroring the source tree
-tools/                build and lint tooling (Node)
+tools/                build and lint tooling (Node, one package.json)
 docs/                 specs, architecture, decision journal
 ```
+
+`loaders/` sits outside `core/` on purpose. The core accepts only already-typed
+data and performs no I/O (spec 03), so something has to convert — and that
+something is where the unsafe-cast suppressions belong, confined and visible,
+rather than spread through the engine.
+
+`content/generated/` is build output that is nonetheless committed. The test
+suite stays hermetic that way, and CI rebuilds it to prove it still matches the
+YAML it came from. `.tres` artefacts remain gitignored (decision 0004); this is
+the engine payload, not an editor resource.
 
 ## 2. Naming
 

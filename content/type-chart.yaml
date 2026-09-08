@@ -1,0 +1,198 @@
+# Gen 4 type chart — authored content, source of truth.
+#
+# Sparse by design: only non-neutral pairs are listed, and anything absent is
+# neutral. Adding a type therefore adds its exceptions instead of touching every
+# existing line.
+#
+# Keys are ATTACKING types; the lists name the DEFENDING types they hit that
+# way. No Fairy type (decision 0003).
+#
+# Seeded from @pkmn/sim 0.10.11 gen4 and verified against its vectors. Run
+# `npm run content:chart` to render the full matrix for a visual check.
+version: 1
+types:
+  - bug
+  - dark
+  - dragon
+  - electric
+  - fighting
+  - fire
+  - flying
+  - ghost
+  - grass
+  - ground
+  - ice
+  - normal
+  - poison
+  - psychic
+  - rock
+  - steel
+  - water
+effectiveness:
+  bug:
+    super_effective:
+      - dark
+      - grass
+      - psychic
+    resisted:
+      - fighting
+      - fire
+      - flying
+      - ghost
+      - poison
+      - steel
+  dark:
+    super_effective:
+      - ghost
+      - psychic
+    resisted:
+      - dark
+      - fighting
+      - steel
+  dragon:
+    super_effective:
+      - dragon
+    resisted:
+      - steel
+  electric:
+    super_effective:
+      - flying
+      - water
+    resisted:
+      - dragon
+      - electric
+      - grass
+    immune:
+      - ground
+  fighting:
+    super_effective:
+      - dark
+      - ice
+      - normal
+      - rock
+      - steel
+    resisted:
+      - bug
+      - flying
+      - poison
+      - psychic
+    immune:
+      - ghost
+  fire:
+    super_effective:
+      - bug
+      - grass
+      - ice
+      - steel
+    resisted:
+      - dragon
+      - fire
+      - rock
+      - water
+  flying:
+    super_effective:
+      - bug
+      - fighting
+      - grass
+    resisted:
+      - electric
+      - rock
+      - steel
+  ghost:
+    super_effective:
+      - ghost
+      - psychic
+    resisted:
+      - dark
+      - steel
+    immune:
+      - normal
+  grass:
+    super_effective:
+      - ground
+      - rock
+      - water
+    resisted:
+      - bug
+      - dragon
+      - fire
+      - flying
+      - grass
+      - poison
+      - steel
+  ground:
+    super_effective:
+      - electric
+      - fire
+      - poison
+      - rock
+      - steel
+    resisted:
+      - bug
+      - grass
+    immune:
+      - flying
+  ice:
+    super_effective:
+      - dragon
+      - flying
+      - grass
+      - ground
+    resisted:
+      - fire
+      - ice
+      - steel
+      - water
+  normal:
+    resisted:
+      - rock
+      - steel
+    immune:
+      - ghost
+  poison:
+    super_effective:
+      - grass
+    resisted:
+      - ghost
+      - ground
+      - poison
+      - rock
+    immune:
+      - steel
+  psychic:
+    super_effective:
+      - fighting
+      - poison
+    resisted:
+      - psychic
+      - steel
+    immune:
+      - dark
+  rock:
+    super_effective:
+      - bug
+      - fire
+      - flying
+      - ice
+    resisted:
+      - fighting
+      - ground
+      - steel
+  steel:
+    super_effective:
+      - ice
+      - rock
+    resisted:
+      - electric
+      - fire
+      - steel
+      - water
+  water:
+    super_effective:
+      - fire
+      - ground
+      - rock
+    resisted:
+      - dragon
+      - grass
+      - water

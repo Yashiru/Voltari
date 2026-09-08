@@ -1,0 +1,20 @@
+{
+  "name": "voltari-tools",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Development tooling for Voltari: oracle vector generation and content build. Never shipped, never read by the engine.",
+  "scripts": {
+    "lint:purity": "node purity-lint/purity-lint.mjs ..",
+    "oracle:damage": "node oracle/generate-damage-vectors.mjs",
+    "oracle:types": "node oracle/generate-type-chart.mjs",
+    "content:build": "node content/build-content.mjs",
+    "content:chart": "node content/render-type-chart.mjs"
+  },
+  "dependencies": {
+    "@pkmn/sim": "0.10.11"
+  },
+  "devDependencies": {
+    "yaml": "2.9.0"
+  }
+}

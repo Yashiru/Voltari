@@ -16,6 +16,23 @@ jobs:
           node-version: "22"
       - run: node tools/purity-lint/purity-lint.mjs
 
+  content:
+    name: Content build is current
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci
+        working-directory: tools
+      - run: npm run content:build
+        working-directory: tools
+      # The payload is committed so the test suite stays hermetic. Rebuilding it
+      # here is what stops it drifting from the YAML it came from.
+      - name: Fail if the committed payload is stale
+        run: git diff --exit-code content/
+
   tests:
     name: Tests
     runs-on: ubuntu-latest

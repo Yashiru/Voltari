@@ -1,0 +1,168 @@
+{
+  "version": 1,
+  "types": [
+    "bug",
+    "dark",
+    "dragon",
+    "electric",
+    "fighting",
+    "fire",
+    "flying",
+    "ghost",
+    "grass",
+    "ground",
+    "ice",
+    "normal",
+    "poison",
+    "psychic",
+    "rock",
+    "steel",
+    "water"
+  ],
+  "table": {
+    "bug": {
+      "dark": "super_effective",
+      "grass": "super_effective",
+      "psychic": "super_effective",
+      "fighting": "resisted",
+      "fire": "resisted",
+      "flying": "resisted",
+      "ghost": "resisted",
+      "poison": "resisted",
+      "steel": "resisted"
+    },
+    "dark": {
+      "ghost": "super_effective",
+      "psychic": "super_effective",
+      "dark": "resisted",
+      "fighting": "resisted",
+      "steel": "resisted"
+    },
+    "dragon": {
+      "dragon": "super_effective",
+      "steel": "resisted"
+    },
+    "electric": {
+      "flying": "super_effective",
+      "water": "super_effective",
+      "dragon": "resisted",
+      "electric": "resisted",
+      "grass": "resisted",
+      "ground": "immune"
+    },
+    "fighting": {
+      "dark": "super_effective",
+      "ice": "super_effective",
+      "normal": "super_effective",
+      "rock": "super_effective",
+      "steel": "super_effective",
+      "bug": "resisted",
+      "flying": "resisted",
+      "poison": "resisted",
+      "psychic": "resisted",
+      "ghost": "immune"
+    },
+    "fire": {
+      "bug": "super_effective",
+      "grass": "super_effective",
+      "ice": "super_effective",
+      "steel": "super_effective",
+      "dragon": "resisted",
+      "fire": "resisted",
+      "rock": "resisted",
+      "water": "resisted"
+    },
+    "flying": {
+      "bug": "super_effective",
+      "fighting": "super_effective",
+      "grass": "super_effective",
+      "electric": "resisted",
+      "rock": "resisted",
+      "steel": "resisted"
+    },
+    "ghost": {
+      "ghost": "super_effective",
+      "psychic": "super_effective",
+      "dark": "resisted",
+      "steel": "resisted",
+      "normal": "immune"
+    },
+    "grass": {
+      "ground": "super_effective",
+      "rock": "super_effective",
+      "water": "super_effective",
+      "bug": "resisted",
+      "dragon": "resisted",
+      "fire": "resisted",
+      "flying": "resisted",
+      "grass": "resisted",
+      "poison": "resisted",
+      "steel": "resisted"
+    },
+    "ground": {
+      "electric": "super_effective",
+      "fire": "super_effective",
+      "poison": "super_effective",
+      "rock": "super_effective",
+      "steel": "super_effective",
+      "bug": "resisted",
+      "grass": "resisted",
+      "flying": "immune"
+    },
+    "ice": {
+      "dragon": "super_effective",
+      "flying": "super_effective",
+      "grass": "super_effective",
+      "ground": "super_effective",
+      "fire": "resisted",
+      "ice": "resisted",
+      "steel": "resisted",
+      "water": "resisted"
+    },
+    "normal": {
+      "rock": "resisted",
+      "steel": "resisted",
+      "ghost": "immune"
+    },
+    "poison": {
+      "grass": "super_effective",
+      "ghost": "resisted",
+      "ground": "resisted",
+      "poison": "resisted",
+      "rock": "resisted",
+      "steel": "immune"
+    },
+    "psychic": {
+      "fighting": "super_effective",
+      "poison": "super_effective",
+      "psychic": "resisted",
+      "steel": "resisted",
+      "dark": "immune"
+    },
+    "rock": {
+      "bug": "super_effective",
+      "fire": "super_effective",
+      "flying": "super_effective",
+      "ice": "super_effective",
+      "fighting": "resisted",
+      "ground": "resisted",
+      "steel": "resisted"
+    },
+    "steel": {
+      "ice": "super_effective",
+      "rock": "super_effective",
+      "electric": "resisted",
+      "fire": "resisted",
+      "steel": "resisted",
+      "water": "resisted"
+    },
+    "water": {
+      "fire": "super_effective",
+      "ground": "super_effective",
+      "rock": "super_effective",
+      "dragon": "resisted",
+      "grass": "resisted",
+      "water": "resisted"
+    }
+  }
+}

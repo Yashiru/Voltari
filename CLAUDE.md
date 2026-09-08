@@ -154,6 +154,13 @@ Core purity lint:
 node tools/purity-lint/purity-lint.mjs
 ```
 
+Content build — regenerate after editing anything in `content/`, and commit the
+result. CI fails if the committed payload is stale:
+
+```bash
+npm --prefix tools run content:build
+```
+
 Test suite:
 
 ```bash

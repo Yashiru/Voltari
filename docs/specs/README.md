@@ -30,7 +30,7 @@ describe.
 
 | #  | Document |
 |----|----------|
-| 09 | Data schema and content build |
+| 09 | [Data schema and content build](09-data-schema.md) — *draft* |
 | 10 | Progression and post-battle pipeline |
 | 11 | Capture |
 | 12 | Battle AI |

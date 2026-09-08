@@ -105,35 +105,35 @@ rather than a habit:
 
 ### Target
 
-A **ratchet**, measured rather than chosen: the recorded baseline is **84%** over
-100 mutants, and it may not go down. See decision 0021 for why the target is a
-measurement rather than a number, and for the two categories survivors fall into.
+A **ratchet**, measured rather than chosen: the recorded baseline is **86.4%**
+across **every mutation site in the core** — 241 of 279, not a sample — and it
+may not go down. See decision 0021 for why the target is a measurement rather
+than a number.
 
-This line is the ratchet itself, so it moves only upward and only with a run
-behind it. It read 71% when 0021 was written. Covering `effect_dispatch.gd`
-(53% to 81%), `turn_engine.gd` (86% to 94%), `burn.gd`, `log_heal.gd` and
-`log_move_used.gd` (each to 100%) carried it to 84%.
+Run it exhaustively — `--limit 9999`, no `--file`. It takes about fifteen
+minutes and it replaces sampling entirely, so there is little reason to sample
+the whole core any more. Narrow with `--file` only to iterate on one module.
 
-**The remaining 16% is not work left.** Every survivor in that sample is one
-that no passing test can kill. Eleven are `assert` calls in abstract bases and
-preconditions, where the original aborts on the very input that would tell the
-mutant apart. Five are equivalent: four comparisons guarded by an inequality on
-the line above, where `>` and `>=` cannot differ, and one field default that all
-three constructors overwrite before anything reads it.
+**Do not read the remaining percentage as work left.** All 38 survivors are ones
+no passing test can kill, and they account for exactly three kinds:
 
-So **84% is this sample's ceiling, not a milestone on the way to 100%**. A pass
-whose survivors are all of those two kinds found nothing, and reporting that is
-more useful than reporting a percentage.
+| Kind | Count | Why it cannot be killed |
+|------|-------|-------------------------|
+| Asserts | 21 | Abstract base methods and preconditions. The original aborts on the very input that would tell the mutant apart, so chasing these means testing that an abstract method is abstract. |
+| Guarded comparisons | 13 | A `>` or `<` immediately under an `if a != b`. The operands are never equal there, so the two forms cannot differ. |
+| Field defaults | 4 | Every constructor overwrites them before anything reads. |
 
-It is a ceiling for the *sample*, though, not a claim about the core: the
-sampled hundred is drawn from far more sites.
+So the figure is a **ceiling, not a milestone toward 100%**. A pass at the
+ceiling and a pass that found nothing look identical: read the survivor list,
+not the percentage.
 
-**Which modules the sample misjudges is not predictable.** It badly understated
-`effect_dispatch.gd`, where an exhaustive pass found 23 survivors and a real
-defect. It was right about `battle_state.gd`, `damage.gd` and `stats.gd`, each
-of which came back at 100% with nothing to fix. The three that were already
-clean are the ones with oracle vectors or round-trip tests behind them, which is
-a reason to expect coverage there — not a rule to lean on. Run the pass.
+**Sampling misjudges unpredictably, which is why exhaustive is the default.** A
+hundred-mutant sample badly understated `effect_dispatch.gd` — the exhaustive
+pass found 23 survivors there and a real defect (decision 0022). It was right
+about `battle_state.gd`, `damage.gd` and `stats.gd`, each already at 100%. And
+going exhaustive over the whole core surfaced survivors no sample had ever
+shown, in `move_definition.gd`, `command.gd` and `seeded_decider.gd` — the last
+of which led to decision 0024.
 
 Narrow a pass to one module with `--file`, and raise `--limit` to cover it
 exhaustively. A sampled score for a single file is noise: this one read 12

@@ -20,6 +20,15 @@ enum Stat {
 
 const STAT_COUNT: int = 6
 
+## The stable data key for each stat, in enum order. Identifiers, not display
+## names — the same kind of thing as an effect id, and subject to the same rule
+## that the core carries no text a player reads (spec 07).
+##
+## Here rather than in a loader because the ordering and the naming are one
+## convention: every loader that reads a stat map needs both, and keeping them
+## apart is how two of them end up disagreeing.
+const STAT_KEYS: Array[String] = ["hp", "atk", "def", "spa", "spd", "spe"]
+
 ## No stat raised, or none lowered.
 const NO_STAT: int = -1
 

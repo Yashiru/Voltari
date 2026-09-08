@@ -199,6 +199,18 @@ func test_replaying_a_move_whose_actor_is_gone_changes_nothing() -> void:
 	).is_equal(10)
 
 
+func test_no_side_cannot_collide_with_a_real_side() -> void:
+	# NO_SIDE marks an event belonging to no side. If it ever equalled a real
+	# side index, a field event would silently acquire an owner and visibility
+	# filtering would start reducing or hiding it for one of the players.
+	assert_int(VltLogEvent.NO_SIDE).override_failure_message(
+		"NO_SIDE must be outside the range of real side indices"
+	).is_less(0)
+
+	for side: int in range(VltBattleState.SIDE_COUNT):
+		assert_int(VltLogEvent.NO_SIDE).is_not_equal(side)
+
+
 func test_owner_only_events_are_dropped_for_the_other_side() -> void:
 	var event: VltLogTurnStart = VltLogTurnStart.create(4)
 	event.visibility = VltLogEvent.Visibility.OWNER_ONLY

@@ -169,6 +169,17 @@ func test_scripted_speed_ties_are_declared_not_drawn() -> void:
 	assert_bool(decider.speed_tie(earlier, ally).equals(earlier)).is_true()
 
 
+func test_a_seeded_speed_tie_comes_from_the_sequence() -> void:
+	# Pinned at fixed seeds because the sequence IS the contract: every fuzz
+	# case and every seeded replay is reproduced from it, so a change here is a
+	# change to all of them and should have to be written down.
+	var first: VltSlotRef = VltSlotRef.at(0, 0)
+	var second: VltSlotRef = VltSlotRef.at(1, 0)
+
+	assert_bool(VltSeededDecider.new(1).speed_tie(first, second).equals(second)).is_true()
+	assert_bool(VltSeededDecider.new(2).speed_tie(first, second).equals(first)).is_true()
+
+
 func test_both_implementations_answer_the_same_questions() -> void:
 	# Substitutability is what makes the differential possible at all.
 	var seeded: VltDecider = _seeded()

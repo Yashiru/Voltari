@@ -57,9 +57,16 @@ move_used, move_failed, move_missed
 effectiveness, critical_hit
 damage, heal, faint
 stat_change
-effect_applied, effect_removed, effect_triggered
+effect_changed
 input_requested
 ```
+
+One `effect_changed` rather than the `effect_applied` / `effect_removed` /
+`effect_triggered` this document first listed. An effect being applied,
+refreshed, stacked, counted down, expired or removed are six spellings of one
+sentence — the state of this effect at this position is now this — and the
+countdown alone would have forced `effect_applied` to be re-emitted every turn.
+Decision 0022 records it.
 
 ## 4. Ordering
 

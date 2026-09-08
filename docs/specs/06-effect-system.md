@@ -73,6 +73,12 @@ already carries it: refuse it, reset its duration, or add a layer. It is a
 per-effect declaration because there is no correct global default — a burn
 refuses, a screen refreshes, hazard layers stack.
 
+An effect **declares how long it lasts and never counts itself down**. Counting
+down and expiring are one mechanism, and the engine owns it (decision 0022). An
+effect that ticked its own duration would leave the engine owning half of it,
+and would let a new timed effect ship with no countdown at all — an effect that
+never ends, and nothing to say so.
+
 ## 4. Anchors and ordering
 
 An **anchor** is a named point where the engine consults effects. The anchor

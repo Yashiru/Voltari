@@ -9,9 +9,10 @@ extends RefCounted
 ## The pipeline never learns what a burn is. It receives 1/2 at the BURN stage
 ## and applies it where the oracle applies it (spec 06).
 ##
-## FIDELITY: the residual fraction below is not yet backed by an oracle vector.
-## The mechanism is tested; the number is not. It must go through the extraction
-## protocol of spec 08 section 4 before anything relies on it.
+## Both numbers are backed by the oracle: the battle differential replays a
+## burned attacker and compares event by event (battle/0005-burn). The residual
+## is max HP divided by eight, floored, and it lands after every action rather
+## than after the burned creature's own.
 
 const ID: String = "burn"
 const RESIDUAL_DIVISOR: int = 8

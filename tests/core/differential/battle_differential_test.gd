@@ -17,10 +17,14 @@ const VECTORS: String = "res://tests/fixtures/oracle/battle/scripted.json"
 const CHART_PAYLOAD: String = "res://content/generated/type-chart.json"
 
 var _chart: VltTypeChart
+var _effects: VltEffectRegistry
 
 
 func before() -> void:
 	_chart = VltTypeChartLoader.from_payload(_read_json(CHART_PAYLOAD))
+	_effects = VltEffectRegistry.new()
+	_effects.register(VltBurn.define())
+	_effects.register(VltReflect.define())
 
 
 @warning_ignore_start("unsafe_cast")
@@ -120,6 +124,18 @@ func _setup(vector: Dictionary) -> Array:
 			state.sides[side].party.append(creature)
 
 		state.sides[side].slots[0].occupy(0)
+
+	# Conditions the oracle set up before its script ran. The generator recorded
+	# them in Voltari vocabulary; the mapping stayed on the tooling side.
+	for entry: Variant in _list(vector, "conditions"):
+		var condition: Dictionary = _dict(entry)
+		var at: VltSlotRef = VltSlotRef.at(_num(condition["side"]), _num(condition["slot"]))
+		var applied: bool = VltEffectDispatch.apply(
+			state, _effects, _text(condition["effect"]), at, null
+		)
+		assert_bool(applied).override_failure_message(
+			"could not apply the recorded condition"
+		).is_true()
 
 	return [state, registry]
 
@@ -232,7 +248,7 @@ func test_every_scripted_battle_matches_the_oracle() -> void:
 		var state: VltBattleState = built[0]
 		var registry: Dictionary[String, VltMoveDefinition] = built[1]
 
-		var engine: VltTurnEngine = VltTurnEngine.new(registry, _chart)
+		var engine: VltTurnEngine = VltTurnEngine.new(registry, _chart, _effects)
 		var decider: VltScriptedDecider = _decider(_dict(vector["policy"]))
 		var produced: Array = []
 

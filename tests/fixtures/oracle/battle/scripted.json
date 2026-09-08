@@ -36,10 +36,545 @@
     "-ability": "effect system, not yet modelled",
     "-item": "effect system, not yet modelled",
     "-enditem": "effect system, not yet modelled",
+    "debug": "oracle diagnostic output, not a game event",
     "win": "battle outcome, compared through the final state",
     "": "blank separator"
   },
   "vectors": [
+    {
+      "id": "battle/0005-burn",
+      "policy": {
+        "damage_roll_index": 15,
+        "accuracy": "always",
+        "critical": "never",
+        "secondary": "never",
+        "speed_tie_winner_side": 0
+      },
+      "conditions": [
+        {
+          "effect": "burn",
+          "side": 0,
+          "slot": 0
+        }
+      ],
+      "parties": [
+        [
+          {
+            "level": 50,
+            "types": [
+              "fighting"
+            ],
+            "base": [
+              90,
+              130,
+              80,
+              65,
+              85,
+              55
+            ],
+            "ivs": [
+              31,
+              31,
+              31,
+              31,
+              31,
+              31
+            ],
+            "evs": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "stats": [
+              165,
+              150,
+              100,
+              85,
+              105,
+              75
+            ],
+            "moves": [
+              {
+                "id": "s0p0_m0",
+                "type": "normal",
+                "category": "physical",
+                "power": 35,
+                "accuracy": 95,
+                "priority": 0,
+                "pp": 56
+              }
+            ]
+          }
+        ],
+        [
+          {
+            "level": 50,
+            "types": [
+              "normal"
+            ],
+            "base": [
+              255,
+              10,
+              10,
+              75,
+              135,
+              55
+            ],
+            "ivs": [
+              31,
+              31,
+              31,
+              31,
+              31,
+              31
+            ],
+            "evs": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "stats": [
+              330,
+              30,
+              30,
+              95,
+              155,
+              75
+            ],
+            "moves": [
+              {
+                "id": "s1p0_m0",
+                "type": "normal",
+                "category": "physical",
+                "power": 35,
+                "accuracy": 95,
+                "priority": 0,
+                "pp": 56
+              }
+            ]
+          }
+        ]
+      ],
+      "script": [
+        [
+          {
+            "kind": "move",
+            "index": 0
+          },
+          {
+            "kind": "move",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "kind": "move",
+            "index": 0
+          },
+          {
+            "kind": "move",
+            "index": 0
+          }
+        ]
+      ],
+      "expected": [
+        {
+          "kind": "move",
+          "side": 0,
+          "slot": 0,
+          "move_index": 0
+        },
+        {
+          "kind": "damage",
+          "side": 1,
+          "slot": 0,
+          "hp_after": 290
+        },
+        {
+          "kind": "move",
+          "side": 1,
+          "slot": 0,
+          "move_index": 0
+        },
+        {
+          "kind": "damage",
+          "side": 0,
+          "slot": 0,
+          "hp_after": 156
+        },
+        {
+          "kind": "damage",
+          "side": 0,
+          "slot": 0,
+          "hp_after": 136
+        },
+        {
+          "kind": "move",
+          "side": 0,
+          "slot": 0,
+          "move_index": 0
+        },
+        {
+          "kind": "damage",
+          "side": 1,
+          "slot": 0,
+          "hp_after": 250
+        },
+        {
+          "kind": "move",
+          "side": 1,
+          "slot": 0,
+          "move_index": 0
+        },
+        {
+          "kind": "damage",
+          "side": 0,
+          "slot": 0,
+          "hp_after": 127
+        },
+        {
+          "kind": "damage",
+          "side": 0,
+          "slot": 0,
+          "hp_after": 107
+        }
+      ]
+    },
+    {
+      "id": "battle/0006-screen",
+      "policy": {
+        "damage_roll_index": 15,
+        "accuracy": "always",
+        "critical": "never",
+        "secondary": "never",
+        "speed_tie_winner_side": 0
+      },
+      "conditions": [
+        {
+          "effect": "reflect",
+          "side": 1,
+          "slot": 0
+        }
+      ],
+      "parties": [
+        [
+          {
+            "level": 50,
+            "types": [
+              "fighting"
+            ],
+            "base": [
+              90,
+              130,
+              80,
+              65,
+              85,
+              55
+            ],
+            "ivs": [
+              31,
+              31,
+              31,
+              31,
+              31,
+              31
+            ],
+            "evs": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "stats": [
+              165,
+              150,
+              100,
+              85,
+              105,
+              75
+            ],
+            "moves": [
+              {
+                "id": "s0p0_m0",
+                "type": "normal",
+                "category": "physical",
+                "power": 35,
+                "accuracy": 95,
+                "priority": 0,
+                "pp": 56
+              }
+            ]
+          }
+        ],
+        [
+          {
+            "level": 50,
+            "types": [
+              "normal"
+            ],
+            "base": [
+              255,
+              10,
+              10,
+              75,
+              135,
+              55
+            ],
+            "ivs": [
+              31,
+              31,
+              31,
+              31,
+              31,
+              31
+            ],
+            "evs": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "stats": [
+              330,
+              30,
+              30,
+              95,
+              155,
+              75
+            ],
+            "moves": [
+              {
+                "id": "s1p0_m0",
+                "type": "normal",
+                "category": "physical",
+                "power": 35,
+                "accuracy": 95,
+                "priority": 0,
+                "pp": 56
+              }
+            ]
+          }
+        ]
+      ],
+      "script": [
+        [
+          {
+            "kind": "move",
+            "index": 0
+          },
+          {
+            "kind": "move",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "kind": "move",
+            "index": 0
+          },
+          {
+            "kind": "move",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "kind": "move",
+            "index": 0
+          },
+          {
+            "kind": "move",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "kind": "move",
+            "index": 0
+          },
+          {
+            "kind": "move",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "kind": "move",
+            "index": 0
+          },
+          {
+            "kind": "move",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "kind": "move",
+            "index": 0
+          },
+          {
+            "kind": "move",
+            "index": 0
+          }
+        ]
+      ],
+      "expected": [
+        {
+          "kind": "move",
+          "side": 0,
+          "slot": 0,
+          "move_index": 0
+        },
+        {
+          "kind": "damage",
+          "side": 1,
+          "slot": 0,
+          "hp_after": 290
+        },
+        {
+          "kind": "move",
+          "side": 1,
+          "slot": 0,
+          "move_index": 0
+        },
+        {
+          "kind": "damage",
+          "side": 0,
+          "slot": 0,
+          "hp_after": 156
+        },
+        {
+          "kind": "move",
+          "side": 0,
+          "slot": 0,
+          "move_index": 0
+        },
+        {
+          "kind": "damage",
+          "side": 1,
+          "slot": 0,
+          "hp_after": 250
+        },
+        {
+          "kind": "move",
+          "side": 1,
+          "slot": 0,
+          "move_index": 0
+        },
+        {
+          "kind": "damage",
+          "side": 0,
+          "slot": 0,
+          "hp_after": 147
+        },
+        {
+          "kind": "move",
+          "side": 0,
+          "slot": 0,
+          "move_index": 0
+        },
+        {
+          "kind": "damage",
+          "side": 1,
+          "slot": 0,
+          "hp_after": 210
+        },
+        {
+          "kind": "move",
+          "side": 1,
+          "slot": 0,
+          "move_index": 0
+        },
+        {
+          "kind": "damage",
+          "side": 0,
+          "slot": 0,
+          "hp_after": 138
+        },
+        {
+          "kind": "move",
+          "side": 0,
+          "slot": 0,
+          "move_index": 0
+        },
+        {
+          "kind": "damage",
+          "side": 1,
+          "slot": 0,
+          "hp_after": 170
+        },
+        {
+          "kind": "move",
+          "side": 1,
+          "slot": 0,
+          "move_index": 0
+        },
+        {
+          "kind": "damage",
+          "side": 0,
+          "slot": 0,
+          "hp_after": 129
+        },
+        {
+          "kind": "move",
+          "side": 0,
+          "slot": 0,
+          "move_index": 0
+        },
+        {
+          "kind": "damage",
+          "side": 1,
+          "slot": 0,
+          "hp_after": 130
+        },
+        {
+          "kind": "move",
+          "side": 1,
+          "slot": 0,
+          "move_index": 0
+        },
+        {
+          "kind": "damage",
+          "side": 0,
+          "slot": 0,
+          "hp_after": 120
+        },
+        {
+          "kind": "move",
+          "side": 0,
+          "slot": 0,
+          "move_index": 0
+        },
+        {
+          "kind": "damage",
+          "side": 1,
+          "slot": 0,
+          "hp_after": 51
+        },
+        {
+          "kind": "move",
+          "side": 1,
+          "slot": 0,
+          "move_index": 0
+        },
+        {
+          "kind": "damage",
+          "side": 0,
+          "slot": 0,
+          "hp_after": 111
+        }
+      ]
+    },
     {
       "id": "battle/0001-trade",
       "policy": {
@@ -49,6 +584,7 @@
         "secondary": "never",
         "speed_tie_winner_side": 0
       },
+      "conditions": [],
       "parties": [
         [
           {
@@ -235,6 +771,7 @@
         "secondary": "never",
         "speed_tie_winner_side": 0
       },
+      "conditions": [],
       "parties": [
         [
           {
@@ -397,6 +934,7 @@
         "secondary": "never",
         "speed_tie_winner_side": 0
       },
+      "conditions": [],
       "parties": [
         [
           {
@@ -549,6 +1087,7 @@
         "secondary": "never",
         "speed_tie_winner_side": 0
       },
+      "conditions": [],
       "parties": [
         [
           {

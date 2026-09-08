@@ -7,7 +7,8 @@ extends RefCounted
 ## exists (spec 03). It is written here to prove the scope works, not because
 ## the roster needs it yet.
 ##
-## FIDELITY: the duration below is not yet backed by an oracle vector.
+## The duration is backed by the oracle: battle/0006-screen runs six turns, so
+## the differential sees the damage jump back up when the screen lapses.
 
 const ID: String = "reflect"
 const DURATION: int = 5

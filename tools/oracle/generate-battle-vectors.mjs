@@ -21,6 +21,11 @@ const REPO = join(HERE, "..", "..");
 const OUT_DIR = join(REPO, "tests", "fixtures", "oracle", "battle");
 
 const GEN4 = Dex.forGen(4);
+
+// The one crossing point between the two vocabularies (spec 02, section 3).
+// Oracle identifiers stay on this side; the fixture carries only Voltari ids.
+const STATUS_TO_EFFECT = { brn: "burn" };
+const SIDE_CONDITION_TO_EFFECT = { reflect: "reflect" };
 const STATS = ["hp", "atk", "def", "spa", "spd", "spe"];
 const ZERO_EVS = { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 };
 const MAX_IVS = { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 };
@@ -64,6 +69,7 @@ const IGNORED = {
   "-ability": "effect system, not yet modelled",
   "-item": "effect system, not yet modelled",
   "-enditem": "effect system, not yet modelled",
+  debug: "oracle diagnostic output, not a game event",
   win: "battle outcome, compared through the final state",
   "": "blank separator",
 };
@@ -247,6 +253,20 @@ function run(scenario) {
     }
   }
 
+  // Conditions set up before the script runs, recorded in Voltari vocabulary so
+  // the engine can reproduce the same starting position.
+  const conditions = [];
+  for (const [index, side] of (scenario.conditions ?? []).entries()) {
+    if (side?.status) {
+      battle.sides[index].active[0].setStatus(side.status);
+      conditions.push({ effect: STATUS_TO_EFFECT[side.status], side: index, slot: 0 });
+    }
+    for (const condition of side?.side_conditions ?? []) {
+      battle.sides[index].addSideCondition(condition, battle.sides[index].active[0]);
+      conditions.push({ effect: SIDE_CONDITION_TO_EFFECT[condition], side: index, slot: 0 });
+    }
+  }
+
   const startIndex = battle.log.length;
   for (const turn of scenario.script) {
     if (battle.ended) break;
@@ -264,6 +284,7 @@ function run(scenario) {
   return {
     id: scenario.id,
     policy: scenario.policy,
+    conditions,
     parties,
     script: scenario.script_commands,
     expected: projected.events,
@@ -281,6 +302,35 @@ const POLICY = {
 };
 
 const SCENARIOS = [
+  {
+    id: "battle/0005-burn",
+    policy: POLICY,
+    sides: [
+      [{ species: "Machamp", moves: ["Tackle"] }],
+      [{ species: "Blissey", moves: ["Tackle"] }],
+    ],
+    conditions: [{ status: "brn" }, {}],
+    script: [["move 1", "move 1"], ["move 1", "move 1"]],
+    script_commands: [
+      [{ kind: "move", index: 0 }, { kind: "move", index: 0 }],
+      [{ kind: "move", index: 0 }, { kind: "move", index: 0 }],
+    ],
+  },
+  {
+    id: "battle/0006-screen",
+    policy: POLICY,
+    sides: [
+      [{ species: "Machamp", moves: ["Tackle"] }],
+      [{ species: "Blissey", moves: ["Tackle"] }],
+    ],
+    conditions: [{}, { side_conditions: ["reflect"] }],
+    // Long enough for the screen to expire and damage to jump back up.
+    script: Array.from({ length: 6 }, () => ["move 1", "move 1"]),
+    script_commands: Array.from({ length: 6 }, () => [
+      { kind: "move", index: 0 },
+      { kind: "move", index: 0 },
+    ]),
+  },
   {
     id: "battle/0001-trade",
     policy: POLICY,

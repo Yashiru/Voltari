@@ -11,10 +11,14 @@
 // Usage:
 //   node tools/mutation/mutate.mjs [--limit N] [--seed N] [--list] [--file SUBSTRING]
 //
-// `--file` narrows to paths containing SUBSTRING, which is how a module gets
+// `--file` narrows to paths CONTAINING SUBSTRING, which is how a module gets
 // covered exhaustively rather than sampled. Raise --limit alongside it: a
 // sampled score for one file is noise, and the point of narrowing is to stop
 // sampling.
+//
+// It is a substring, not a filename — `--file damage.gd` also matches
+// log_damage.gd. The run prints the files it selected, so read that rather than
+// assuming the filter meant one file.
 
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
@@ -109,12 +113,12 @@ function applyMutant(source, mutant) {
 }
 
 // A clean run of the suite takes about three seconds, so this is generous by a
-// factor of forty. It is sized for mutants that HANG rather than fail: one made
-// a loop unbounded, and at the previous fifteen-minute limit that single mutant
-// cost more than every other mutant in the pass put together.
+// factor of forty. It is sized for a run that HANGS rather than fails: at the
+// previous fifteen-minute limit, one stalled run cost more than a whole
+// exhaustive pass, which is what --file exists to make practical.
 //
-// Too low would be worse than too high — a legitimate slow run would be counted
-// as caught, which hides a survivor instead of reporting one.
+// Too low would be worse than too high — a legitimate slow run counted as
+// caught hides a survivor instead of reporting one.
 const SUITE_TIMEOUT_MS = 120 * 1000;
 
 /// "survived" (the suite still passed), "caught" (it failed), or "hung" (it
@@ -166,6 +170,16 @@ function main() {
   const selected = shuffled(scoped, args.seed).slice(0, args.limit);
   const scope = args.file ? `matching "${args.file}"` : "in the core";
   console.log(`${scoped.length} mutation site(s) ${scope}; running ${selected.length}.`);
+
+  if (args.file) {
+    // Named, because the filter is a substring and may have caught more files
+    // than the one that was meant.
+    const files = [...new Set(scoped.map((mutant) => relative(REPO, mutant.path)))].sort();
+    for (const file of files) {
+      const count = scoped.filter((mutant) => relative(REPO, mutant.path) === file).length;
+      console.log(`  ${file} (${count})`);
+    }
+  }
   if (selected.length < scoped.length) {
     console.log(`  (${scoped.length - selected.length} not run — raise --limit for an exhaustive pass.)`);
   }

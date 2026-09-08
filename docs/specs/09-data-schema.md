@@ -66,7 +66,7 @@ elsewhere entirely (section 7).
 |-------|---------|-----------|
 | `types` | One or two, in order | Declared in the type chart |
 | `base_stats` | Six integers, `hp` first (spec 08 stat order) | 1–255 each |
-| `abilities` | Effect ids granted intrinsically | Every id is a registered effect |
+| `abilities` | Effect ids granted intrinsically | Engine-side only — see section 8 |
 | `learnset` | `level_up:` list of `{level, move}` | Move exists; levels ascending |
 | `evolutions` | List of `{into, trigger, …}` | Target species exists; no cycle |
 | `growth_rate` | Named level curve | Curve id is known — spec 10 |
@@ -146,6 +146,13 @@ Three kinds, and the distinction matters because they fail differently:
 Every failure names the file and the field. The build reports **all** problems
 and then exits, rather than stopping at the first: a content pass fixes ten
 typos in one go or ten times over.
+
+**One reference the build cannot check: effect ids.** A move's `effects` and a
+species' `abilities` name component classes, and those live in GDScript where a
+Node build cannot see them. Checking them is the engine-side meta-test's job
+(section 10), which is the only place that knows what is registered. Until a
+loader exists for a given kind, those ids are unchecked — stated here rather
+than left to be discovered.
 
 ## 9. What the build emits
 

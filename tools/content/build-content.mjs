@@ -18,6 +18,7 @@ const REPO = join(HERE, "..", "..");
 const CHART_YAML = join(REPO, "content", "type-chart.yaml");
 const NATURES_YAML = join(REPO, "content", "natures.yaml");
 const MOVES_DIR = join(REPO, "content", "moves");
+const SPECIES_DIR = join(REPO, "content", "species");
 const OUT_DIR = join(REPO, "content", "generated");
 
 /// The payload schema. A loader refuses a version it does not know, because
@@ -51,6 +52,10 @@ export function loadEntities(directory) {
 
 export function loadMoves() {
   return loadEntities(MOVES_DIR);
+}
+
+export function loadSpecies() {
+  return loadEntities(SPECIES_DIR);
 }
 
 // Validation is the build's job, not the engine's: a malformed chart must fail
@@ -185,6 +190,119 @@ function flattenMove(move) {
   return { ...move, accuracy: move.accuracy === "always" ? ALWAYS_HITS : move.accuracy };
 }
 
+const STATS = ["hp", "atk", "def", "spa", "spd", "spe"];
+const GROWTH_RATES = new Set(["erratic", "fast", "medium_fast", "medium_slow", "slow", "fluctuating"]);
+const EVOLUTION_TRIGGERS = new Set(["level"]);
+const GENDERLESS = "genderless";
+
+// Bounds come from spec 09 section 4. The last group is named and checked here
+// but given meaning by specs 10 and 11 — a field whose range is declared is a
+// field the build can already defend, even before a formula reads it.
+function validateSpecies(species, knownTypes, knownMoves) {
+  const problems = [];
+  const known = new Set(species.map((entry) => entry.id));
+
+  for (const entry of species) {
+    const where = `species "${entry.id}"`;
+
+    if (!Array.isArray(entry.types) || entry.types.length < 1 || entry.types.length > 2) {
+      problems.push(`${where}: needs one or two types`);
+    }
+    for (const type of entry.types ?? []) {
+      if (!knownTypes.has(type)) problems.push(`${where}: unknown type "${type}"`);
+    }
+    if (new Set(entry.types ?? []).size !== (entry.types ?? []).length) {
+      problems.push(`${where}: the same type twice`);
+    }
+
+    for (const stat of STATS) {
+      const value = entry.base_stats?.[stat];
+      if (!Number.isInteger(value) || value < 1 || value > 255) {
+        problems.push(`${where}: base_stats.${stat} must be 1-255`);
+      }
+      const yielded = entry.ev_yield?.[stat];
+      if (!Number.isInteger(yielded) || yielded < 0) {
+        problems.push(`${where}: ev_yield.${stat} must be a non-negative integer`);
+      }
+    }
+
+    const yieldTotal = STATS.reduce((sum, stat) => sum + (entry.ev_yield?.[stat] ?? 0), 0);
+    if (yieldTotal > 3) problems.push(`${where}: ev_yield totals ${yieldTotal}, more than 3`);
+
+    // Ascending levels, because a learnset read in file order has to BE in
+    // order — sorting it here would hide an authoring mistake rather than
+    // report it.
+    let previous = 0;
+    for (const learned of entry.learnset?.level_up ?? []) {
+      if (!knownMoves.has(learned.move)) {
+        problems.push(`${where}: learns unknown move "${learned.move}"`);
+      }
+      if (learned.level < 1 || learned.level > 100) {
+        problems.push(`${where}: learns "${learned.move}" at level ${learned.level}`);
+      }
+      if (learned.level < previous) {
+        problems.push(`${where}: learnset is out of order at "${learned.move}"`);
+      }
+      previous = learned.level;
+    }
+
+    for (const evolution of entry.evolutions ?? []) {
+      if (!known.has(evolution.into)) {
+        problems.push(`${where}: evolves into unknown species "${evolution.into}"`);
+      }
+      if (evolution.into === entry.id) problems.push(`${where}: evolves into itself`);
+      if (!EVOLUTION_TRIGGERS.has(evolution.trigger)) {
+        problems.push(`${where}: unknown evolution trigger "${evolution.trigger}"`);
+      }
+      if (evolution.trigger === "level" && !Number.isInteger(evolution.level)) {
+        problems.push(`${where}: a level evolution needs a level`);
+      }
+    }
+
+    if (!GROWTH_RATES.has(entry.growth_rate)) {
+      problems.push(`${where}: unknown growth_rate "${entry.growth_rate}"`);
+    }
+    if (!Number.isInteger(entry.base_experience) || entry.base_experience < 1) {
+      problems.push(`${where}: base_experience must be a positive integer`);
+    }
+    if (!Number.isInteger(entry.catch_rate) || entry.catch_rate < 3 || entry.catch_rate > 255) {
+      problems.push(`${where}: catch_rate must be 3-255`);
+    }
+
+    const ratio = entry.gender_ratio;
+    if (ratio !== GENDERLESS && (!Number.isInteger(ratio) || ratio < 0 || ratio > 8)) {
+      problems.push(`${where}: gender_ratio must be 0-8 eighths or "${GENDERLESS}"`);
+    }
+  }
+
+  problems.push(...evolutionCycles(species));
+  return problems;
+}
+
+// A cycle would be an evolution chain with no end. Nothing downstream would
+// crash on it; it would simply never terminate, somewhere far from here.
+function evolutionCycles(species) {
+  const graph = new Map(species.map((e) => [e.id, (e.evolutions ?? []).map((v) => v.into)]));
+  const problems = [];
+  const state = new Map(); // unvisited | visiting | done
+
+  const walk = (id, path) => {
+    if (state.get(id) === "done") return;
+    if (state.get(id) === "visiting") {
+      problems.push(`evolution cycle: ${[...path, id].join(" -> ")}`);
+      return;
+    }
+    state.set(id, "visiting");
+    for (const next of graph.get(id) ?? []) {
+      if (graph.has(next)) walk(next, [...path, id]);
+    }
+    state.set(id, "done");
+  };
+
+  for (const entry of species) walk(entry.id, []);
+  return problems;
+}
+
 /// One payload per entity, plus the index that makes them enumerable.
 ///
 /// Without the index nothing can walk the roster and a loader is reduced to
@@ -221,12 +339,15 @@ function main() {
   const chart = loadChart();
   const natures = loadNatures();
   const moves = loadMoves();
+  const species = loadSpecies();
   const knownTypes = new Set(chart.types);
+  const knownMoves = new Set(moves.map((move) => move.id));
 
   report([
     ...validateChart(chart),
     ...validateNatures(natures),
     ...validateMoves(moves, knownTypes),
+    ...validateSpecies(species, knownTypes, knownMoves),
   ]);
 
   mkdirSync(OUT_DIR, { recursive: true });
@@ -244,6 +365,9 @@ function main() {
 
   const movesDir = writeEntities("moves", moves.map(flattenMove));
   console.log(`moves:      ${moves.length} entries -> ${movesDir}/`);
+
+  const speciesDir = writeEntities("species", species);
+  console.log(`species:    ${species.length} entries -> ${speciesDir}/`);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) main();

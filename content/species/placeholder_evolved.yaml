@@ -1,0 +1,33 @@
+# The evolved shape: no further evolution, so `evolutions` is absent rather
+# than an empty list — nothing to say is said by saying nothing.
+
+types:
+  - normal
+  - water
+
+base_stats:
+  hp: 80
+  atk: 82
+  def: 83
+  spa: 100
+  spd: 100
+  spe: 80
+
+learnset:
+  level_up:
+    - level: 1
+      move: basic_physical
+    - level: 20
+      move: water_special
+
+growth_rate: medium_slow
+base_experience: 208
+ev_yield:
+  hp: 0
+  atk: 0
+  def: 0
+  spa: 3
+  spd: 0
+  spe: 0
+catch_rate: 45
+gender_ratio: 4

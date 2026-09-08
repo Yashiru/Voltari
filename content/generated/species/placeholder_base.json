@@ -1,0 +1,49 @@
+{
+  "id": "placeholder_base",
+  "types": [
+    "normal"
+  ],
+  "base_stats": {
+    "hp": 45,
+    "atk": 49,
+    "def": 49,
+    "spa": 65,
+    "spd": 65,
+    "spe": 45
+  },
+  "learnset": {
+    "level_up": [
+      {
+        "level": 1,
+        "move": "basic_physical"
+      },
+      {
+        "level": 7,
+        "move": "heavy_physical"
+      },
+      {
+        "level": 13,
+        "move": "inert_status"
+      }
+    ]
+  },
+  "evolutions": [
+    {
+      "into": "placeholder_evolved",
+      "trigger": "level",
+      "level": 16
+    }
+  ],
+  "growth_rate": "medium_fast",
+  "base_experience": 64,
+  "ev_yield": {
+    "hp": 0,
+    "atk": 0,
+    "def": 0,
+    "spa": 1,
+    "spd": 0,
+    "spe": 0
+  },
+  "catch_rate": 45,
+  "gender_ratio": 4
+}

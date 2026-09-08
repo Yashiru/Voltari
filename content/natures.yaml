@@ -1,0 +1,94 @@
+# Natures — authored content.
+#
+# A nature is a pair: one stat raised 10%, one lowered 10%. Five are neutral.
+# Twenty-five combinations in total.
+#
+# Identifiers are STRUCTURAL PLACEHOLDERS. Nature names are part of the game's
+# IP and are not derived from any reference; renaming these is a content edit
+# and touches no engine code.
+#
+# The mechanical pairings come from @pkmn/sim 0.10.11 gen4.
+version: 1
+stats:
+  - hp
+  - atk
+  - def
+  - spa
+  - spd
+  - spe
+natures:
+  - id: atk_up_spa_down
+    plus: atk
+    minus: spa
+  - id: neutral_atk
+    plus: null
+    minus: null
+  - id: def_up_atk_down
+    plus: def
+    minus: atk
+  - id: atk_up_spe_down
+    plus: atk
+    minus: spe
+  - id: spd_up_atk_down
+    plus: spd
+    minus: atk
+  - id: spd_up_spa_down
+    plus: spd
+    minus: spa
+  - id: neutral_def
+    plus: null
+    minus: null
+  - id: spd_up_def_down
+    plus: spd
+    minus: def
+  - id: neutral_spa
+    plus: null
+    minus: null
+  - id: spe_up_def_down
+    plus: spe
+    minus: def
+  - id: def_up_spa_down
+    plus: def
+    minus: spa
+  - id: spe_up_spa_down
+    plus: spe
+    minus: spa
+  - id: def_up_spd_down
+    plus: def
+    minus: spd
+  - id: atk_up_def_down
+    plus: atk
+    minus: def
+  - id: spa_up_def_down
+    plus: spa
+    minus: def
+  - id: spa_up_atk_down
+    plus: spa
+    minus: atk
+  - id: spe_up_spd_down
+    plus: spe
+    minus: spd
+  - id: atk_up_spd_down
+    plus: atk
+    minus: spd
+  - id: spa_up_spe_down
+    plus: spa
+    minus: spe
+  - id: neutral_spd
+    plus: null
+    minus: null
+  - id: spa_up_spd_down
+    plus: spa
+    minus: spd
+  - id: def_up_spe_down
+    plus: def
+    minus: spe
+  - id: spd_up_spe_down
+    plus: spd
+    minus: spe
+  - id: neutral_spe
+    plus: null
+    minus: null
+  - id: spe_up_atk_down
+    plus: spe
+    minus: atk

@@ -224,6 +224,83 @@ func test_stacking_rules_are_honoured() -> void:
 	assert_int(state.sides[0].effects.size()).is_equal(1)
 
 
+## A registry of its own, for tests that need a definition the library has not
+## got. The shared one is checked by the meta-test at the bottom, so registering
+## a test double into it would be reported as unverified content.
+func _own_registry() -> VltEffectRegistry:
+	var registry: VltEffectRegistry = VltEffectRegistry.new()
+	registry.register(VltBurn.define())
+	registry.register(VltReflect.define())
+	return registry
+
+
+func test_stacking_adds_a_layer() -> void:
+	# The third stacking rule, and the one no registered effect uses yet — so
+	# nothing exercised it and reapplying could have done anything at all.
+	var registry: VltEffectRegistry = _own_registry()
+	registry.register(
+		VltEffectDefinition.create(
+			"test_stack",
+			VltEffectDefinition.Scope.CREATURE,
+			VltEffectDefinition.ResetRule.PERSISTS,
+			VltEffectDefinition.Stacking.STACKING
+		)
+	)
+
+	var state: VltBattleState = _battle()
+	var at: VltSlotRef = VltSlotRef.at(0, 0)
+
+	assert_bool(VltEffectDispatch.apply(state, registry, "test_stack", at, null)).is_true()
+	assert_int(state.creature_at(at).effects[0].layers).is_equal(1)
+
+	# Reapplying reports that something changed, unlike UNIQUE.
+	assert_bool(VltEffectDispatch.apply(state, registry, "test_stack", at, null)).is_true()
+	assert_int(state.creature_at(at).effects.size()).is_equal(1)
+	assert_int(state.creature_at(at).effects[0].layers).is_equal(2)
+
+
+func test_an_effect_needs_a_position_it_can_attach_to() -> void:
+	# Every rejection path of the scope guard. Each returns false rather than
+	# raising: applying an effect where it cannot go is a normal answer.
+	var state: VltBattleState = _battle()
+	var registry: VltEffectRegistry = _own_registry()
+
+	assert_bool(
+		VltEffectDispatch.apply(state, registry, VltBurn.ID, null, null)
+	).override_failure_message("a creature-scoped effect needs a position").is_false()
+
+	var off_field: VltSlotRef = VltSlotRef.at(0, 99)
+	assert_bool(
+		VltEffectDispatch.apply(state, registry, VltBurn.ID, off_field, null)
+	).override_failure_message("%s is not a slot on this field" % off_field).is_false()
+
+	assert_bool(
+		VltEffectDispatch.remove(state, VltBurn.define(), null)
+	).override_failure_message("removing from nowhere removes nothing").is_false()
+
+	# Field scope is the exception: it belongs to no position, so a null one is
+	# not a missing argument.
+	registry.register(
+		VltEffectDefinition.create("test_anywhere", VltEffectDefinition.Scope.FIELD)
+	)
+	assert_bool(VltEffectDispatch.apply(state, registry, "test_anywhere", null, null)).is_true()
+
+
+func test_applying_during_a_turn_is_recorded() -> void:
+	# The log parameter is what keeps invariant 8 true for effects applied mid
+	# turn, so an application with a log must produce an event that replays.
+	var state: VltBattleState = _battle()
+	var log: VltBattleLog = VltBattleLog.new()
+	var at: VltSlotRef = VltSlotRef.at(0, 0)
+
+	var snapshot: VltBattleState = state.clone()
+	VltEffectDispatch.apply(state, _registry, VltBurn.ID, at, null, log)
+
+	assert_int(log.size()).is_equal(1)
+	log.replay_onto(snapshot)
+	assert_str(JSON.stringify(snapshot.to_dict())).is_equal(JSON.stringify(state.to_dict()))
+
+
 func test_slot_scoped_state_clears_when_the_occupant_leaves() -> void:
 	var state: VltBattleState = _battle()
 	var at: VltSlotRef = VltSlotRef.at(0, 0)

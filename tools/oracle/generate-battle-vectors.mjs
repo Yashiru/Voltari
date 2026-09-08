@@ -230,9 +230,22 @@ function run(scenario) {
   // whole point of the policy: shared answers, not shared random numbers.
   battle.prng.shuffle = (list, start = 0, end = list.length) => {
     const slice = list.slice(start, end);
+
+    // Normalise to the engine's canonical order first — side, then position —
+    // so "earlier" means the same thing on both sides of the differential.
     const sideOf = (action) => action?.pokemon?.side?.n ?? 0;
-    slice.sort((a, b) => sideOf(a) - sideOf(b));
-    if (policy.speed_tie_winner_side === 1) slice.reverse();
+    const slotOf = (action) => action?.pokemon?.position ?? 0;
+    slice.sort((a, b) => sideOf(a) - sideOf(b) || slotOf(a) - slotOf(b));
+
+    // Then mirror the engine's adjacent-pair walk rather than reversing the
+    // slice. The two agree on a pair and diverge on three or more, which a
+    // doubles vector would reach.
+    if (policy.speed_tie_winner === "later") {
+      for (let i = 1; i < slice.length; i++) {
+        [slice[i - 1], slice[i]] = [slice[i], slice[i - 1]];
+      }
+    }
+
     for (let i = 0; i < slice.length; i++) list[start + i] = slice[i];
   };
 
@@ -298,7 +311,7 @@ const POLICY = {
   accuracy: "always",
   critical: "never",
   secondary: "never",
-  speed_tie_winner_side: 0,
+  speed_tie_winner: "earlier",
 };
 
 const SCENARIOS = [

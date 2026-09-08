@@ -68,8 +68,9 @@ func _battle(fast_side: int = 0) -> VltBattleState:
 ## passed it two, so every rule that only differs between one slot a side and two
 ## — ordering within a side, a target that falls to an ally's attack — answered
 ## to nothing.
+##
 ## `tied` makes both slots of a side equally fast, which is the only way a speed
-## tie between allies can arise — singles cannot produce one, since a side never
+## tie between allies can arise: singles cannot produce one, since a side never
 ## submits two commands.
 func _doubles(fast_side: int = 0, tied: bool = false) -> VltBattleState:
 	var state: VltBattleState = VltBattleState.create(2)
@@ -184,7 +185,7 @@ func test_a_speed_tie_is_decided_not_drawn() -> void:
 		state.sides[side].slots[0].occupy(0)
 
 	var decider: VltScriptedDecider = _scripted()
-	decider.speed_tie_winner_side = 1
+	decider.speed_tie_winner = VltScriptedDecider.TieWinner.LATER
 
 	var outcome: VltTurnOutcome = _engine.resolve(state, [_move(0, 0), _move(1, 0)], decider)
 	assert_int(_first_move_used(outcome.log).actor.side).is_equal(1)
@@ -229,9 +230,9 @@ func test_two_allies_at_the_same_speed_are_a_tie_the_decider_answers() -> void:
 	# Two policies that answer this tie differently. If the engine settled it
 	# from position instead of asking, both would give the same order.
 	var favours_earlier: VltScriptedDecider = _scripted()
-	favours_earlier.speed_tie_winner_side = 0
+	favours_earlier.speed_tie_winner = VltScriptedDecider.TieWinner.EARLIER
 	var favours_later: VltScriptedDecider = _scripted()
-	favours_later.speed_tie_winner_side = 1
+	favours_later.speed_tie_winner = VltScriptedDecider.TieWinner.LATER
 
 	assert_array(
 		_actor_order(_engine.resolve(state, commands, favours_earlier).log)

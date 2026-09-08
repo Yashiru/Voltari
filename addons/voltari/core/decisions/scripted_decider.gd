@@ -17,15 +17,26 @@ enum Answer {
 	ALWAYS,
 }
 
+## Which of the two commands put to the decider wins a speed tie.
+##
+## Expressed on the pair, not on a side. A side cannot name a winner when the
+## two tied commands belong to the same side, which is every ally tie in a
+## doubles battle — and the answer then fell out of how the policy happened to
+## be written rather than from anything declared.
+enum TieWinner {
+	EARLIER,
+	LATER,
+}
+
 ## Index into the sixteen damage rolls, 0 to 15.
 var damage_roll_index: int = VltSeededDecider.DAMAGE_ROLL_COUNT - 1
 var accuracy: Answer = Answer.ALWAYS
 var critical: Answer = Answer.NEVER
 var secondary: Answer = Answer.NEVER
 
-## Which side wins a speed tie. Explicit, because "whoever came first" would
-## make ordering depend on iteration order.
-var speed_tie_winner_side: int = 0
+## Who wins a speed tie. Explicit, because leaving it to iteration order is
+## exactly what the decision interface exists to prevent.
+var speed_tie_winner: TieWinner = TieWinner.EARLIER
 
 ## Multi-hit and status length are answered with fixed values; a scenario that
 ## needs a different one sets it before running.
@@ -50,7 +61,7 @@ func secondary_triggers(_chance: int) -> bool:
 
 
 func speed_tie(first: VltSlotRef, second: VltSlotRef) -> VltSlotRef:
-	return first if first.side == speed_tie_winner_side else second
+	return first if speed_tie_winner == TieWinner.EARLIER else second
 
 
 func multi_hit_count(minimum: int, maximum: int) -> int:

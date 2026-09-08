@@ -11,6 +11,7 @@
     "content:build": "node content/build-content.mjs",
     "content:chart": "node content/render-type-chart.mjs",
     "oracle:stats": "node oracle/generate-stat-vectors.mjs",
+    "oracle:battle": "node oracle/generate-battle-vectors.mjs",
     "mutation": "node mutation/mutate.mjs"
   },
   "dependencies": {

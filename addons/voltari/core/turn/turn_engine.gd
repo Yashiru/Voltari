@@ -392,6 +392,8 @@ func _finish(state: VltBattleState, log: VltBattleLog) -> VltTurnOutcome:
 	var pending: Array[VltSlotRef] = _slots_needing_replacement(state)
 	if not pending.is_empty():
 		state.awaiting_replacement = pending
+		# Suspending writes to the state, so it emits like any other change.
+		log.append(VltLogPendingInput.create(pending))
 		return VltTurnOutcome.needs_input(state, log, pending)
 
 	# ANCHOR: TURN_END
@@ -448,4 +450,5 @@ func _resume(state: VltBattleState, commands: Array[VltCommand]) -> VltTurnOutco
 		)
 
 	working.awaiting_replacement = []
+	log.append(VltLogPendingInput.create([]))
 	return _finish(working, log)

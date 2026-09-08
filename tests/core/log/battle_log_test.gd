@@ -70,6 +70,9 @@ func _play(state: VltBattleState) -> VltBattleLog:
 	state.slot_at(target).occupy(1)
 	log.append(VltLogSwitchIn.create(target, 1, state.creature_at(target).species_id))
 
+	state.awaiting_replacement = [VltSlotRef.at(SIDE_ONE, 0)]
+	log.append(VltLogPendingInput.create(state.awaiting_replacement))
+
 	return log
 
 

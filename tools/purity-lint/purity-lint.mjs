@@ -28,6 +28,10 @@ const FORBIDDEN = [
   { pattern: /\brandomize\b/, reason: "global RNG; inject a seeded stream" },
   { pattern: /\brand_from_seed\b/, reason: "global RNG; inject a seeded stream" },
   { pattern: /\bRandomNumberGenerator\b/, reason: "global RNG; inject a seeded stream" },
+  {
+    pattern: /\bnext_in_range\b/,
+    reason: "general-purpose draw; the core asks named decisions so that every source of chance stays enumerable",
+  },
   { pattern: /\bTime\b/, reason: "clock access" },
   { pattern: /\bOS\b/, reason: "environment access" },
   { pattern: /\bEngine\b/, reason: "environment access" },

@@ -105,14 +105,22 @@ rather than a habit:
 
 ### Target
 
-A **ratchet**, measured rather than chosen: the recorded baseline is **80%** over
+A **ratchet**, measured rather than chosen: the recorded baseline is **82%** over
 100 mutants, and it may not go down. See decision 0021 for why the target is a
 measurement rather than a number, and for the two categories survivors fall into.
 
 This line is the ratchet itself, so it moves only upward and only with a run
-behind it. It read 71% when 0021 was written; closing the ordering gap in
-`effect_dispatch.gd` — 53% to 81% on an exhaustive pass over that file — carried
-the core figure to 80%.
+behind it. It read 71% when 0021 was written. Covering `effect_dispatch.gd`
+(53% to 81%), `turn_engine.gd` (86% to 94%) and `burn.gd` (71% to 100%) carried
+it to 82%.
+
+**Do not read the remaining 18% as work left.** Most of it cannot be killed by
+any passing test: eleven survivors are `assert` calls in abstract bases and
+preconditions, where the original aborts on the very input that would tell the
+mutant apart, and four are comparisons guarded by an inequality on the line
+above, where `>` and `>=` cannot differ. Three are real. A pass whose survivors
+are all of the first two kinds is a pass that found nothing, and saying so is
+more useful than reporting a percentage.
 
 Narrow a pass to one module with `--file`, and raise `--limit` to cover it
 exhaustively. A sampled score for a single file is noise: this one read 12

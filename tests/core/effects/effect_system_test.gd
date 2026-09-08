@@ -114,6 +114,55 @@ func test_a_burn_halves_physical_damage_but_not_special() -> void:
 	assert_int(_damage_dealt(_attack(special_burned, 1), target)).is_equal(special_clean)
 
 
+func test_a_burn_contributes_nothing_outside_an_action() -> void:
+	# The context declares actor, target and move as the action under way "when
+	# there is one", so a modifier can be asked for its ratio with no action at
+	# all. Each half of the guard has to hold on its own: reading a move that is
+	# not there is not a smaller mistake than reading an actor that is not.
+	var state: VltBattleState = _battle()
+	var at: VltSlotRef = VltSlotRef.at(0, 0)
+	VltEffectDispatch.apply(state, _registry, VltBurn.ID, at, null)
+
+	var no_move: VltDamageModifiers = VltEffectDispatch.collect_modifiers(
+		state, _registry, at, VltSlotRef.at(1, 0), null
+	)
+	_assert_neutral(no_move, "an actor with no move")
+
+	var no_actor: VltDamageModifiers = VltEffectDispatch.collect_modifiers(
+		state, _registry, null, VltSlotRef.at(1, 0), _moves[PHYSICAL]
+	)
+	_assert_neutral(no_actor, "a move with no actor")
+
+
+func _assert_neutral(modifiers: VltDamageModifiers, what: String) -> void:
+	assert_int(
+		modifiers.numerator_for(VltDamageStage.Stage.BURN)
+	).override_failure_message("%s must contribute nothing" % what).is_equal(1)
+	assert_int(modifiers.denominator_for(VltDamageStage.Stage.BURN)).is_equal(1)
+
+
+func test_a_burn_does_not_touch_a_creature_that_already_fainted() -> void:
+	# The residual runs after every action, so the creature it belongs to may
+	# have been knocked out earlier in the same turn. Damaging it again would
+	# report a second faint for one death.
+	var state: VltBattleState = _battle()
+	var target: VltSlotRef = VltSlotRef.at(1, 0)
+	VltEffectDispatch.apply(state, _registry, VltBurn.ID, target, null)
+	state.sides[1].party[0].current_hp = 1
+
+	var outcome: VltTurnOutcome = _attack(state, 0)
+
+	var faints: int = 0
+	for event: VltLogEvent in outcome.log.events:
+		if event.kind() == VltLogFaint.KIND:
+			faints += 1
+
+	assert_int(faints).override_failure_message(
+		"one death must be reported once"
+	).is_equal(1)
+	assert_int(outcome.state.creature_at(target).current_hp).is_equal(0)
+
+
 func test_a_burn_costs_hp_at_the_end_of_the_turn() -> void:
 	var state: VltBattleState = _battle()
 	VltEffectDispatch.apply(state, _registry, VltBurn.ID, VltSlotRef.at(0, 0), null)

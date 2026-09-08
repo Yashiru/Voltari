@@ -1,0 +1,774 @@
+{
+  "oracle": "@pkmn/sim 0.10.11 gen4",
+  "structural_stages": [
+    "PLUS_TWO",
+    "MODIFIER_PHASE_2",
+    "FINAL_MODIFIER",
+    "RANDOM_ROLL"
+  ],
+  "vectors": [
+    {
+      "id": "damage/baseline/0001",
+      "kind": "damage",
+      "stages": [],
+      "control": null,
+      "expected_ratio": null,
+      "input": {
+        "level": 50,
+        "move": {
+          "power": 35,
+          "type": "normal",
+          "category": "physical"
+        },
+        "attacker": {
+          "attack": 150,
+          "special_attack": 85,
+          "types": [
+            "fighting"
+          ],
+          "status": null
+        },
+        "defender": {
+          "hp": 330,
+          "defense": 30,
+          "special_defense": 155,
+          "types": [
+            "normal"
+          ]
+        },
+        "context": {
+          "critical": false,
+          "weather": null,
+          "screens": [],
+          "spread": false
+        }
+      },
+      "expected": {
+        "rolls": [
+          67,
+          67,
+          68,
+          69,
+          70,
+          71,
+          71,
+          72,
+          73,
+          74,
+          75,
+          75,
+          76,
+          77,
+          78,
+          79
+        ]
+      }
+    },
+    {
+      "id": "damage/burn/0001",
+      "kind": "damage",
+      "stages": [
+        "BURN"
+      ],
+      "control": "damage/baseline/0001",
+      "expected_ratio": 0.5,
+      "input": {
+        "level": 50,
+        "move": {
+          "power": 35,
+          "type": "normal",
+          "category": "physical"
+        },
+        "attacker": {
+          "attack": 150,
+          "special_attack": 85,
+          "types": [
+            "fighting"
+          ],
+          "status": "brn"
+        },
+        "defender": {
+          "hp": 330,
+          "defense": 30,
+          "special_defense": 155,
+          "types": [
+            "normal"
+          ]
+        },
+        "context": {
+          "critical": false,
+          "weather": null,
+          "screens": [],
+          "spread": false
+        }
+      },
+      "expected": {
+        "rolls": [
+          34,
+          34,
+          34,
+          35,
+          35,
+          36,
+          36,
+          36,
+          37,
+          37,
+          38,
+          38,
+          38,
+          39,
+          39,
+          40
+        ]
+      }
+    },
+    {
+      "id": "damage/screen/0001",
+      "kind": "damage",
+      "stages": [
+        "MODIFIER_PHASE_1"
+      ],
+      "control": "damage/baseline/0001",
+      "expected_ratio": 0.5,
+      "input": {
+        "level": 50,
+        "move": {
+          "power": 35,
+          "type": "normal",
+          "category": "physical"
+        },
+        "attacker": {
+          "attack": 150,
+          "special_attack": 85,
+          "types": [
+            "fighting"
+          ],
+          "status": null
+        },
+        "defender": {
+          "hp": 330,
+          "defense": 30,
+          "special_defense": 155,
+          "types": [
+            "normal"
+          ]
+        },
+        "context": {
+          "critical": false,
+          "weather": null,
+          "screens": [
+            "reflect"
+          ],
+          "spread": false
+        }
+      },
+      "expected": {
+        "rolls": [
+          34,
+          34,
+          34,
+          35,
+          35,
+          36,
+          36,
+          36,
+          37,
+          37,
+          38,
+          38,
+          38,
+          39,
+          39,
+          40
+        ]
+      }
+    },
+    {
+      "id": "damage/weather/control",
+      "kind": "damage",
+      "stages": [],
+      "control": null,
+      "expected_ratio": null,
+      "input": {
+        "level": 50,
+        "move": {
+          "power": 40,
+          "type": "water",
+          "category": "special"
+        },
+        "attacker": {
+          "attack": 85,
+          "special_attack": 130,
+          "types": [
+            "water"
+          ],
+          "status": null
+        },
+        "defender": {
+          "hp": 330,
+          "defense": 30,
+          "special_defense": 155,
+          "types": [
+            "normal"
+          ]
+        },
+        "context": {
+          "critical": false,
+          "weather": null,
+          "screens": [],
+          "spread": false
+        }
+      },
+      "expected": {
+        "rolls": [
+          19,
+          19,
+          19,
+          21,
+          21,
+          21,
+          21,
+          21,
+          21,
+          22,
+          22,
+          22,
+          22,
+          22,
+          22,
+          24
+        ]
+      }
+    },
+    {
+      "id": "damage/weather/0001",
+      "kind": "damage",
+      "stages": [
+        "WEATHER"
+      ],
+      "control": "damage/weather/control",
+      "expected_ratio": 1.5,
+      "input": {
+        "level": 50,
+        "move": {
+          "power": 40,
+          "type": "water",
+          "category": "special"
+        },
+        "attacker": {
+          "attack": 85,
+          "special_attack": 130,
+          "types": [
+            "water"
+          ],
+          "status": null
+        },
+        "defender": {
+          "hp": 330,
+          "defense": 30,
+          "special_defense": 155,
+          "types": [
+            "normal"
+          ]
+        },
+        "context": {
+          "critical": false,
+          "weather": "rain",
+          "screens": [],
+          "spread": false
+        }
+      },
+      "expected": {
+        "rolls": [
+          28,
+          28,
+          30,
+          30,
+          30,
+          30,
+          30,
+          31,
+          31,
+          31,
+          31,
+          33,
+          33,
+          33,
+          33,
+          34
+        ]
+      }
+    },
+    {
+      "id": "damage/critical/0001",
+      "kind": "damage",
+      "stages": [
+        "CRITICAL"
+      ],
+      "control": "damage/baseline/0001",
+      "expected_ratio": 2,
+      "input": {
+        "level": 50,
+        "move": {
+          "power": 35,
+          "type": "normal",
+          "category": "physical"
+        },
+        "attacker": {
+          "attack": 150,
+          "special_attack": 85,
+          "types": [
+            "fighting"
+          ],
+          "status": null
+        },
+        "defender": {
+          "hp": 330,
+          "defense": 30,
+          "special_defense": 155,
+          "types": [
+            "normal"
+          ]
+        },
+        "context": {
+          "critical": true,
+          "weather": null,
+          "screens": [],
+          "spread": false
+        }
+      },
+      "expected": {
+        "rolls": [
+          134,
+          135,
+          137,
+          139,
+          140,
+          142,
+          143,
+          145,
+          146,
+          148,
+          150,
+          151,
+          153,
+          154,
+          156,
+          158
+        ]
+      }
+    },
+    {
+      "id": "damage/stab/control",
+      "kind": "damage",
+      "stages": [],
+      "control": null,
+      "expected_ratio": null,
+      "input": {
+        "level": 50,
+        "move": {
+          "power": 40,
+          "type": "normal",
+          "category": "physical"
+        },
+        "attacker": {
+          "attack": 150,
+          "special_attack": 85,
+          "types": [
+            "fighting"
+          ],
+          "status": null
+        },
+        "defender": {
+          "hp": 205,
+          "defense": 80,
+          "special_defense": 115,
+          "types": [
+            "water"
+          ]
+        },
+        "context": {
+          "critical": false,
+          "weather": null,
+          "screens": [],
+          "spread": false
+        }
+      },
+      "expected": {
+        "rolls": [
+          29,
+          30,
+          30,
+          30,
+          31,
+          31,
+          31,
+          32,
+          32,
+          32,
+          33,
+          33,
+          33,
+          34,
+          34,
+          35
+        ]
+      }
+    },
+    {
+      "id": "damage/stab/0001",
+      "kind": "damage",
+      "stages": [
+        "STAB"
+      ],
+      "control": "damage/stab/control",
+      "expected_ratio": 1.5,
+      "input": {
+        "level": 50,
+        "move": {
+          "power": 40,
+          "type": "fighting",
+          "category": "physical"
+        },
+        "attacker": {
+          "attack": 150,
+          "special_attack": 85,
+          "types": [
+            "fighting"
+          ],
+          "status": null
+        },
+        "defender": {
+          "hp": 205,
+          "defense": 80,
+          "special_defense": 115,
+          "types": [
+            "water"
+          ]
+        },
+        "context": {
+          "critical": false,
+          "weather": null,
+          "screens": [],
+          "spread": false
+        }
+      },
+      "expected": {
+        "rolls": [
+          43,
+          45,
+          45,
+          45,
+          46,
+          46,
+          46,
+          48,
+          48,
+          48,
+          49,
+          49,
+          49,
+          51,
+          51,
+          52
+        ]
+      }
+    },
+    {
+      "id": "damage/effectiveness/0001",
+      "kind": "damage",
+      "stages": [
+        "TYPE_EFFECTIVENESS"
+      ],
+      "control": null,
+      "expected_ratio": null,
+      "input": {
+        "level": 50,
+        "move": {
+          "power": 40,
+          "type": "water",
+          "category": "special"
+        },
+        "attacker": {
+          "attack": 70,
+          "special_attack": 155,
+          "types": [
+            "psychic"
+          ],
+          "status": null
+        },
+        "defender": {
+          "hp": 190,
+          "defense": 150,
+          "special_defense": 75,
+          "types": [
+            "ground",
+            "rock"
+          ]
+        },
+        "context": {
+          "critical": false,
+          "weather": null,
+          "screens": [],
+          "spread": false
+        }
+      },
+      "expected": {
+        "rolls": [
+          128,
+          128,
+          132,
+          132,
+          132,
+          136,
+          136,
+          136,
+          140,
+          140,
+          144,
+          144,
+          144,
+          148,
+          148,
+          152
+        ]
+      }
+    },
+    {
+      "id": "damage/effectiveness/0002",
+      "kind": "damage",
+      "stages": [
+        "TYPE_EFFECTIVENESS"
+      ],
+      "control": null,
+      "expected_ratio": null,
+      "input": {
+        "level": 50,
+        "move": {
+          "power": 40,
+          "type": "water",
+          "category": "special"
+        },
+        "attacker": {
+          "attack": 70,
+          "special_attack": 155,
+          "types": [
+            "psychic"
+          ],
+          "status": null
+        },
+        "defender": {
+          "hp": 205,
+          "defense": 80,
+          "special_defense": 115,
+          "types": [
+            "water"
+          ]
+        },
+        "context": {
+          "critical": false,
+          "weather": null,
+          "screens": [],
+          "spread": false
+        }
+      },
+      "expected": {
+        "rolls": [
+          10,
+          10,
+          10,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          12,
+          12,
+          12,
+          12,
+          12
+        ]
+      }
+    },
+    {
+      "id": "damage/minimum/0001",
+      "kind": "damage",
+      "stages": [
+        "FLOOR_MINIMUM"
+      ],
+      "control": null,
+      "expected_ratio": null,
+      "input": {
+        "level": 1,
+        "move": {
+          "power": 35,
+          "type": "normal",
+          "category": "physical"
+        },
+        "attacker": {
+          "attack": 5,
+          "special_attack": 5,
+          "types": [
+            "water"
+          ],
+          "status": null
+        },
+        "defender": {
+          "hp": 95,
+          "defense": 250,
+          "special_defense": 250,
+          "types": [
+            "bug",
+            "rock"
+          ]
+        },
+        "context": {
+          "critical": false,
+          "weather": null,
+          "screens": [],
+          "spread": false
+        }
+      },
+      "expected": {
+        "rolls": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "damage/spread/control",
+      "kind": "damage",
+      "stages": [],
+      "control": null,
+      "expected_ratio": null,
+      "input": {
+        "level": 50,
+        "move": {
+          "power": 95,
+          "type": "water",
+          "category": "special"
+        },
+        "attacker": {
+          "attack": 85,
+          "special_attack": 130,
+          "types": [
+            "water"
+          ],
+          "status": null
+        },
+        "defender": {
+          "hp": 330,
+          "defense": 30,
+          "special_defense": 155,
+          "types": [
+            "normal"
+          ]
+        },
+        "context": {
+          "critical": false,
+          "weather": null,
+          "screens": [],
+          "spread": false
+        }
+      },
+      "expected": {
+        "rolls": [
+          46,
+          46,
+          48,
+          48,
+          48,
+          49,
+          49,
+          51,
+          51,
+          51,
+          52,
+          52,
+          52,
+          54,
+          54,
+          55
+        ]
+      }
+    },
+    {
+      "id": "damage/spread/0001",
+      "kind": "damage",
+      "stages": [
+        "SPREAD"
+      ],
+      "control": "damage/spread/control",
+      "expected_ratio": 0.75,
+      "input": {
+        "level": 50,
+        "move": {
+          "power": 95,
+          "type": "water",
+          "category": "special"
+        },
+        "attacker": {
+          "attack": 85,
+          "special_attack": 130,
+          "types": [
+            "water"
+          ],
+          "status": null
+        },
+        "defender": {
+          "hp": 330,
+          "defense": 30,
+          "special_defense": 155,
+          "types": [
+            "normal"
+          ]
+        },
+        "context": {
+          "critical": false,
+          "weather": null,
+          "screens": [],
+          "spread": true
+        }
+      },
+      "expected": {
+        "rolls": [
+          34,
+          36,
+          36,
+          36,
+          36,
+          37,
+          37,
+          37,
+          39,
+          39,
+          39,
+          39,
+          40,
+          40,
+          40,
+          42
+        ]
+      }
+    }
+  ]
+}

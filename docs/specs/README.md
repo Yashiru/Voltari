@@ -42,7 +42,7 @@ describe.
 | 13 | Save / load and migration |
 | 14 | Overworld and encounters |
 | 15 | Event scripting |
-| 16 | Pixel-in-3D rendering |
+| 16 | Creature and character rendering — rigs, animation, asset pipeline, mobile budget |
 | 17 | UI and battle log consumption |
 | 18 | Input and platforms |
 

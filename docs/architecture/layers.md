@@ -105,8 +105,10 @@ Depends on Godot.
 
 ## L4 — Presentation
 
-- Pixel-in-3D rendering: smooth 3D at native resolution, billboarded pixel-art
-  sprites. **No global low-resolution viewport** — it would pixelate the smooth 3D.
+- Creature and character rendering: **rigged, animated 3D models** in a smooth 3D
+  scene at native resolution. No pixel art, no billboarded sprites, no global
+  low-resolution viewport. The camera carries no fixed distance or zoom
+  constraint — that constraint existed only to hold sprite pixel density stable.
 - Battle log consumer, driving animation
 - UI / HUD
 - Audio

@@ -105,9 +105,9 @@ rather than a habit:
 
 ### Target
 
-Set after the first full run against a real effect system. Naming a number before
-any measurement would be arbitrary, and an arbitrary gate is one that gets
-waived. Until then the score is recorded, not enforced.
+A **ratchet**, measured rather than chosen: the recorded baseline is **71%** over
+100 mutants, and it may not go down. See decision 0021 for the measurement and
+for why survivors fall into two categories that are treated differently.
 
 ## 5. Speed budget
 
@@ -134,6 +134,13 @@ vectors are committed (spec 02).
 
 ## Open points
 
-- The mutation score target, per section 4.
-- Whether the shrinker deserves its own invariant — that a minimised case still
-  reproduces the original failure — is decided when it is built.
+- `effects/effect_dispatch.gd` holds twelve of the twenty-nine known survivors.
+  Its ordering rules are the kind of logic that survives naive tests and decides
+  battles, so it is the obvious next target.
+
+## Settled
+
+- **The mutation target**, per decision 0021: a ratchet on a measured baseline.
+- **The shrinker is demonstrated**, not assumed: it runs against a predicate
+  whose answer is known, because one that always returned its input would look
+  like it worked.

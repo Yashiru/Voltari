@@ -24,7 +24,7 @@ describe.
 |----|----------|
 | 06 | [Effect system](06-effect-system.md) — *draft* |
 | 07 | [Battle log](07-battle-log.md) — *draft* |
-| 08 | Gen 4 formulas |
+| 08 | [Formulas](08-formulas.md) — *draft* |
 
 ## Block 2 — Data and rules
 

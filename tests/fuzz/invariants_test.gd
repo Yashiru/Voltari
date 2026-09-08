@@ -10,7 +10,7 @@ const CASES: int = 120
 const TURNS: int = 25
 const FIRST_SEED: int = 1
 
-const MOVES_PAYLOAD: String = "res://content/generated/moves.json"
+const MOVES_DIR: String = "res://content/generated/moves"
 const CHART_PAYLOAD: String = "res://content/generated/type-chart.json"
 
 var _moves: Dictionary[String, VltMoveDefinition]
@@ -19,7 +19,7 @@ var _effects: VltEffectRegistry
 
 
 func before() -> void:
-	_moves = VltMoveRegistryLoader.from_payload(_read_json(MOVES_PAYLOAD))
+	_moves = VltMoveRegistryLoader.from_entries(VltContentPayloads.read_indexed(MOVES_DIR))
 	_chart = VltTypeChartLoader.from_payload(_read_json(CHART_PAYLOAD))
 	_effects = VltEffectRegistry.new()
 	_effects.register(VltBurn.define())

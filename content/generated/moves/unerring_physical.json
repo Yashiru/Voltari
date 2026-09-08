@@ -1,0 +1,10 @@
+{
+  "id": "unerring_physical",
+  "type": "normal",
+  "category": "physical",
+  "power": 60,
+  "accuracy": -1,
+  "priority": 0,
+  "pp": 32,
+  "target": "single_foe"
+}

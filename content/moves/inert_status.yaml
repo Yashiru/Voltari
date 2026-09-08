@@ -1,0 +1,9 @@
+# No damage and no behaviour: what it would do belongs to the effect system.
+
+type: normal
+category: status
+power: 0
+accuracy: always
+priority: 0
+pp: 32
+target: self

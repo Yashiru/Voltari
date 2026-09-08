@@ -1,0 +1,9 @@
+# Acts before anything faster. Exercises the priority bracket.
+
+type: normal
+category: physical
+power: 40
+accuracy: 100
+priority: 1
+pp: 48
+target: single_foe

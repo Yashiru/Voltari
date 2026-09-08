@@ -1,0 +1,33 @@
+# Genderless, and immune to one of the authored moves — the shape that
+# exercises a type pairing the chart actually rules on.
+
+types:
+  - ghost
+  - flying
+
+base_stats:
+  hp: 60
+  atk: 65
+  def: 60
+  spa: 130
+  spd: 75
+  spe: 110
+
+learnset:
+  level_up:
+    - level: 1
+      move: ghost_special
+    - level: 25
+      move: priority_physical
+
+growth_rate: slow
+base_experience: 179
+ev_yield:
+  hp: 0
+  atk: 0
+  def: 0
+  spa: 2
+  spd: 0
+  spe: 1
+catch_rate: 45
+gender_ratio: genderless

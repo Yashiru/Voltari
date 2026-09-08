@@ -14,12 +14,13 @@ const CATEGORY_NAMES: Dictionary[String, int] = {
 }
 
 
-## `payload` is the content build output: {version, moves}.
+## `entries` is one built payload per move (decision 0025). Reading them off
+## disk belongs to the caller: this is the typing boundary, not a file reader.
 @warning_ignore_start("unsafe_cast")
-static func from_payload(payload: Dictionary) -> Dictionary[String, VltMoveDefinition]:
+static func from_entries(entries: Array) -> Dictionary[String, VltMoveDefinition]:
 	var registry: Dictionary[String, VltMoveDefinition] = {}
 
-	for entry: Variant in payload["moves"] as Array:
+	for entry: Variant in entries:
 		var data: Dictionary = entry as Dictionary
 		var id: String = data["id"] as String
 		var category: String = data["category"] as String

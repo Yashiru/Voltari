@@ -1,0 +1,10 @@
+{
+  "id": "ground_physical",
+  "type": "ground",
+  "category": "physical",
+  "power": 100,
+  "accuracy": 100,
+  "priority": 0,
+  "pp": 16,
+  "target": "single_foe"
+}

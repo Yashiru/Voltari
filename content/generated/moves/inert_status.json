@@ -1,0 +1,10 @@
+{
+  "id": "inert_status",
+  "type": "normal",
+  "category": "status",
+  "power": 0,
+  "accuracy": -1,
+  "priority": 0,
+  "pp": 32,
+  "target": "self"
+}

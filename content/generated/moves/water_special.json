@@ -1,0 +1,10 @@
+{
+  "id": "water_special",
+  "type": "water",
+  "category": "special",
+  "power": 95,
+  "accuracy": 100,
+  "priority": 0,
+  "pp": 24,
+  "target": "single_foe"
+}

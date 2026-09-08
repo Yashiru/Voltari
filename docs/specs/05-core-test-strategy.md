@@ -126,8 +126,14 @@ whose survivors are all of those two kinds found nothing, and reporting that is
 more useful than reporting a percentage.
 
 It is a ceiling for the *sample*, though, not a claim about the core: the
-sampled hundred is drawn from far more sites, and every exhaustive module pass
-so far has found real gaps the sample had missed.
+sampled hundred is drawn from far more sites.
+
+**Which modules the sample misjudges is not predictable.** It badly understated
+`effect_dispatch.gd`, where an exhaustive pass found 23 survivors and a real
+defect. It was right about `battle_state.gd`, `damage.gd` and `stats.gd`, each
+of which came back at 100% with nothing to fix. The three that were already
+clean are the ones with oracle vectors or round-trip tests behind them, which is
+a reason to expect coverage there — not a rule to lean on. Run the pass.
 
 Narrow a pass to one module with `--file`, and raise `--limit` to cover it
 exhaustively. A sampled score for a single file is noise: this one read 12

@@ -47,8 +47,10 @@ func _decode(entry: Variant, roll: int) -> VltDamageInput:
 	input.is_critical = context["critical"] as bool
 	input.has_stab = context["stab"] as bool
 
-	# The vector describes conditions; effects will contribute these ratios once
-	# they exist. Until then the test plays the part of the effect system.
+	# The vector describes conditions, and the test contributes the ratios an
+	# effect would. Deliberately not routed through the effect system: this suite
+	# pins the pipeline on its own, so a defect here cannot be mistaken for one
+	# in what feeds it. The effect suite covers the other direction.
 	if is_physical and str(attacker["status"]) == "brn":
 		input.modifiers.contribute(VltDamageStage.Stage.BURN, 1, 2)
 	if not (context["screens"] as Array).is_empty():

@@ -11,10 +11,14 @@
 // Usage:
 //   node tools/mutation/mutate.mjs [--limit N] [--seed N] [--list] [--file SUBSTRING]
 //
-// `--file` narrows to paths containing SUBSTRING, which is how a module gets
+// `--file` narrows to paths CONTAINING SUBSTRING, which is how a module gets
 // covered exhaustively rather than sampled. Raise --limit alongside it: a
 // sampled score for one file is noise, and the point of narrowing is to stop
 // sampling.
+//
+// It is a substring, not a filename — `--file damage.gd` also matches
+// log_damage.gd. The run prints the files it selected, so read that rather than
+// assuming the filter meant one file.
 
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
@@ -108,6 +112,18 @@ function applyMutant(source, mutant) {
   );
 }
 
+// A clean run of the suite takes about three seconds, so this is generous by a
+// factor of forty. It is sized for a run that HANGS rather than fails: at the
+// previous fifteen-minute limit, one stalled run cost more than a whole
+// exhaustive pass, which is what --file exists to make practical.
+//
+// Too low would be worse than too high — a legitimate slow run counted as
+// caught hides a survivor instead of reporting one.
+const SUITE_TIMEOUT_MS = 120 * 1000;
+
+/// "survived" (the suite still passed), "caught" (it failed), or "hung" (it
+/// never finished). Hanging is caught too, but it is a different fact and the
+/// report keeps them apart.
 function runSuite(root, godot) {
   try {
     execFileSync("./addons/gdUnit4/runtest.sh", [
@@ -116,11 +132,11 @@ function runSuite(root, godot) {
       cwd: root,
       env: { ...process.env, GODOT_BIN: godot },
       stdio: "ignore",
-      timeout: 15 * 60 * 1000,
+      timeout: SUITE_TIMEOUT_MS,
     });
-    return true; // suite passed: the mutant survived
-  } catch {
-    return false; // suite failed or refused to build: the mutant was caught
+    return "survived";
+  } catch (error) {
+    return error.killed ? "hung" : "caught";
   }
 }
 
@@ -154,6 +170,16 @@ function main() {
   const selected = shuffled(scoped, args.seed).slice(0, args.limit);
   const scope = args.file ? `matching "${args.file}"` : "in the core";
   console.log(`${scoped.length} mutation site(s) ${scope}; running ${selected.length}.`);
+
+  if (args.file) {
+    // Named, because the filter is a substring and may have caught more files
+    // than the one that was meant.
+    const files = [...new Set(scoped.map((mutant) => relative(REPO, mutant.path)))].sort();
+    for (const file of files) {
+      const count = scoped.filter((mutant) => relative(REPO, mutant.path) === file).length;
+      console.log(`  ${file} (${count})`);
+    }
+  }
   if (selected.length < scoped.length) {
     console.log(`  (${scoped.length - selected.length} not run — raise --limit for an exhaustive pass.)`);
   }
@@ -174,7 +200,7 @@ function main() {
   });
 
   // The baseline must be green, or every mutant would read as caught.
-  if (!runSuite(root, godot)) {
+  if (runSuite(root, godot) !== "survived") {
     console.error("The suite fails before any mutation. Fix that first.");
     rmSync(sandbox, { recursive: true, force: true });
     process.exit(1);
@@ -182,19 +208,21 @@ function main() {
 
   const survivors = [];
   let caught = 0;
+  let hung = 0;
 
   for (const [index, mutant] of selected.entries()) {
     const target = join(root, relative(REPO, mutant.path));
     const original = readFileSync(target, "utf8");
     writeFileSync(target, applyMutant(original, mutant));
 
-    const survived = runSuite(root, godot);
+    const verdict = runSuite(root, godot);
     writeFileSync(target, original);
 
-    if (survived) survivors.push(mutant);
+    if (verdict === "survived") survivors.push(mutant);
     else caught++;
+    if (verdict === "hung") hung++;
 
-    const label = survived ? "SURVIVED" : "caught";
+    const label = verdict === "survived" ? "SURVIVED" : verdict;
     process.stdout.write(
       `  [${index + 1}/${selected.length}] ${label.padEnd(8)} ` +
         `${relative(REPO, mutant.path)}:${mutant.line} ${mutant.was} -> ${mutant.replacement || "(removed)"}\n`,
@@ -205,6 +233,12 @@ function main() {
 
   const score = selected.length > 0 ? (caught / selected.length) * 100 : 0;
   console.log(`\nmutation score: ${score.toFixed(1)}%  (${caught} caught, ${survivors.length} survived)`);
+
+  if (hung > 0) {
+    console.log(
+      `${hung} of those hung the suite rather than failing it — an unbounded loop, not a broken assertion.`,
+    );
+  }
 
   if (survivors.length > 0) {
     console.log("\nSurvivors — each is a test the suite does not have:");

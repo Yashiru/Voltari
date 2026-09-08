@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "moves": [
+    {
+      "id": "basic_physical",
+      "type": "normal",
+      "category": "physical",
+      "power": 40,
+      "accuracy": 100,
+      "priority": 0,
+      "pp": 56
+    },
+    {
+      "id": "basic_special",
+      "type": "normal",
+      "category": "special",
+      "power": 40,
+      "accuracy": 100,
+      "priority": 0,
+      "pp": 40
+    },
+    {
+      "id": "heavy_physical",
+      "type": "normal",
+      "category": "physical",
+      "power": 120,
+      "accuracy": 70,
+      "priority": 0,
+      "pp": 8
+    },
+    {
+      "id": "priority_physical",
+      "type": "normal",
+      "category": "physical",
+      "power": 40,
+      "accuracy": 100,
+      "priority": 1,
+      "pp": 48
+    },
+    {
+      "id": "unerring_physical",
+      "type": "normal",
+      "category": "physical",
+      "power": 60,
+      "accuracy": -1,
+      "priority": 0,
+      "pp": 32
+    },
+    {
+      "id": "water_special",
+      "type": "water",
+      "category": "special",
+      "power": 95,
+      "accuracy": 100,
+      "priority": 0,
+      "pp": 24
+    },
+    {
+      "id": "ghost_special",
+      "type": "ghost",
+      "category": "special",
+      "power": 80,
+      "accuracy": 100,
+      "priority": 0,
+      "pp": 24
+    },
+    {
+      "id": "ground_physical",
+      "type": "ground",
+      "category": "physical",
+      "power": 100,
+      "accuracy": 100,
+      "priority": 0,
+      "pp": 16
+    },
+    {
+      "id": "inert_status",
+      "type": "normal",
+      "category": "status",
+      "power": 0,
+      "accuracy": -1,
+      "priority": 0,
+      "pp": 32
+    }
+  ]
+}

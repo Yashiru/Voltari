@@ -17,6 +17,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, "..", "..");
 const CHART_YAML = join(REPO, "content", "type-chart.yaml");
 const NATURES_YAML = join(REPO, "content", "natures.yaml");
+const MOVES_YAML = join(REPO, "content", "moves.yaml");
 const OUT_DIR = join(REPO, "content", "generated");
 
 export function loadChart() {
@@ -25,6 +26,10 @@ export function loadChart() {
 
 export function loadNatures() {
   return parse(readFileSync(NATURES_YAML, "utf8"));
+}
+
+export function loadMoves() {
+  return parse(readFileSync(MOVES_YAML, "utf8"));
 }
 
 // Validation is the build's job, not the engine's: a malformed chart must fail
@@ -124,6 +129,56 @@ function validateNatures(data) {
   }
 }
 
+const CATEGORIES = new Set(["physical", "special", "status"]);
+const ALWAYS_HITS = -1;
+
+// Moves are validated against the type chart, not against a list of their own.
+// A move naming a type nobody declared is the kind of typo that survives review
+// and produces a move that quietly does neutral damage to everything.
+function validateMoves(data, knownTypes) {
+  const problems = [];
+  const ids = new Set();
+
+  for (const move of data.moves) {
+    const where = `move "${move.id}"`;
+
+    if (ids.has(move.id)) problems.push(`duplicate ${where}`);
+    ids.add(move.id);
+
+    if (!knownTypes.has(move.type)) problems.push(`${where}: unknown type "${move.type}"`);
+    if (!CATEGORIES.has(move.category)) problems.push(`${where}: unknown category "${move.category}"`);
+
+    if (move.category === "status" && move.power !== 0) {
+      problems.push(`${where}: a status move cannot have power`);
+    }
+    if (move.category !== "status" && move.power <= 0) {
+      problems.push(`${where}: a damaging move needs power`);
+    }
+    if (move.accuracy !== "always" && (move.accuracy < 1 || move.accuracy > 100)) {
+      problems.push(`${where}: accuracy must be 1-100 or "always"`);
+    }
+    if (move.pp <= 0) problems.push(`${where}: pp must be positive`);
+  }
+
+  if (problems.length > 0) {
+    console.error("Content build failed:");
+    for (const problem of problems) console.error(`  ${problem}`);
+    process.exit(1);
+  }
+}
+
+// `always` becomes a sentinel the engine understands, so the engine never has
+// to know that the authored form was a word.
+function flattenMoves(data) {
+  return {
+    version: data.version,
+    moves: data.moves.map((move) => ({
+      ...move,
+      accuracy: move.accuracy === "always" ? ALWAYS_HITS : move.accuracy,
+    })),
+  };
+}
+
 function main() {
   const chart = loadChart();
   validate(chart);
@@ -142,6 +197,12 @@ function main() {
   writeFileSync(naturesPath, JSON.stringify(natures, null, 2) + "\n");
   const neutral = natures.natures.filter((n) => n.plus === null).length;
   console.log(`natures:    ${natures.natures.length} entries, ${neutral} neutral -> ${naturesPath}`);
+
+  const moves = loadMoves();
+  validateMoves(moves, new Set(chart.types));
+  const movesPath = join(OUT_DIR, "moves.json");
+  writeFileSync(movesPath, JSON.stringify(flattenMoves(moves), null, 2) + "\n");
+  console.log(`moves:      ${moves.moves.length} entries -> ${movesPath}`);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) main();

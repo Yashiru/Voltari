@@ -151,10 +151,12 @@ which compares states as data.
 
 ## Open points
 
-- **Cloning and serialisation are two mechanisms doing the same job.** Deriving
-  `clone()` from a serialise/deserialise round trip would guarantee the two can
-  never drift, and satisfies "one concept, one implementation". It is measurably
-  slower per turn. Turn-based play probably does not care, but mutation testing
-  needs a fast suite. Undecided; needs measurement before it is settled.
 - The concrete list of decision methods closes with spec 06, once the effect
   system says which mechanics exist.
+
+## Settled
+
+- **Cloning versus serialisation.** Measured at 1.59× in favour of a
+  hand-written `clone()`, which is what the engine uses. The drift the
+  derivation would have prevented is pinned by a test instead. See
+  decision 0019.

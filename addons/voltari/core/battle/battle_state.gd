@@ -20,6 +20,11 @@ var weather: String = ""
 var weather_turns: int = 0
 var turn: int = 0
 
+## Where the turn stopped, when it stopped. Part of the state rather than of the
+## engine, so a battle stays serialisable mid-turn and the request/response
+## cycle a network needs comes for free (decision 0012).
+var awaiting_replacement: Array[VltSlotRef] = []
+
 
 static func create(slots_per_side: int) -> VltBattleState:
 	var state: VltBattleState = VltBattleState.new()
@@ -71,6 +76,11 @@ func clone() -> VltBattleState:
 	copy.weather = weather
 	copy.weather_turns = weather_turns
 	copy.turn = turn
+
+	copy.awaiting_replacement = []
+	for reference: VltSlotRef in awaiting_replacement:
+		copy.awaiting_replacement.append(VltSlotRef.at(reference.side, reference.slot))
+
 	return copy
 
 
@@ -79,11 +89,16 @@ func to_dict() -> Dictionary:
 	for side: VltSide in sides:
 		serialised_sides.append(side.to_dict())
 
+	var pending: Array = []
+	for reference: VltSlotRef in awaiting_replacement:
+		pending.append(reference.to_array())
+
 	return {
 		"sides": serialised_sides,
 		"weather": weather,
 		"weather_turns": weather_turns,
 		"turn": turn,
+		"awaiting_replacement": pending,
 	}
 
 
@@ -96,4 +111,8 @@ static func from_dict(data: Dictionary) -> VltBattleState:
 	state.weather = data["weather"]
 	state.weather_turns = data["weather_turns"]
 	state.turn = data["turn"]
+
+	for entry: Variant in data["awaiting_replacement"]:
+		state.awaiting_replacement.append(VltSlotRef.from_array(PackedInt32Array(entry)))
+
 	return state

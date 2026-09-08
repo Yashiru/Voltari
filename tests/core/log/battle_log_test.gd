@@ -14,7 +14,11 @@ func _creature(species: String) -> VltBattleCreature:
 	input.ivs = PackedInt32Array([31, 31, 31, 31, 31, 31])
 	input.evs = PackedInt32Array([0, 0, 0, 0, 0, 0])
 	input.level = 50
-	return VltBattleCreature.create(input, species, PackedStringArray(["normal"]))
+	var creature: VltBattleCreature = VltBattleCreature.create(
+		input, species, PackedStringArray(["normal"])
+	)
+	creature.moves.append(VltMoveSlot.create("move_0", 10))
+	return creature
 
 
 func _battle() -> VltBattleState:
@@ -41,9 +45,13 @@ func _play(state: VltBattleState) -> VltBattleLog:
 	log.append(VltLogTurnStart.create(1))
 
 	var victim: VltBattleCreature = state.creature_at(target)
+	state.creature_at(attacker).moves[0].pp = 9
+	log.append(VltLogMoveUsed.create(attacker, "move_0", 0, 9, target))
 	log.append(VltLogEffectiveness.create(target, 1))
 	victim.current_hp -= 40
 	log.append(VltLogDamage.create(target, 40, victim.current_hp, victim.max_hp()))
+
+	log.append(VltLogMoveFailed.create(target, VltLogMoveFailed.Reason.MISSED))
 
 	state.slot_at(attacker).set_stage(VltStats.Stat.ATK, 2)
 	log.append(VltLogStatChange.create(attacker, VltStats.Stat.ATK, 2, 2))

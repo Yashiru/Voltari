@@ -70,6 +70,18 @@ static func derive(stat: Stat, base: int, iv: int, ev: int, level: int, raised: 
 	return derive_other(stat, base, iv, ev, level, raised, lowered)
 
 
+## Applies a stat stage.
+##
+## The oracle multiplies by a table entry going up and DIVIDES by it going down,
+## flooring either way — not one symmetric multiplier. As integer ratios that is
+## (2+n)/2 upward and 2/(2+|n|) downward, which reproduces the flooring exactly.
+static func apply_stage(value: int, stage: int) -> int:
+	var clamped: int = clampi(stage, -VltSlot.STAGE_LIMIT, VltSlot.STAGE_LIMIT)
+	if clamped >= 0:
+		return value * (2 + clamped) / 2
+	return value * 2 / (2 - clamped)
+
+
 ## The whole spread at once, indexed by Stat.
 static func derive_spread(input: VltStatInput) -> PackedInt32Array:
 	var spread: PackedInt32Array = PackedInt32Array()

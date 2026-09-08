@@ -113,6 +113,32 @@ function buildVectors() {
   return vectors;
 }
 
+// --- stat stages -----------------------------------------------------------
+//
+// The oracle multiplies by a table entry when the stage is positive and DIVIDES
+// by it when negative, flooring either way. Expressed as integer ratios that is
+// (2+n)/2 upward and 2/(2+|n|) downward.
+
+const BOOST_TABLE = [1, 1.5, 2, 2.5, 3, 3.5, 4];
+
+function withStage(stat, stage) {
+  const clamped = Math.max(-6, Math.min(6, stage));
+  return clamped >= 0
+    ? Math.floor(stat * BOOST_TABLE[clamped])
+    : Math.floor(stat / BOOST_TABLE[-clamped]);
+}
+
+function buildStageVectors() {
+  const values = [1, 2, 3, 7, 50, 99, 100, 255, 306, 614];
+  const rows = [];
+  for (const value of values) {
+    for (let stage = -6; stage <= 6; stage++) {
+      rows.push([value, stage, withStage(value, stage)]);
+    }
+  }
+  return rows;
+}
+
 // --- write -----------------------------------------------------------------
 
 const natures = buildNatures();
@@ -131,6 +157,8 @@ writeFileSync(
       oracle: "@pkmn/sim 0.10.11 gen4",
       note: "neutral/raised/lowered are the stat with no nature, a raising nature, a lowering nature.",
       vectors,
+      stage_note: "[stat, stage, result] — the stage multiplier applied to a stat.",
+      stages: buildStageVectors(),
     },
     null,
     0,
@@ -140,4 +168,5 @@ writeFileSync(
 const raisedDiffers = vectors.filter((v) => v.raised !== v.neutral).length;
 console.log(`natures: ${natures.natures.length} entries (${natures.natures.filter((n) => n.plus === null).length} neutral)`);
 console.log(`vectors: ${vectors.length}, of which ${raisedDiffers} where a raising nature changes the result`);
+console.log(`stage vectors: ${buildStageVectors().length}`);
 console.log(`hp ignores natures: ${vectors.filter((v) => v.stat === "hp").every((v) => v.raised === v.neutral)}`);

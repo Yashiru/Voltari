@@ -31,6 +31,14 @@ func _field(entry: Variant, key: String) -> int:
 
 func _stat_of(entry: Variant) -> int:
 	return STAT_BY_NAME[(entry as Dictionary)["stat"] as String]
+
+
+func _stage_rows(parsed: Variant) -> Array:
+	return (parsed as Dictionary)["stages"] as Array
+
+
+func _at(row: Variant, index: int) -> int:
+	return int((row as Array)[index] as float)
 @warning_ignore_restore("unsafe_cast")
 
 
@@ -60,6 +68,31 @@ func test_every_stat_vector_is_reproduced() -> void:
 		assert_int(lowered).override_failure_message("lowered %s" % label).is_equal(
 			_field(entry, "lowered")
 		)
+
+
+func test_every_stat_stage_vector_is_reproduced() -> void:
+	var file: FileAccess = FileAccess.open(VECTORS, FileAccess.READ)
+	var parsed: Variant = JSON.parse_string(file.get_as_text())
+	file.close()
+	var rows: Array = _stage_rows(parsed)
+	assert_int(rows.size()).is_equal(130)
+
+	for row: Variant in rows:
+		var value: int = _at(row, 0)
+		var stage: int = _at(row, 1)
+		var expected: int = _at(row, 2)
+		assert_int(VltStats.apply_stage(value, stage)).override_failure_message(
+			"stat=%d stage=%d" % [value, stage]
+		).is_equal(expected)
+
+
+func test_stages_move_in_the_right_direction() -> void:
+	assert_int(VltStats.apply_stage(100, 0)).is_equal(100)
+	assert_int(VltStats.apply_stage(100, 1)).is_greater(100)
+	assert_int(VltStats.apply_stage(100, -1)).is_less(100)
+	# Beyond the limit nothing more happens.
+	assert_int(VltStats.apply_stage(100, 99)).is_equal(VltStats.apply_stage(100, 6))
+	assert_int(VltStats.apply_stage(100, -99)).is_equal(VltStats.apply_stage(100, -6))
 
 
 func test_hp_ignores_natures() -> void:

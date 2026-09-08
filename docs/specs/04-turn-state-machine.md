@@ -141,3 +141,6 @@ unreachable from the state and the decider.
   category is decided with spec 06, once effect declarations have a shape.
 - The action-kind ordering (switch versus item versus move) is a fidelity
   question and gets its vectors from the oracle before implementation.
+- **When a replacement is requested.** The implementation asks at the end of the
+  turn. Whether the oracle asks sooner is a fidelity question the battle
+  differential settles; it is recorded rather than assumed correct.

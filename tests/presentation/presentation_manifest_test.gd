@@ -136,6 +136,55 @@ func test_every_clip_the_manifest_mentions_is_countable() -> void:
 # --- what is authored today --------------------------------------------------
 
 
+func test_a_manifest_built_from_a_real_model_loses_nothing() -> void:
+	# The whole loop, on a file Godot's own glTF importer read: the model's clips
+	# go through the resolver, into a manifest, back out typed — and the count has
+	# to survive every step. Each stage is tested alone above; this is the one
+	# that would notice a clip falling between two of them.
+	var packed: PackedScene = load("res://tests/fixtures/models/clip_shapes.glb")
+	var root: Node = auto_free(packed.instantiate())
+
+	var player: AnimationPlayer = null
+	for child: Node in root.get_children():
+		if child is AnimationPlayer:
+			player = child as AnimationPlayer
+
+	var clips: PackedStringArray = player.get_animation_list()
+	var mapping: ClipMap.Mapping = ClipMap.of(clips)
+
+	# What a manifest generator will write, assembled here because no such tool
+	# exists yet — the shape is the point, not who produces it.
+	var by_slot: Dictionary = {}
+	for slot: String in mapping.takes:
+		by_slot[slot] = Array(mapping.takes[slot])
+	var payload: Dictionary = {
+		"id": "placeholder_base",
+		"scene": "res://tests/fixtures/models/clip_shapes.glb",
+		"height": 0.4,
+		"clips": by_slot,
+		"extras": Array(mapping.extras),
+		"stow": Array(mapping.stow),
+	}
+
+	var entry: PresentationEntry = PresentationLoader.from_payload(payload)
+	var kept: PackedStringArray = entry.every_clip()
+
+	# Effect tracks are the one thing a manifest does not carry as a clip: they
+	# belong to the slot they accompany. Everything else must be here.
+	var expected: int = clips.size()
+	for slot: String in mapping.effects:
+		expected -= mapping.effects[slot].size()
+
+	assert_int(kept.size()).override_failure_message(
+		"the model has %d clips and the manifest kept %d" % [clips.size(), kept.size()]
+	).is_equal(expected)
+
+	for name: String in kept:
+		assert_bool(clips.has(name)).override_failure_message(
+			"the manifest names \"%s\", which the model has not got" % name
+		).is_true()
+
+
 func test_every_authored_manifest_loads() -> void:
 	# None are authored yet: a manifest naming a placeholder scene would name a
 	# file CI cannot see (decision 0027), so they arrive with the fakemon. The

@@ -388,6 +388,62 @@ func test_evolving_keeps_the_individual_and_changes_the_species() -> void:
 	assert_int(creature.experience).is_greater(0)
 
 
+func test_a_trigger_nothing_implements_does_not_fire() -> void:
+	# The trigger names code (spec 06, section 8). One with no code behind it
+	# must do nothing — an unrecognised condition that evolved anyway would be
+	# the worst of both, silent and wrong.
+	var odd: VltSpecies = VltSpecies.create(
+		"test_odd_trigger",
+		PackedStringArray(["normal"]),
+		PackedInt32Array([45, 49, 49, 65, 65, 45])
+	)
+	odd.learns(1, "basic_physical").evolves("placeholder_evolved", "friendship", 1)
+	odd.growth_rate = "medium_fast"
+	odd.base_experience = 64
+
+	assert_str(_award_for_species(odd, 20).evolved_into).override_failure_message(
+		"a trigger with no code behind it evolved the creature anyway"
+	).is_equal("")
+
+
+func test_a_move_already_known_is_not_offered_again() -> void:
+	# A species that teaches the same move twice must not offer it the second
+	# time, or a creature would be asked to replace something with what it has.
+	var repeater: VltSpecies = VltSpecies.create(
+		"test_reteach",
+		PackedStringArray(["normal"]),
+		PackedInt32Array([45, 49, 49, 65, 65, 45])
+	)
+	repeater.learns(1, "basic_physical").learns(4, "basic_physical")
+	repeater.growth_rate = "medium_fast"
+	repeater.base_experience = 64
+
+	var award: VltPostBattle.Award = _award_for_species(repeater, 3)
+
+	assert_int(award.level_after).is_greater_equal(4)
+	assert_array(award.learned).override_failure_message(
+		"a move already known was learned a second time"
+	).is_equal(PackedStringArray())
+	assert_array(award.offered).is_equal(PackedStringArray())
+
+
+func test_the_other_side_can_be_the_earning_one() -> void:
+	# Nothing about the pipeline privileges side zero, and reading the opposing
+	# side by arithmetic is exactly where that assumption would hide.
+	var state: VltBattleState = _battle(PackedInt32Array([1, 1]))
+	var log: VltBattleLog = VltBattleLog.new()
+	log.append(_faint(OURS))
+
+	var awards: Array[VltPostBattle.Award] = VltPostBattle.resolve(
+		state, log, state.clone(), THEIRS, _species, _curves, _moves, false
+	)
+
+	assert_int(awards.size()).override_failure_message(
+		"side one earned nothing for a defeat it caused"
+	).is_equal(1)
+	assert_int(awards[0].experience).is_greater(0)
+
+
 func test_a_species_with_nowhere_to_go_does_not_evolve() -> void:
 	var award: VltPostBattle.Award = _award_for_species(
 		_species["placeholder_evolved"], 30

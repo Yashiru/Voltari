@@ -8,7 +8,6 @@ extends VltLogEvent
 ## which in a PvP context is not cosmetic but a cheating vector.
 
 const KIND: String = "damage"
-const REDUCED_SCALE: int = 100
 
 var target: VltSlotRef = null
 var amount: int = 0
@@ -45,15 +44,9 @@ func reduced() -> VltLogEvent:
 	event.owner_side = owner_side
 	event.target = target
 	event.max_hp = REDUCED_SCALE
-	event.current_hp = _scaled(current_hp)
-	event.amount = _scaled(amount)
+	event.current_hp = scaled_health(current_hp, max_hp)
+	event.amount = scaled_health(amount, max_hp)
 	return event
-
-
-func _scaled(value: int) -> int:
-	if value <= 0:
-		return 0
-	return maxi(1, value * REDUCED_SCALE / max_hp)
 
 
 func _payload() -> Dictionary:

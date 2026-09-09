@@ -64,6 +64,22 @@ func for_viewer(side: int) -> VltLogEvent:
 	return self
 
 
+## The scale a viewer who is not entitled to exact health sees instead.
+const REDUCED_SCALE: int = 100
+
+
+## Health as a proportion of the maximum, out of REDUCED_SCALE.
+##
+## One definition, because there were already two — damage and heal each carried
+## their own — and the AI's view needs a third (spec 12). A sliver never rounds
+## to nothing: reading zero would say a creature is dead when it is not, and no
+## consumer can recover from that.
+static func scaled_health(value: int, max_hp: int) -> int:
+	if value <= 0:
+		return 0
+	return maxi(1, value * REDUCED_SCALE / max_hp)
+
+
 func to_dict() -> Dictionary:
 	var data: Dictionary = _payload()
 	data["kind"] = kind()

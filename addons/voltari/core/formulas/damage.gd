@@ -32,6 +32,29 @@ static func modify(value: int, numerator: int, denominator: int = 1) -> int:
 	return (value * modifier + 2048 - 1) / 4096
 
 
+## Which stat a move of this category attacks with, and which one defends
+## against it.
+##
+## Here rather than inside the turn machine because two callers need the same
+## answer from different places: the engine reads the stat off a creature, and
+## the AI reads it off an estimate of one (spec 12, section 5). The rule is what
+## they share; the numbers are their own.
+static func offensive_stat(category: VltMoveDefinition.Category) -> VltStats.Stat:
+	return (
+		VltStats.Stat.ATK
+		if category == VltMoveDefinition.Category.PHYSICAL
+		else VltStats.Stat.SPA
+	)
+
+
+static func defensive_stat(category: VltMoveDefinition.Category) -> VltStats.Stat:
+	return (
+		VltStats.Stat.DEF
+		if category == VltMoveDefinition.Category.PHYSICAL
+		else VltStats.Stat.SPD
+	)
+
+
 ## Base damage, before any stage applies. Each division truncates, and the
 ## truncation is part of the specification.
 static func base_damage(level: int, base_power: int, attack: int, defense: int) -> int:

@@ -10,10 +10,18 @@ the build implements.
 
 ```
 moves/<id>.yaml       one file per entity — the filename IS the identifier
+species/<id>.yaml     likewise
+items/<id>.yaml       likewise
+encounters/<id>.yaml  likewise: what lives in one terrain, and how often
 type-chart.yaml       a table, not a collection: one structure, one file
 natures.yaml          likewise
+growth-curves.yaml    likewise, and generated — see tools/progression/
 generated/            build output, committed, never hand-edited
 ```
+
+An encounter table is content rather than a property of the map that uses it
+(decision 0039): a table shared by three maps exists once and is balanced in one
+place. A map names it by id.
 
 One file per entity because the maintainer reviews every change and diff
 readability is a first-order criterion (decisions 0004 and 0025). A file never

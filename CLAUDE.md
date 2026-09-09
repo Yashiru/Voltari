@@ -140,18 +140,30 @@ Conversation with the maintainer: **French**.
 
 ## Current state
 
-Specs 01 to 08 are written, 09 onwards are not — see `docs/specs/README.md`.
-Decisions 0001 to 0020 are recorded in `docs/decisions/`.
+Specs 01 to 14 are written, 15 onwards are not — see `docs/specs/README.md`.
+Decisions 0001 to 0040 are recorded in `docs/decisions/`.
 
-The simulation core is implemented and oracle-backed: battle state, the semantic
-decision interface, the battle log, the turn state machine, the effect system,
-Gen 4 damage and stat formulas, plus the differential harness and the invariant
-fuzzer. Authored content so far is `moves.yaml`, `natures.yaml` and
-`type-chart.yaml`.
+**The simulation core is implemented and oracle-backed**: battle state, the
+semantic decision interface, the battle log, the turn state machine, the effect
+system, Gen 4 damage and stat formulas, plus the differential harness and the
+invariant fuzzer.
 
-**Nothing above L1 exists yet** — no overworld, no rendering, no UI, no save
-system. Creatures and characters are rigged 3D (decision 0020); the pixel-art
-sprite direction is superseded and should not be reintroduced from older notes.
+**Above it**: progression and the post-battle pipeline, capture, the battle AI,
+the save format, and the overworld with its encounters. Content is authored
+one file per entity under `content/`, with a Node build that validates it.
+
+**Four decision vocabularies** — battle, generation, policy, encounter — kept
+disjoint by a meta-test (decision 0029). One generator backs them all.
+
+**The purity lint covers `core/`, `deciders/`, `rules/` and `save/`.** `world/`
+and `platform/` depend on the engine on purpose (decisions 0038 and 0040); that
+exemption is stated in spec 01, not inferred.
+
+**What does not exist**: rendering, UI, audio, input, event scripting, and any
+authored map — the overworld machinery is tested on fixture maps built in code,
+and `game/maps/` is empty. Creatures and characters are rigged 3D (decision
+0020); the pixel-art sprite direction is superseded and should not be
+reintroduced from older notes.
 
 Requires Godot 4.7.2 and Node 22. gdUnit4 is not vendored — install it into
 `addons/gdUnit4/` before running tests locally. CI installs it automatically at

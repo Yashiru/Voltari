@@ -14,9 +14,12 @@ and given up on each side of it.
 
 ## 1. The line
 
-**The map is ordinary Godot.** Tiles, a character body, area triggers. Movement,
+**The map is ordinary Godot.** A painted grid and nodes placed on it. Movement,
 collision, warp traversal and zone detection are the engine's own work, and the
 world state lives in the scene tree rather than in a pure structure beside it.
+
+No physics body: grid movement is a cell lookup, and a character body would be
+a simulation running underneath a decision that was already made discretely.
 
 That is a departure from every layer below, taken deliberately. Rewriting tile
 collision in pure GDScript is not hard — but what purity would buy here is worth
@@ -63,8 +66,18 @@ sees, and what spec 15 will interact with all read it.
 
 ## 3. Maps are painted, not written
 
-A map is a Godot scene. Tiles carry the collision. Warps and encounter zones are
-nodes placed on it.
+A map is a Godot scene, and it carries **two painted layers**. One says which
+cells exist; the other says which of them stop you. Warps and encounter zones are
+nodes placed on top.
+
+Walkability is authored rather than inferred from the model standing on a cell,
+which keeps art and rule apart: replacing a rock with a bush becomes a change of
+art and not a change of what the player can do. The price is two passes of
+painting that can disagree, and nothing detects a wall you can walk through.
+
+A cell with no terrain is off the map, and off the map blocks exactly the way a
+wall does. That falls out rather than being special-cased, so no map needs a
+fence painted around its edge.
 
 **The cost this pays is real and worth naming:** a scene diff is unreadable, and
 decision 0004 made diff readability a first-order criterion. That criterion is
@@ -76,9 +89,9 @@ the page. A tile grid's meaning is visual, and no reviewer has ever caught a
 level-design mistake by reading coordinates. Against that, authoring a grid by
 hand in text is not a workflow anybody would keep.
 
-What review would have caught is instead caught by the build: the parts of a map
+What review would have caught is instead caught mechanically: the parts of a map
 that are **not** geometric — which table a zone names, where a warp leads — are
-checked mechanically rather than by eye (section 7).
+validated rather than read by eye (section 7).
 
 ## 4. Encounter tables are content
 
@@ -137,24 +150,36 @@ context it was never written for.
 One seeded generator may still back all four. Separate vocabularies do not
 require separate sources of randomness (decision 0029).
 
-## 7. The build validates maps; it does not export them
+## 7. Maps are validated, not exported
 
 The scene is the truth at runtime, so **there is nothing to export**. Writing the
 grid out to a payload would only mean rebuilding a tile map from JSON on load, at
 which point the same information lives in two places and can drift.
 
-What the build does instead is the cross-reference check of spec 09 section 8 —
+What is checked instead is the cross-reference category of spec 09 section 8 —
 the typos that survive review and produce content that looks right and plays
 wrong:
 
 - a warp naming a map that does not exist
 - a warp whose destination cell does not exist, or is not standable
+- a warp sitting on a cell nobody can stand on, so it can never fire
 - a zone naming an unknown encounter table
 - a zone with no table at all
-- a map with no way in
+- two zones claiming one cell, which has no right answer
+- two maps claiming one id, which a save cannot tell apart
+- a map no warp leads to
 
-It reports **all** problems and then exits, like the content build. A map pass
-fixes ten broken warps in one go or ten times over.
+**It runs engine-side, not in the content build.** Maps are scenes and only Godot
+can load one, so a Node script could not read a map without reimplementing the
+scene format. This is the split spec 09 section 8 already makes for effect ids,
+which the build cannot see either, and the reason is the same: the check belongs
+where the thing being checked can actually be read.
+
+Reachability is the one check that needs a fact no map carries — where a new game
+begins. It is skipped when that is not supplied, rather than guessed at.
+
+It reports **all** problems rather than stopping at the first. A map pass fixes
+ten broken warps in one go or ten times over.
 
 This is the only mechanical guard the overworld has, which is why it validates
 what a scene genuinely cannot: a warp's destination lives in a *different* file
@@ -167,9 +192,9 @@ held by the engine rather than by a pure structure, so something has to convert
 one into the other.
 
 That converter is **a save section that lives with the world**, not in `save/`. A
-section that reads a character body cannot sit under the purity lint, and moving
-it there would either break the lint or force the world back into a pure model
-section 1 rejected. `VltSaveSection` is pure and L3 depends on it: the dependency
+section that reads a node cannot sit under the purity lint, and moving it there
+would either break the lint or force the world back into a pure model section 1
+rejected. `VltSaveSection` is pure and L3 depends on it: the dependency
 runs downward, so this is not an inversion.
 
 It carries the map id, the cell and the facing. Quest flags belong to spec 15 and
@@ -192,7 +217,7 @@ map. Renaming a map file is a migration, not a rename.
 - **Determinism at a fixed seed** — the same seed gives the same encounter.
 - **The four vocabularies stay disjoint**, by extending the existing meta-test.
 - **Every authored table loads** into its typed form (spec 09, section 10).
-- **The build rejects a broken map**, proven by fixture maps built to fail: an
+- **Validation rejects a broken map**, proven by fixture maps built to fail: an
   unknown table, a warp to nowhere. A validator with no failing fixture is a
   validator nobody has seen fail.
 - **The world's save section round-trips** — part of declaring a section, not an

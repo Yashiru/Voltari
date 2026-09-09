@@ -1,0 +1,13 @@
+# The degenerate shape: one slot, one level. Exercises the range that spans a
+# single value, which is where an implementation assuming a wider span breaks.
+#
+# Structural placeholder. Identifiers are not names (see content/README.md).
+
+rate: 21
+
+slots:
+  - species: placeholder_evolved
+    levels:
+      min: 9
+      max: 9
+    weight: 1

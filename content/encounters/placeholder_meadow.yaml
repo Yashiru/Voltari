@@ -1,0 +1,18 @@
+# The ordinary shape: several slots, weighted, over a range of levels.
+#
+# Structural placeholder. Identifiers are not names (see content/README.md).
+
+# Per step, in 256ths. Roughly one encounter every eight steps.
+rate: 32
+
+slots:
+  - species: placeholder_base
+    levels:
+      min: 2
+      max: 4
+    weight: 60
+  - species: placeholder_evolved
+    levels:
+      min: 5
+      max: 7
+    weight: 30

@@ -11,7 +11,14 @@ import { readdirSync, readFileSync, statSync, existsSync } from "node:fs";
 import { stripCommentsAndStrings, collectScripts } from "../lib/gdscript.mjs";
 import { join, relative } from "node:path";
 
-const LINTED_DIRS = ["addons/voltari/core", "addons/voltari/rules"];
+// Every layer held to the purity rule: the core, the rules beside it, and the
+// deciders that feed it. A decider that read a clock would make a replay stop
+// reproducing (spec 12, section 1).
+const LINTED_DIRS = [
+  "addons/voltari/core",
+  "addons/voltari/rules",
+  "addons/voltari/deciders",
+];
 
 // Each rule is matched against source with comments and string literals removed,
 // so a mention in prose or in a message identifier never trips the lint.

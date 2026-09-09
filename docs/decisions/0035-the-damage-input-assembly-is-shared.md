@@ -33,11 +33,22 @@ calculation is the duplication the standards forbid, and this pair would diverge
 the first time an effect changed a damage stage — silently, because the estimate
 has nothing to compare itself against.
 
-## Consequences
+## Amended when implemented: the assembly cannot move
 
-The input assembly becomes shared code rather than a private helper of the turn
-machine. That is a refactor with no behaviour change, and the existing damage
-tests are what say so.
+The decision above said the input assembly would be shared. It cannot be, and
+writing the view showed why: the engine assembles from a **creature**, and the AI
+assembles from an **estimate** of one, built from public species data. They have
+different inputs, so there is no single assembly for them to share.
+
+What is genuinely shared is smaller and still worth extracting: **which stat a
+category attacks with, and which defends against it**. That rule now lives once,
+on `VltDamage`, and both sides read it. The numbers are each caller's own; the
+rule is not.
+
+`VltDamage.compute` itself is shared as decided, which was always the part that
+mattered — the pipeline, not the paperwork before it.
+
+## Consequences
 
 **A test asserts the two paths never forked**: a move the AI predicted, then
 actually played with the same decider, deals what it predicted. Without it,

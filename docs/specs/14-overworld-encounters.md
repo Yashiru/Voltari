@@ -19,12 +19,13 @@ collision, warp traversal and zone detection are the engine's own work, and the
 world state lives in the scene tree rather than in a pure structure beside it.
 
 That is a departure from every layer below, taken deliberately. Rewriting tile
-collision in pure GDScript is not hard — but the testability it buys is worth
-little here, because **the world carries no formula anyone could get subtly
-wrong**. A warp either arrives somewhere or it does not, and that is visible the
-first time it is walked. Damage is not like that; a stat calculation off by one
-plays for months without being noticed. The purity discipline exists for the
-second kind of code, and the overworld is the first.
+collision in pure GDScript is not hard — but what purity would buy here is worth
+little, because **the world carries no formula anyone could get subtly wrong**. A
+warp either arrives somewhere or it does not. Damage is not like that; a stat
+calculation off by one plays for months without being noticed. Purity is what
+lets fuzzing and mutation testing loose on the second kind of code, and the
+overworld is the first: examples are enough to pin behaviour that is either right
+or visibly wrong.
 
 **What stays pure is the part that carries numbers.** Whether an encounter
 happens, which slot of the table is drawn, and at what level. Those are rules
@@ -32,11 +33,18 @@ with a distribution — the exact thing that is wrong quietly rather than
 obviously. They live in L1 with the other out-of-battle rules, under the purity
 lint, and are tested normally (section 9).
 
-**The cost, stated plainly:** the world state is not covered by tests. A broken
-warp, a zone that never fires, a collision gap — all of these are found by
-playing. Two things narrow that gap without closing it: the build validates every
-cross-reference a scene cannot guarantee (section 7), and the numeric half is
-tested like the rest of the engine.
+**The cost is a weaker kind of test, not the absence of tests.** The world's
+behaviour is covered — on fixture maps, without rendering (section 9). What it
+gives up is the *quality* of coverage the rest of the engine has. Spec 05 rests
+on three pillars: a differential against the oracle, invariants under fuzzing,
+and mutation testing. None of the three reaches a scene tree. Fuzzing a world
+means driving a node graph, and mutating it means rebuilding that graph per
+mutant, which is what makes the core's mutation pass affordable and the world's
+not.
+
+So the world gets example-based tests: real, and the weakest pillar the project
+has. That is stated here so the difference is understood as a property of where
+the code lives, rather than as an effort somebody forgot to make.
 
 ## 2. Movement is locked to the grid
 
@@ -190,9 +198,24 @@ map. Renaming a map file is a migration, not a rename.
 - **The world's save section round-trips** — part of declaring a section, not an
   extra (spec 13, section 8).
 
-**What is not tested, stated here rather than left to be discovered:** movement,
-collision, warp traversal and zone detection. Section 1 explains why, and this
-line exists so that nobody later reads the absence as an oversight.
+On a **fixture map**, built for the tests and not part of the game, with no
+rendering — node logic runs headless, and the suite is already headless:
+
+- **A step into a blocked cell does not move the player, and still turns them.**
+  Turning in place is the behaviour most easily lost in a refactor, because a
+  blocked step and a step that did nothing look identical from outside.
+- **A step off the edge of the map is blocked**, and blocked the same way as a
+  wall — not by an error.
+- **Stepping onto a warp arrives** at the declared map, cell and facing.
+- **A cell inside a zone reports that zone's table**, and a cell outside reports
+  none. Zone edges are tested at the boundary cell, which is where an off-by-one
+  lives.
+- **Encounter checks happen per step and only inside a zone** — the join between
+  the native half and the pure one, and the only place a mistake there shows up.
+
+**What no test covers, and this line exists so nobody reads the absence as an
+oversight:** whether a map is well laid out, and how movement feels. Those are
+design, judged by playing.
 
 ## Open points
 

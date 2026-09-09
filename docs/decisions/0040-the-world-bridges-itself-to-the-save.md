@@ -64,6 +64,8 @@ section 3) therefore applies outside content for the first time: stable,
 `snake_case`, never reused for a different map. Renaming a map file is a
 migration, not a rename.
 
-The round-trip test that comes with declaring a section (spec 13, section 8) is
-the one piece of mechanical coverage the world gets, since decision 0038 gives up
-the rest. It proves the conversion, not the world.
+The round-trip test that comes with declaring a section (spec 13, section 8)
+proves the conversion, not the world. It is worth being clear about that: a
+section can round-trip perfectly while reading the wrong node, so it guards the
+save format and leaves the world's own behaviour to the world's own tests
+(decision 0038).

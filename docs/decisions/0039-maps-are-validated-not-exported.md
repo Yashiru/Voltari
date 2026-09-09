@@ -59,10 +59,11 @@ resolved to validation only.
 the scene. Would make that data readable without loading a scene. Rejected for
 the same duplication, for a benefit nothing currently needs.
 
-**No build step at all.** Least machinery. Rejected because a broken warp would
-then be discovered only by walking to it, and the overworld already gives up its
-test coverage (decision 0038); giving up the validation too would leave it with
-no mechanical guard whatsoever.
+**No build step at all.** Least machinery. Rejected because nothing else can
+catch this class of error. The world's own tests run on fixture maps
+(decision 0038), which proves that warps *work* — it says nothing about whether
+the warps in the shipped maps point anywhere real. Only a pass over the actual
+content can, and without it a broken warp is discovered by walking to it.
 
 ## Consequences
 

@@ -19,8 +19,11 @@ test with no scene tree.
 ## Decision
 
 **The map is ordinary Godot** — tiles, a character body, area triggers. The world
-state lives in the scene tree. The maintainer chose this and stated that the
-world state does not need to be tested.
+state lives in the scene tree. The maintainer chose this.
+
+**The world is still tested, on fixture maps**, for everything a test can reach:
+a blocked step, a warp arrival, a zone boundary. What the scene tree costs is not
+coverage but the *kind* of coverage — see the consequences.
 
 **The rules that carry numbers stay pure**: whether an encounter happens, which
 slot is drawn, at what level. They sit in L1 with the other out-of-battle rules,
@@ -64,14 +67,24 @@ avoided.
 
 ## Consequences
 
-**The world state is not covered by tests.** A broken warp, a zone that never
-fires, a gap in collision: all found by playing. This is the accepted price and
-spec 14 section 9 states it in the test obligations themselves, so it is not
-later read as an oversight.
+**The world gets the weakest of the project's three test pillars.** Spec 05 rests
+on a differential against the oracle, invariants under fuzzing, and mutation
+testing. None of the three reaches a scene tree: fuzzing a world means driving a
+node graph, and mutating it means rebuilding that graph per mutant, which is
+exactly what makes the core's mutation pass affordable and the world's not.
 
-Two things narrow the gap without closing it: the build validates every
-cross-reference a scene cannot guarantee (decision 0039), and the numeric half is
-tested like the rest of the engine.
+So the world is covered by **example-based tests on fixture maps** — real tests,
+naming real behaviours, at a lower standard of evidence than anything below L1.
+That difference is a property of where the code lives, not an effort skipped, and
+spec 14 section 9 lists both what is covered and what is not.
+
+Two things sit alongside them: the build validates every cross-reference a scene
+cannot guarantee (decision 0039), and the numeric half is tested like the rest of
+the engine.
+
+What no test reaches at all is whether a map is well laid out and how movement
+feels. Those are design, judged by playing, and no amount of coverage would have
+answered them.
 
 **The engine gains a Godot-dependent directory**, `addons/voltari/world/`, which
 the purity lint does not cover. `platform/` was already such a place; this is the

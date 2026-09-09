@@ -19,10 +19,6 @@ extends RefCounted
 ## `a` is capped here, and reaching the cap means certain capture.
 const MAX_RATE: int = 255
 
-## What stage two would return for a certain capture. A draw runs 0 to 65535, so
-## every check passes — the core keeps one path instead of a special case.
-const CERTAIN_THRESHOLD: int = 65536
-
 ## Constants of the published stage-two form, named rather than left as digits:
 ## 255 × 65536, and 16 × 65535.
 const RATE_SCALE: int = 16711680
@@ -56,14 +52,15 @@ static func modified_rate(
 ## Stage two, integer throughout: every division and every root floors, in the
 ## order the formula writes them.
 ##
-## Returns CERTAIN_THRESHOLD when the rate reached its cap. That is the one place
+## Returns the decider's full draw range when the rate reached its cap: every
+## check then passes, so a certain capture takes the same path as any other. That is the one place
 ## the formula branches, and it is here rather than in the core so the core has
 ## nothing to know about it.
 static func shake_threshold(rate: int) -> int:
 	assert(rate >= 0 and rate <= MAX_RATE, "a modified rate of %d is out of range" % rate)
 
 	if rate >= MAX_RATE:
-		return CERTAIN_THRESHOLD
+		return VltDecider.CAPTURE_DRAW_RANGE
 	if rate == 0:
 		return 0
 

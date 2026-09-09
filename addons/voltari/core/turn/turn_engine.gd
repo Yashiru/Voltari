@@ -22,6 +22,9 @@ extends RefCounted
 ## recorded here rather than assumed correct.
 
 const FIRST_DAMAGE_ROLL: int = 85
+
+## How many checks a throw makes. All four must pass (spec 11, section 2).
+const CAPTURE_SHAKES: int = 4
 const CRITICAL_NUMERATOR: int = 1
 const CRITICAL_DENOMINATOR: int = 16
 
@@ -63,6 +66,10 @@ func resolve(
 
 	for command: VltCommand in _ordered(working, commands, decider):
 		_run_action(working, command, decider, log)
+		# A capture ends the battle where it stands: the remaining commands have
+		# nothing to resolve against.
+		if _captured(log):
+			return _finish(working, log)
 
 	# ANCHOR: RESIDUAL
 	VltEffectDispatch.run_triggers(
@@ -98,13 +105,34 @@ func _validate(state: VltBattleState, commands: Array[VltCommand]) -> String:
 		if actor == null:
 			return "%s is empty" % command.actor
 
-		var problem: String = (
-			_validate_move(state, command, actor)
-			if command.kind == VltCommand.Kind.MOVE
-			else _validate_switch(state, command)
-		)
+		var problem: String = _validate_command(state, command, actor)
 		if problem != "":
 			return problem
+
+	return ""
+
+
+func _validate_command(
+	state: VltBattleState, command: VltCommand, actor: VltBattleCreature
+) -> String:
+	match command.kind:
+		VltCommand.Kind.SWITCH:
+			return _validate_switch(state, command)
+		VltCommand.Kind.CATCH:
+			return _validate_capture(state, command)
+	return _validate_move(state, command, actor)
+
+
+## A throw needs somewhere to land and a threshold that could have come from the
+## rules layer. The core checks the shape of the number, never where it came
+## from — that is the whole point of receiving one.
+func _validate_capture(state: VltBattleState, command: VltCommand) -> String:
+	if not state.is_valid_ref(command.target):
+		return "target %s is not a slot on this field" % command.target
+	if command.target.side == command.actor.side:
+		return "a ball is thrown at the other side"
+	if command.capture_threshold < 0 or command.capture_threshold > VltDecider.CAPTURE_DRAW_RANGE:
+		return "capture threshold %d is out of range" % command.capture_threshold
 
 	return ""
 
@@ -153,10 +181,13 @@ func _ordered(
 	var moves: Array[VltCommand] = []
 
 	for command: VltCommand in commands:
-		if command.kind == VltCommand.Kind.SWITCH:
-			switches.append(command)
-		else:
+		# A throw resolves in the switch bracket, before any move. The turn is
+		# still spent and the opponent still acts — unless the throw lands, and
+		# then there is nothing left to act against.
+		if command.kind == VltCommand.Kind.MOVE:
 			moves.append(command)
+		else:
+			switches.append(command)
 
 	var ordered: Array[VltCommand] = []
 	ordered.append_array(_by_slot(switches))
@@ -250,10 +281,13 @@ func _run_action(
 	if actor == null or actor.is_fainted():
 		return
 
-	if command.kind == VltCommand.Kind.SWITCH:
-		_run_switch(state, command, log)
-	else:
-		_run_move(state, command, decider, log)
+	match command.kind:
+		VltCommand.Kind.SWITCH:
+			_run_switch(state, command, log)
+		VltCommand.Kind.CATCH:
+			_run_capture(state, command, decider, log)
+		_:
+			_run_move(state, command, decider, log)
 
 
 func _run_switch(state: VltBattleState, command: VltCommand, log: VltBattleLog) -> void:
@@ -267,6 +301,48 @@ func _run_switch(state: VltBattleState, command: VltCommand, log: VltBattleLog) 
 			command.actor, command.party_index, state.creature_at(command.actor).species_id
 		)
 	)
+
+
+## Four checks against a threshold the rules layer computed. The core does not
+## know what a ball is, what a capture rate is, or that species differ: it has a
+## number (spec 11, section 1).
+##
+## Shakes are emitted as they pass, so a failure after three reads as three.
+func _run_capture(
+	state: VltBattleState, command: VltCommand, decider: VltDecider, log: VltBattleLog
+) -> void:
+	var target: VltBattleCreature = state.creature_at(command.target)
+	if target == null or target.is_fainted():
+		log.append(VltLogMoveFailed.create(command.actor, VltLogMoveFailed.Reason.NO_TARGET))
+		return
+
+	var slot: VltSlot = state.slot_at(command.target)
+	var shakes: int = 0
+
+	while shakes < CAPTURE_SHAKES:
+		if not decider.capture_shake(command.capture_threshold):
+			break
+		shakes += 1
+		log.append(VltLogCaptureShake.create(command.target, shakes))
+
+	var caught: bool = shakes == CAPTURE_SHAKES
+	var result: VltLogCaptureResult = VltLogCaptureResult.create(
+		command.target, slot.occupant, caught
+	)
+	log.append(result)
+	result.apply(state)
+
+
+## Whether a throw landed this turn. Read from the log rather than from a flag on
+## the state: the log already says so, and a second place to look is a second
+## place to disagree (spec 11, section 7).
+func _captured(log: VltBattleLog) -> bool:
+	for event: VltLogEvent in log.events:
+		if event.kind() != VltLogCaptureResult.KIND:
+			continue
+		if (event as VltLogCaptureResult).captured:
+			return true
+	return false
 
 
 func _run_move(

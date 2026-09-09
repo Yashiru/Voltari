@@ -34,6 +34,11 @@ var accuracy: Answer = Answer.ALWAYS
 var critical: Answer = Answer.NEVER
 var secondary: Answer = Answer.NEVER
 
+## Whether a shake passes. No differential vector exercises capture — the oracle
+## does not model it — so this answers a question the fidelity harness never
+## asks (decision 0032).
+var capture: Answer = Answer.NEVER
+
 ## Who wins a speed tie. Explicit, because leaving it to iteration order is
 ## exactly what the decision interface exists to prevent.
 var speed_tie_winner: TieWinner = TieWinner.EARLIER
@@ -58,6 +63,10 @@ func critical_hit(_numerator: int, _denominator: int) -> bool:
 
 func secondary_triggers(_chance: int) -> bool:
 	return secondary == Answer.ALWAYS
+
+
+func capture_shake(_threshold: int) -> bool:
+	return capture == Answer.ALWAYS
 
 
 func speed_tie(first: VltSlotRef, second: VltSlotRef) -> VltSlotRef:

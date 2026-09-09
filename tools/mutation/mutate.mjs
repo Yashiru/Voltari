@@ -36,6 +36,7 @@ const CORE_DIRS = [
   "addons/voltari/core",
   "addons/voltari/rules",
   "addons/voltari/deciders",
+  "addons/voltari/save",
   "addons/voltari/loaders",
 ];
 

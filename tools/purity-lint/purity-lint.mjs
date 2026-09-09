@@ -18,6 +18,7 @@ const LINTED_DIRS = [
   "addons/voltari/core",
   "addons/voltari/rules",
   "addons/voltari/deciders",
+  "addons/voltari/save",
 ];
 
 // Each rule is matched against source with comments and string literals removed,

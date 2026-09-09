@@ -146,6 +146,22 @@ func test_it_skips_a_move_with_no_pp() -> void:
 	assert_str(_chosen_move(state, _choose(state, VltBattleAi.expert()))).is_equal(WEAK)
 
 
+func test_it_skips_a_move_the_registry_does_not_know() -> void:
+	# Both halves of the guard hold on their own: PP left is not enough if the
+	# move is not in the registry, and being in the registry is not enough with
+	# no PP. Reaching for an unknown move would fail somewhere far from here.
+	var ids: Array[String] = [WEAK]
+	var state: VltBattleState = _battle(ids)
+	state.creature_at(VltSlotRef.at(OURS, 0)).moves.append(
+		VltMoveSlot.create("not_in_the_registry", 10)
+	)
+
+	var command: VltCommand = _choose(state, VltBattleAi.expert())
+	assert_str(_chosen_move(state, command)).override_failure_message(
+		"the AI reached for a move nothing declares"
+	).is_equal(WEAK)
+
+
 # --- each parameter changes something ----------------------------------------
 
 

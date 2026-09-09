@@ -65,6 +65,17 @@ func test_a_nature_choice_stays_inside_the_table() -> void:
 	assert_int(decider.nature_choice(25)).is_equal(0)
 
 
+func test_a_policy_choice_stays_inside_the_options() -> void:
+	# An index past the options would read off the end of them, somewhere far
+	# from here. The same guard the nature table has, for the same reason.
+	var decider: VltScriptedPolicyDecider = VltScriptedPolicyDecider.new(true, 99)
+	assert_int(decider.among_equals(3)).is_equal(2)
+	assert_int(decider.among_equals(1)).is_equal(0)
+
+	var below: VltScriptedPolicyDecider = VltScriptedPolicyDecider.new(true, -7)
+	assert_int(below.among_equals(3)).is_equal(0)
+
+
 func test_individual_values_can_differ_per_stat() -> void:
 	var decider: VltScriptedGenerationDecider = VltScriptedGenerationDecider.new()
 	decider.individual_values[VltStats.Stat.SPE] = 0

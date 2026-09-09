@@ -72,16 +72,27 @@ argued away — see decision 0045 for what is being paid and what was rejected.
 
 **Fakemon use declared clip names**, checked against the model.
 
-| Name | Meaning |
-|------|---------|
-| `enter` | arriving — sent out, or walking into a scene |
-| `idle` | the resting loop |
-| `attack_physical` | a contact move |
-| `attack_special` | a ranged move |
-| `hurt` | taking damage |
-| `faint` | going down |
-| `walk` | overworld locomotion |
-| `run` | overworld locomotion, faster |
+**A slot is a list, not a clip.** The library carries several takes for the same
+meaning — three landings, two idles, three eats — and treating a slot as a single
+clip would throw two thirds of them away. The runtime picks among a slot's takes;
+a slot with one take is the ordinary case, not a special one.
+
+### The three sets
+
+| Set | Slots |
+|-----|-------|
+| **Battle** | `enter`, `idle`, `attack_physical`, `attack_special`, `hurt`, `faint` |
+| **Field** | `field_idle`, `walk`, `run` |
+| **Companion** | `companion_idle`, `happy`, `unhappy`, `eat` |
+
+Three sets rather than one flat list, because they are asked for by different
+parts of the game and a creature may legitimately have one set and not another —
+a creature that never follows the player needs no companion clips.
+
+**A slot enters the vocabulary when something asks for it.** The library carries
+more than this and the extra clips are kept (below); they are not vocabulary
+until a system names them, or every creature would owe a fallback for a clip
+nothing plays.
 
 ### Mapping the placeholders onto it
 
@@ -89,40 +100,69 @@ The source library turns out to carry **a standard of its own**, and a better on
 than a word: a two-letter context and a two-digit slot. `ba20` is the physical
 attack whatever the rest of the name says.
 
-| Ours | Source code | Source word | Models carrying it |
-|------|-------------|-------------|--------------------|
-| `enter` | `ba01` | land | 78% |
-| `idle` | `ba10` | wait | 78% |
-| `attack_physical` | `ba20` | buturi (物理) | 69% |
-| `attack_special` | `ba21` | tokusyu (特殊) | 76% |
-| `hurt` | `ba30` | damage | 78% |
-| `faint` | `ba41` | down | 72% |
-| `walk` | `fi20` | walk | 76% |
-| `run` | `fi21` | run | 76% |
+| Ours | Source | Source word | Takes | Models |
+|------|--------|-------------|-------|-------:|
+| `enter` | `ba01` | land | A B C | 78% |
+| `idle` | `ba10` | wait | A B | 78% |
+| `attack_physical` | `ba20` | buturi (物理) | 01 02 | 69% |
+| `attack_special` | `ba21` | tokusyu (特殊) | 01 02 03 | 76% |
+| `hurt` | `ba30` | damage | S | 78% |
+| `faint` | `ba41` | down | — | 72% |
+| `field_idle` | `fi01` | wait | 01 02 | 32% |
+| `walk` | `fi20` | walk | — | 76% |
+| `run` | `fi21` | run | — | 76% |
+| `companion_idle` | `kw01` | wait | — | 48% |
+| `happy` | `kw32` | happy | A B C | 75% |
+| `unhappy` | `kw30` | hate | — | 75% |
+| `eat` | `kw50` | eat | A B C | 72% |
 
 Measured across 569 animated models carrying 7,792 clips between them.
 
-**The resolver takes two rules, in order: the code, then the word.** Some models
-carry no prefix at all — `waitA01`, `buturi01` — which is the trap that made an
-exact-match list match nothing, silently, on the second model ever exported.
-Matching the code first and the word second covers both, and neither rule is a
-guess about the other.
+**The resolver takes two rules, in order: the code, then the word.** About 120
+models carry no prefix at all — `waitA01`, `buturi01` — because two generations
+of extraction coexist in the library. That is the trap that made an exact-match
+list match nothing, silently, on the second model ever exported. Matching the
+code first and the word second covers both, and neither rule is a guess about
+the other.
 
 For a fakemon the resolver does nothing: the manifest already names our clips.
-The mapping is a placeholder-era bridge and should be readable as one.
+The mapping is a placeholder-era bridge and should read as one.
 
-Loop selection follows from the vocabulary rather than from a substring: `idle`,
-`walk` and `run` loop, everything else holds on its last frame. The old
-substring-on-`wait` rule is what the bridge replaces.
+### What is not an animation
 
-**A clip in the vocabulary that a creature has not got is refused at build,
-unless the manifest declares a fallback** — `hurt: use idle` is accepted because
-somebody wrote it; silence is not.
+Three kinds of name would be swallowed by a naive mapping, and each means
+something else entirely:
 
-The distinction is between an author's decision and an omission. A missing faint
-animation discovered in front of a player is the failure; a hard refusal instead
-would mean no creature can enter the repository until it is fully animated, and
-most of a roster is half-animated for months.
+- **Stow clips** — `HideLeftEar`, `HideRightEar`, `HideHair`. They drive the
+  stowable-parts feature of section 2, not the animation player.
+- **Effect tracks** — a clip suffixed `_FX` beside `attack_physical`,
+  `attack_special` or `faint`. It plays *alongside* its slot, not instead of it.
+- **Conversion noise** — `_FBX_OVERRIDE`, `_HAT_OVERRIDE`, `_1`, `_euler`,
+  `_RemovedScale`, `_mtAdjust`, `_mtCleanup`. Stripped before anything is
+  matched, or a duplicate take reads as a second variant.
+
+### Nothing is dropped
+
+**Every clip in a model is either mapped to a slot or recorded as a named
+extra.** There is no third outcome, and the build says so.
+
+Extras are the species' own: a mega-evolution appeal, an ear adjustment, a
+sleeping loop, a locomotion transition. One or two models carry each, and a
+vocabulary that grew a slot per exception would stop being a vocabulary. The
+engine can play an extra by name; nothing asks for one automatically.
+
+This is what makes the rule testable rather than aspirational. A clip that
+matched nothing used to disappear without a word — which is precisely how the
+first mapping attempt failed unnoticed.
+
+### Looping
+
+Loop mode follows from the slot: `idle`, `field_idle`, `companion_idle`, `walk`
+and `run` loop; everything else holds on its last frame. Extras declare their own.
+
+The placeholder era decided this with a substring test on `wait`, because take
+names could not be trusted. That rule is what the bridge replaces, and it should
+not outlive it.
 
 ## 5. The presentation manifest
 
@@ -135,15 +175,32 @@ so that two species can share a rig and neither file learns about the other.
 | Field | Meaning |
 |-------|---------|
 | `scene` | The `.tscn` to instance |
-| `clips` | Vocabulary name to the clip in the model, or a declared fallback |
+| `clips` | Slot to the **list of takes** in the model, or a declared fallback |
+| `extras` | Clips the model carries that no slot claims, by name |
+| `stow` | Clips that hide a part rather than animate one |
 | `height` | Intended display height in metres |
+
+```yaml
+clips:
+  idle: [ba10_waitA01, ba10_waitB01]
+  attack_physical: [ba20_buturi01]
+  hurt: use idle          # a declared fallback, not an omission
+extras: [ba10_adjustear]
+stow: [HideLeftEar, HideRightEar]
+```
+
+`clips` takes a list because a slot is a list (section 4). `extras` and `stow`
+exist so that **every clip in the model appears somewhere in the manifest** —
+which is what turns "nothing is dropped" from an intention into something the
+build can check by counting.
 
 **Validated in two stages**, because neither half can do the other's job:
 
 - **the Node build** checks the manifest's shape and that the referenced files
   exist on disk
 - **an engine-side meta-test** checks that the named clips are really in the
-  model, which needs Godot to open it
+  model, and that the model carries nothing the manifest failed to mention —
+  both of which need Godot to open it
 
 This is the same split spec 09 makes for effect ids and spec 14 makes for map
 scenes: each check lives where the thing being checked can actually be read.
@@ -238,15 +295,30 @@ shader, not separate looks.
 - **The placeholder mapping resolves by code before word**, proven on both
   shapes: a prefixed name and a bare one. Getting the order wrong still resolves
   most clips, which is what makes it worth a test rather than a reading.
-- **A source clip the mapping does not recognise is reported, not guessed at** —
-  silently mapping an unknown clip to `idle` is how the first exact-match
-  attempt failed without anybody noticing.
+- **Every clip of every model is accounted for** — mapped to a slot or recorded
+  as a named extra, with no third outcome. Run over the whole library, this is
+  the obligation that would have caught the original silent failure.
+- **A slot keeps all its takes.** Three landings map to three, not to one, and a
+  model with two idles does not lose the second.
+- **Conversion noise is stripped before matching**, so `landA01` and
+  `landA01_1` are one take rather than two.
+- **Stow clips and `_FX` tracks never reach the animation vocabulary**, proven
+  on a model that carries both.
 
 ## Open points
 
 - **Characters, as opposed to creatures.** The player and NPCs need the same
   contract and a different vocabulary — walking has facings, a creature has none.
   Nothing here covers them.
+- **What plays a companion clip.** The set is in the vocabulary because three
+  quarters of the library carries it and it is content already paid for. No
+  system asks for it yet: friendship, a party menu, a creature following the
+  player are all unspecified.
+- **How the runtime chooses among a slot's takes** — at random, in rotation, or
+  weighted. Three landings exist; nothing yet says which one plays.
+- **Locomotion transitions** (`fi30`, `fi31`) are extras today. Using them needs
+  a movement system that knows it is starting or stopping, which spec 14's
+  grid-locked step does not currently express.
 - **Whether the style switcher ships.** The art direction is settled (section 9)
   and the runtime still carries several looks. Keeping the switcher costs a menu
   nobody outside the team needs; removing it costs the ability to compare. Which

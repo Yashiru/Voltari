@@ -15,14 +15,9 @@ extends Node3D
 ## modes mutate the imported Animation resources, so they are not touched while
 ## editing.
 
-## Where the shaders and this script live once installed in Voltari. Original
-## work, so it ships — outside the placeholder quarantine (Voltari decision 0046).
+## Where the shaders, this script and their data live. Original work plus two
+## textures the maintainer knowingly kept (Voltari decisions 0046 and 0027).
 const SHARED: String = "res://game/presentation/creature/"
-
-## Placeholder-only assets that may never leave the quarantine (Voltari decision
-## 0027): the flame textures are extracted from the source models and are not
-## ours. A fakemon that wants a flame brings its own.
-const PLACEHOLDER_SHARED: String = "res://game/assets/placeholders/_shared/"
 
 ## The standalone viewer is a flat project and keeps everything at its root.
 const SHARED_FLAT: String = "res://"
@@ -318,7 +313,7 @@ func _accent() -> Color:
 
 ## Every named preset, or an empty map when none is installed.
 static func presets() -> Dictionary:
-	for base: String in [SHARED, PLACEHOLDER_SHARED, SHARED_FLAT]:
+	for base: String in [SHARED, SHARED_FLAT]:
 		var path: String = base + PRESET_FILE
 		if not FileAccess.file_exists(path):
 			continue
@@ -360,7 +355,7 @@ func _apply_preset(material: ShaderMaterial) -> void:
 ## Static so a tool that has no creature to hand — the editor plugin — can read
 ## the same answer from the same place rather than keeping its own copy.
 static func roster_style() -> String:
-	for base: String in [SHARED, PLACEHOLDER_SHARED, SHARED_FLAT]:
+	for base: String in [SHARED, SHARED_FLAT]:
 		var path: String = base + STYLE_FILE
 		if not FileAccess.file_exists(path):
 			continue
@@ -393,7 +388,10 @@ func _shiny_dir() -> String:
 	var base: String = clip_data_path.get_base_dir()
 	if base.is_empty() and not scene_file_path.is_empty():
 		base = scene_file_path.get_base_dir()
-	return base + "/shiny/"
+	# path_join rather than a glued slash: the viewer's clip path sits at the
+	# project root, whose base directory is already `res://`, and gluing gives
+	# `res:///shiny/`.
+	return base.path_join("shiny") + "/"
 
 
 ## Rebuild the surfaces after something outside this node changed the look.
@@ -793,7 +791,7 @@ func _flame_material(shader: Shader, core: Texture2D, sten: Texture2D,
 ## the standalone viewer. Loading a missing path prints an error, so existence
 ## is checked first rather than letting the first attempt fail noisily.
 func _shared_load(file: String) -> Resource:
-	for base: String in [SHARED, PLACEHOLDER_SHARED, SHARED_FLAT]:
+	for base: String in [SHARED, SHARED_FLAT]:
 		if ResourceLoader.exists(base + file):
 			return load(base + file)
 	return null

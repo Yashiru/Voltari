@@ -14,6 +14,28 @@ An earlier incident makes the point: 21 placeholder files, 1.7 MB, were
 committed to a feature branch by a `git add .` that predated the ignore rule.
 Ignoring a directory does nothing for files already tracked.
 
+## Known exception, recorded so the audit has a list
+
+**Two extracted textures live in the repository by the maintainer's explicit
+call**, taken after being told what they are:
+
+| File | Where | What it is |
+|------|-------|-----------|
+| `FireCoreCombo.png` | `game/presentation/creature/` | flame core, extracted from the source models |
+| `FireStenCombo.png` | `game/presentation/creature/` | flame flicker, same |
+
+Identical copies sit in the `3D Assets` rig directories of pm0004, pm0005 and
+pm0006, which is how the provenance was established.
+
+They are outside the guarded path, so **the guard does not cover them**. The
+containment for these two is a manual audit of the history before release,
+which is the maintainer's stated plan — and this table exists so that audit works
+from a written list rather than somebody's memory. Removing them then means
+rewriting history, not `git rm`.
+
+Nothing else extracted has left the quarantine, and nothing else should without
+being added here first.
+
 ## Decision
 
 Containment is enforced, at every point an asset could leave the machine, by one

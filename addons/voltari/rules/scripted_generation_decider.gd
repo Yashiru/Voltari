@@ -7,9 +7,8 @@ extends VltGenerationDecider
 ## from declared answers is the same creature every time, which is what makes a
 ## birth testable at all.
 ##
-## A seeded implementation is not here yet. Nothing generates a random creature
-## until encounters do (spec 14), and writing one now would mean a second
-## xorshift beside the battle decider's with no caller to justify it.
+## `VltSeededGenerationDecider` is the other half, and it arrived with spec 14:
+## encounters are the first thing that generates a creature nobody declared.
 
 ## One value per stat, indexed by VltStats.Stat.
 var individual_values: PackedInt32Array = PackedInt32Array()

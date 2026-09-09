@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "slots": {
+    "battle": [
+      "enter",
+      "idle",
+      "attack_physical",
+      "attack_special",
+      "hurt",
+      "faint"
+    ],
+    "field": [
+      "field_idle",
+      "walk",
+      "run"
+    ],
+    "companion": [
+      "companion_idle",
+      "happy",
+      "unhappy",
+      "eat"
+    ]
+  }
+}

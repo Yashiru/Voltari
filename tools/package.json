@@ -13,7 +13,9 @@
     "content:curves": "node progression/generate-growth-curves.mjs",
     "oracle:stats": "node oracle/generate-stat-vectors.mjs",
     "oracle:battle": "node oracle/generate-battle-vectors.mjs",
-    "mutation": "node mutation/mutate.mjs"
+    "mutation": "node mutation/mutate.mjs",
+    "budget": "node budget/report-budget.mjs",
+    "fixtures:model": "node fixtures/build-model-fixture.mjs"
   },
   "dependencies": {
     "@pkmn/sim": "0.10.11"

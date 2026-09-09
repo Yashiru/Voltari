@@ -8,7 +8,7 @@
 // The output is committed and CI re-runs this to check it is current, so the
 // two can never drift apart unnoticed.
 
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync, existsSync } from "node:fs";
 import { dirname, join, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
@@ -22,6 +22,7 @@ const MOVES_DIR = join(REPO, "content", "moves");
 const SPECIES_DIR = join(REPO, "content", "species");
 const ITEMS_DIR = join(REPO, "content", "items");
 const ENCOUNTERS_DIR = join(REPO, "content", "encounters");
+const PRESENTATION_DIR = join(REPO, "content", "presentation");
 const OUT_DIR = join(REPO, "content", "generated");
 
 /// The payload schema. A loader refuses a version it does not know, because
@@ -47,6 +48,10 @@ export function loadCurves() {
 /// Sorted, so the index and the payload never depend on directory order.
 export function loadEntities(directory) {
   const entities = [];
+  // A kind with nothing authored yet is not an error. Presentation is the first:
+  // its manifests arrive with the fakemon, and until then the machinery is
+  // proven on fixtures rather than on content (spec 16).
+  if (!existsSync(directory)) return entities;
 
   for (const file of readdirSync(directory).sort()) {
     if (!file.endsWith(".yaml")) continue;
@@ -71,6 +76,10 @@ export function loadItems() {
 
 export function loadEncounters() {
   return loadEntities(ENCOUNTERS_DIR);
+}
+
+export function loadPresentation() {
+  return loadEntities(PRESENTATION_DIR);
 }
 
 // Validation is the build's job, not the engine's: a malformed chart must fail
@@ -228,6 +237,81 @@ function validateItems(items) {
         problems.push(
           `${where}: catch_multiplier must be ${MIN_CATCH_MULTIPLIER} to ${MAX_CATCH_MULTIPLIER}`,
         );
+      }
+    }
+  }
+
+  return problems;
+}
+
+// The animation vocabulary (spec 16, section 4). It lives here *and* in
+// ClipMap, which is two lists that could drift — so the build emits it and an
+// engine-side meta-test asserts the two agree. Neither side can quietly win.
+const SLOTS = {
+  battle: ["enter", "idle", "attack_physical", "attack_special", "hurt", "faint"],
+  field: ["field_idle", "walk", "run"],
+  companion: ["companion_idle", "happy", "unhappy", "eat"],
+};
+const EVERY_SLOT = new Set(Object.values(SLOTS).flat());
+
+// A fallback is written, never inferred: `hurt: use idle` is a decision and an
+// omission is not (decision 0047).
+const FALLBACK = /^use\s+(\S+)$/;
+
+function validatePresentation(entries, knownSpecies) {
+  const problems = [];
+
+  for (const entry of entries) {
+    const where = `presentation "${entry.id}"`;
+
+    if (!knownSpecies.has(entry.id)) problems.push(`${where}: no such species`);
+
+    if (typeof entry.scene !== "string" || !entry.scene.startsWith("res://")) {
+      problems.push(`${where}: scene must be a res:// path`);
+    }
+    if (typeof entry.height !== "number" || entry.height <= 0) {
+      problems.push(`${where}: height must be a positive number of metres`);
+    }
+
+    const clips = entry.clips ?? {};
+    if (typeof clips !== "object" || Array.isArray(clips)) {
+      problems.push(`${where}: clips must be a mapping of slot to takes`);
+      continue;
+    }
+
+    const real = new Set();
+    for (const [slot, takes] of Object.entries(clips)) {
+      if (!EVERY_SLOT.has(slot)) {
+        problems.push(`${where}: "${slot}" is not a slot`);
+        continue;
+      }
+      if (Array.isArray(takes)) {
+        if (takes.length === 0) problems.push(`${where}: ${slot} lists no takes`);
+        real.add(slot);
+        continue;
+      }
+      if (typeof takes !== "string" || !FALLBACK.test(takes)) {
+        problems.push(`${where}: ${slot} must be a list of takes or "use <slot>"`);
+      }
+    }
+
+    // Checked after the pass, so a fallback may name a slot declared later in
+    // the file — the order somebody writes a manifest in is not a rule.
+    for (const [slot, takes] of Object.entries(clips)) {
+      const fallback = typeof takes === "string" && FALLBACK.exec(takes);
+      if (!fallback) continue;
+      if (fallback[1] === slot) {
+        problems.push(`${where}: ${slot} falls back to itself`);
+      } else if (!real.has(fallback[1])) {
+        // A chain of fallbacks resolves to nothing, and nothing is what plays.
+        problems.push(`${where}: ${slot} falls back to "${fallback[1]}", which has no takes`);
+      }
+    }
+
+    for (const field of ["extras", "stow"]) {
+      const list = entry[field] ?? [];
+      if (!Array.isArray(list) || list.some((n) => typeof n !== "string")) {
+        problems.push(`${where}: ${field} must be a list of clip names`);
       }
     }
   }
@@ -484,6 +568,7 @@ function main() {
   const species = loadSpecies();
   const items = loadItems();
   const encounters = loadEncounters();
+  const presentation = loadPresentation();
   const knownTypes = new Set(chart.types);
   const knownMoves = new Set(moves.map((move) => move.id));
   const knownSpecies = new Set(species.map((entry) => entry.id));
@@ -496,6 +581,7 @@ function main() {
     ...validateCurves(curves, GROWTH_RATES),
     ...validateItems(items),
     ...validateEncounters(encounters, knownSpecies),
+    ...validatePresentation(presentation, knownSpecies),
   ]);
 
   mkdirSync(OUT_DIR, { recursive: true });
@@ -523,6 +609,13 @@ function main() {
   const encountersDir = writeEntities("encounters", encounters);
   const slots = encounters.reduce((n, table) => n + table.slots.length, 0);
   console.log(`encounters: ${encounters.length} tables, ${slots} slots -> ${encountersDir}/`);
+
+  const presentationDir = writeEntities("presentation", presentation);
+  writeFileSync(
+    join(presentationDir, "vocabulary.json"),
+    JSON.stringify({ version: SCHEMA_VERSION, slots: SLOTS }, null, 2) + "\n",
+  );
+  console.log(`presentation: ${presentation.length} manifests, ${EVERY_SLOT.size} slots -> ${presentationDir}/`);
 
   const curvesPath = join(OUT_DIR, "growth-curves.json");
   writeFileSync(curvesPath, JSON.stringify(curves, null, 2) + "\n");

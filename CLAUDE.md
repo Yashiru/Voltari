@@ -175,9 +175,16 @@ a guard on the index, the tree, the whole history and every export preset. Never
 stage anything under `game/assets/placeholders/`, and prefer path-scoped
 `git add` over `-A` at the repository root.
 
-**What does not exist**: UI, audio, input, any authored map, and any fakemon —
-the overworld machinery is tested on fixture maps built in code, and `game/maps/`
-is empty.
+**Presentation lives in `game/presentation/`**, not in the addon: it carries this
+game's art direction, so it is not the reusable engine (decision 0046). The
+creature runtime, the shaders, the clip vocabulary and the manifest loader are
+there. `tools/budget/` measures assets against provisional device tiers and
+refuses nothing (decision 0048).
+
+**What does not exist**: UI, audio, input, any authored map, any fakemon, and
+any presentation manifest — the overworld is tested on fixture maps built in
+code, the presentation on a generated `.glb` fixture, and `game/maps/` and
+`content/presentation/` are both empty on purpose.
 
 Requires Godot 4.7.2 and Node 22. gdUnit4 is not vendored — install it into
 `addons/gdUnit4/` before running tests locally. CI installs it automatically at

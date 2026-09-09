@@ -72,6 +72,11 @@ prevent.
 Experience is awarded **when an opponent faints**, split among the creatures
 that took part and did not faint themselves.
 
+**Taking part means having faced it**, at any point, not being on the field when
+it fell. A creature that fought an opponent and was recalled earned its share,
+and only the whole battle can say who that was — so facing is recorded as the
+field changes rather than at the moment of the faint.
+
 **The award formula is ours** (decision 0030), not Gen 4's. There is no oracle
 here, so there is nothing to reproduce — and a formula that answers to nobody is
 design rather than fidelity. It scales on the gap between the two levels, so
@@ -180,9 +185,13 @@ pretending otherwise is how the weak parts get trusted like the strong ones.
   represents a creature's gender — so there is no field to put an answer in, and
   a question with nowhere to send its answer would be a vocabulary entry that
   does nothing. It arrives with the first mechanic that reads it.
-- **The experience formula's participation rules** — whether a creature that
-  switched out still counts, and how a shared award rounds. Settled with the
-  formula, in the entry that records its source.
+- **Whether an evolution can be declined.** The pipeline applies one whose
+  trigger is satisfied, as section 5 says. The games let a player refuse; nothing
+  here does, and that is a design question rather than an oversight.
+- **A curve that changes with the species.** Evolution replaces the species and
+  keeps the experience, so a family whose forms declare different growth rates
+  would put a creature at a level its new curve disagrees with. No authored
+  family does; the rule is undecided rather than implemented.
 - **Experience-sharing items** have no schema until items do (spec 09).
 - **Evolution triggers beyond level** — item, trade, friendship — are content the
   schema can already express; each needs the code its trigger id names.

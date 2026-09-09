@@ -12,7 +12,7 @@ extends VltSeededDecider
 
 func next_in_range(minimum: int, maximum: int) -> int:
 	assert(minimum <= maximum, "range is inverted")
-	return minimum + _below(maximum - minimum + 1)
+	return minimum + _source.below(maximum - minimum + 1)
 
 
 func chance(percent: int) -> bool:

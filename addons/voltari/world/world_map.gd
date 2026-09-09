@@ -1,4 +1,3 @@
-@tool
 class_name VltWorldMap
 extends Node3D
 
@@ -32,11 +31,7 @@ const GROUND: int = 0
 
 
 func is_walkable(cell: Vector2i) -> bool:
-	if terrain == null:
-		return false
-	if _has_cell(terrain, cell):
-		return not _has_cell(blocking, cell)
-	return false
+	return _has_cell(terrain, cell) and not _has_cell(blocking, cell)
 
 
 ## The warp on a cell, or null. Null rather than a sentinel warp: "there is no

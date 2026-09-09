@@ -1,4 +1,3 @@
-@tool
 class_name VltWarp
 extends Node3D
 

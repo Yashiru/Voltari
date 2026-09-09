@@ -1,4 +1,3 @@
-@tool
 class_name VltEncounterZone
 extends Node3D
 

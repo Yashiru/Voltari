@@ -32,7 +32,7 @@ class Slot:
 
 var id: String = ""
 
-## Chance of an encounter per step, in 256ths of
+## Chance of an encounter per step, in 256ths — see
 ## `VltEncounterDecider.RATE_DENOMINATOR`.
 var rate: int = 0
 

@@ -88,6 +88,12 @@ func _play(state: VltBattleState) -> VltBattleLog:
 	state.effects.remove_at(0)
 	log.append(VltLogEffectChanged.removal(FIELD_EFFECT, VltEffectDefinition.Scope.FIELD, null))
 
+	# A throw that shook twice and came loose. Nothing moves, so the state stays
+	# as it is — the vacating path is exercised where capture is.
+	log.append(VltLogCaptureShake.create(target, 1))
+	log.append(VltLogCaptureShake.create(target, 2))
+	log.append(VltLogCaptureResult.create(target, 1, false))
+
 	state.awaiting_replacement = [VltSlotRef.at(SIDE_ONE, 0)]
 	log.append(VltLogPendingInput.create(state.awaiting_replacement))
 

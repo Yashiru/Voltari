@@ -110,9 +110,9 @@ func test_a_capped_rate_is_certain() -> void:
 	# 65536 against a draw of 0 to 65535: every check passes, and the core needs
 	# no special case for it.
 	assert_int(VltCapture.shake_threshold(VltCapture.MAX_RATE)).is_equal(
-		VltCapture.CERTAIN_THRESHOLD
+		VltDecider.CAPTURE_DRAW_RANGE
 	)
-	assert_int(VltCapture.CERTAIN_THRESHOLD).is_greater(DRAWS - 1)
+	assert_int(VltDecider.CAPTURE_DRAW_RANGE).is_greater(DRAWS - 1)
 
 
 func test_a_rate_of_nothing_never_shakes() -> void:

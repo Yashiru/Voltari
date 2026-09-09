@@ -100,6 +100,12 @@ func secondary_triggers(chance: int) -> bool:
 	return _happens(chance, 100)
 
 
+## One draw in [0, 65536), passing below the threshold. A threshold of 65536 is
+## therefore certain without the caller special-casing it (spec 11, section 2).
+func capture_shake(threshold: int) -> bool:
+	return _below(CAPTURE_DRAW_RANGE) < threshold
+
+
 func speed_tie(first: VltSlotRef, second: VltSlotRef) -> VltSlotRef:
 	return first if _below(2) == 0 else second
 

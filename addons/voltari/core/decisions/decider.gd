@@ -60,6 +60,24 @@ func multi_hit_count(minimum: int, maximum: int) -> int:
 
 
 ## How many turns a status lasts, within the inclusive range.
+## The range a shake draw runs over, 0 to this exclusive. It belongs here rather
+## than with the capture rules because it is the shape of the QUESTION, and the
+## question is the core's — the layer that computes a threshold reads it from
+## here, never the other way round.
+const CAPTURE_DRAW_RANGE: int = 65536
+
+
+## Whether one capture shake passes. `threshold` is a value the rules layer
+## computed (spec 11); a draw runs 0 to 65535, so a threshold of 65536 is certain.
+##
+## Here rather than on the generation decider (decision 0029) because a shake
+## happens mid-turn beside the accuracy roll. The oracle's silence about capture
+## is a limit of its scope, not a sign the question belongs elsewhere.
+func capture_shake(threshold: int) -> bool:
+	assert(false, "VltDecider is abstract")
+	return false
+
+
 func status_duration(minimum: int, maximum: int) -> int:
 	assert(false, NOT_IMPLEMENTED)
 	return minimum

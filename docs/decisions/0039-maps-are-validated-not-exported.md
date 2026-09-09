@@ -20,8 +20,13 @@ direction.
 **A map is a Godot scene**, painted in the editor. Tiles carry the collision;
 warps and encounter zones are nodes placed on it.
 
-**The build validates maps and exports nothing.** The scene is the truth at
+**Maps are validated and nothing is exported.** The scene is the truth at
 runtime, so there is nothing to extract.
+
+The validation runs **engine-side rather than in the Node content build**: only
+Godot can load a scene, so a Node script would have to reimplement the scene
+format to read a map. Spec 09 already makes that split for effect ids, which the
+build cannot see either.
 
 **Encounter tables remain YAML content**, one per file, referenced by a zone
 through an identifier.
@@ -36,7 +41,7 @@ a level-design mistake by reading coordinates.
 So the criterion is suspended for the geometric part of a map and for nothing
 else. **What review would have caught is caught mechanically instead**: the parts
 of a map that are not geometric — which table a zone names, where a warp
-leads — are exactly what the build checks.
+leads — are exactly what the validator checks.
 
 That check is not a consolation prize. A warp's destination lives in a *different
 file* from the warp, which is precisely the class of error a scene cannot catch

@@ -78,7 +78,7 @@ naming real behaviours, at a lower standard of evidence than anything below L1.
 That difference is a property of where the code lives, not an effort skipped, and
 spec 14 section 9 lists both what is covered and what is not.
 
-Two things sit alongside them: the build validates every cross-reference a scene
+Two things sit alongside them: a validator checks every cross-reference a scene
 cannot guarantee (decision 0039), and the numeric half is tested like the rest of
 the engine.
 

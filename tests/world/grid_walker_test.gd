@@ -129,6 +129,125 @@ func test_a_warp_does_not_also_start_a_battle() -> void:
 	).is_null()
 
 
+# --- events ------------------------------------------------------------------
+
+
+func _talking(line: String) -> Array[VltEventStep]:
+	var steps: Array[VltEventStep] = [VltFixtureEvent.say(line)]
+	return steps
+
+
+func test_stepping_onto_a_cell_reports_its_event() -> void:
+	var map: VltWorldMap = _map()
+	map.add_child(
+		VltFixtureEvent.event(
+			_talking("a_trap"), VltEvent.Trigger.ENTER_CELL, Vector2i(2, 1)
+		)
+	)
+
+	var walker: VltGridWalker = _walker(map, Vector2i(1, 1))
+	assert_object(walker.step(VltFacing.Direction.EAST).event).is_not_null()
+
+
+func test_an_interact_event_does_not_fire_by_being_walked_on() -> void:
+	# The moments are distinct (decision 0043). An event meant to be asked for
+	# must not go off underfoot.
+	var map: VltWorldMap = _map()
+	map.add_child(
+		VltFixtureEvent.event(_talking("a_sign"), VltEvent.Trigger.INTERACT, Vector2i(2, 1))
+	)
+
+	var walker: VltGridWalker = _walker(map, Vector2i(1, 1))
+	assert_object(walker.step(VltFacing.Direction.EAST).event).override_failure_message(
+		"an interact event fired by being stepped on"
+	).is_null()
+
+
+func test_interacting_reads_the_cell_the_walker_faces() -> void:
+	var map: VltWorldMap = _map()
+	map.add_child(
+		VltFixtureEvent.event(_talking("a_sign"), VltEvent.Trigger.INTERACT, Vector2i(2, 1))
+	)
+
+	var walker: VltGridWalker = _walker(map, Vector2i(1, 1))
+	walker.place(Vector2i(1, 1), VltFacing.Direction.EAST)
+	assert_object(walker.interact()).is_not_null()
+
+	walker.place(Vector2i(1, 1), VltFacing.Direction.WEST)
+	assert_object(walker.interact()).override_failure_message(
+		"interacting reached a cell the walker was not facing"
+	).is_null()
+
+
+func test_interacting_works_against_a_cell_that_cannot_be_entered() -> void:
+	# Talking to somebody means facing them, and a person is something you cannot
+	# walk into. An interaction that required a walkable cell would make every
+	# NPC unreachable.
+	var map: VltWorldMap = _map()
+	map.add_child(
+		VltFixtureEvent.event(_talking("an_elder"), VltEvent.Trigger.INTERACT, Vector2i(2, 2))
+	)
+
+	var walker: VltGridWalker = _walker(map, Vector2i(2, 1))
+	walker.place(Vector2i(2, 1), VltFacing.Direction.SOUTH)
+
+	assert_bool(map.is_walkable(Vector2i(2, 2))).is_false()
+	assert_object(walker.interact()).is_not_null()
+
+
+func test_an_event_beats_an_encounter_on_the_same_cell() -> void:
+	# Both firing would open a dialogue and a battle at once. The deliberate
+	# trigger is not the one to drop.
+	var map: VltWorldMap = _map()
+	map.add_child(
+		VltFixtureEvent.event(
+			_talking("a_trap"), VltEvent.Trigger.ENTER_CELL, Vector2i(0, 3)
+		)
+	)
+
+	var walker: VltGridWalker = _walking(map, Vector2i(0, 2), VltEncounterDecider.RATE_DENOMINATOR)
+	var step: VltGridWalker.Step = walker.step(VltFacing.Direction.SOUTH)
+
+	assert_object(step.event).is_not_null()
+	assert_object(step.encounter).override_failure_message(
+		"a scripted event and an ambient encounter fired on the same step"
+	).is_null()
+
+
+func test_a_warp_beats_an_event() -> void:
+	var map: VltWorldMap = _map()
+	map.add_child(
+		VltFixtureEvent.event(
+			_talking("never_seen"), VltEvent.Trigger.ENTER_CELL, Vector2i(4, 4)
+		)
+	)
+
+	var walker: VltGridWalker = _walker(map, Vector2i(3, 4))
+	var step: VltGridWalker.Step = walker.step(VltFacing.Direction.EAST)
+
+	assert_object(step.warp).is_not_null()
+	assert_object(step.event).override_failure_message(
+		"an event fired on a cell the player was leaving through"
+	).is_null()
+
+
+func test_a_blocked_step_triggers_no_event() -> void:
+	var map: VltWorldMap = _map()
+	map.add_child(
+		VltFixtureEvent.event(
+			_talking("behind_the_wall"), VltEvent.Trigger.ENTER_CELL, Vector2i(2, 2)
+		)
+	)
+
+	var walker: VltGridWalker = _walker(map, Vector2i(2, 1))
+	assert_object(walker.step(VltFacing.Direction.SOUTH).event).is_null()
+
+
+func test_interacting_with_no_map_finds_nothing() -> void:
+	var walker: VltGridWalker = auto_free(VltGridWalker.new())
+	assert_object(walker.interact()).is_null()
+
+
 # --- zones and encounters ----------------------------------------------------
 
 

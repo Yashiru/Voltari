@@ -53,6 +53,25 @@ func zone_at(cell: Vector2i) -> VltEncounterZone:
 	return null
 
 
+## The event a cell triggers, or null. Events fire only at named moments
+## (decision 0043), so the moment is part of the question.
+func event_at(cell: Vector2i, trigger: VltEvent.Trigger) -> VltEvent:
+	for child: Node in get_children():
+		var event: VltEvent = child as VltEvent
+		if event != null and event.fires_at(cell, trigger):
+			return event
+	return null
+
+
+func events() -> Array[VltEvent]:
+	var found: Array[VltEvent] = []
+	for child: Node in get_children():
+		var event: VltEvent = child as VltEvent
+		if event != null:
+			found.append(event)
+	return found
+
+
 func warps() -> Array[VltWarp]:
 	var found: Array[VltWarp] = []
 	for child: Node in get_children():

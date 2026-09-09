@@ -27,8 +27,12 @@ class Step:
 	## The warp the step landed on, or null.
 	var warp: VltWarp = null
 
-	## What appeared, or null. Never set on a step that did not move, and never
-	## on a step that landed on a warp.
+	## The event the step landed on, or null. Never set on a step that did not
+	## move, and never on a step that landed on a warp.
+	var event: VltEvent = null
+
+	## What appeared, or null. Never set on a step that did not move, on a step
+	## that landed on a warp, or on a step that triggered an event.
 	var encounter: VltEncounter.Outcome = null
 
 	func started_a_battle() -> bool:
@@ -69,14 +73,31 @@ func step(direction: VltFacing.Direction) -> Step:
 	result.cell = target
 	result.moved = true
 
-	# A warp is leaving, so nothing is drawn on the way out. An encounter fired
-	# on the same step would start a battle on a map the player is no longer on.
+	# A warp is leaving, so nothing else happens on the way out. An encounter or
+	# an event fired on the same step would land on a map the player has left.
 	result.warp = map.warp_at(target)
 	if result.warp != null:
 		return result
 
+	# A scripted trigger beats an ambient one. Both firing would open a dialogue
+	# and a battle at once, and something has to lose — the deliberate thing is
+	# not the one to drop.
+	result.event = map.event_at(target, VltEvent.Trigger.ENTER_CELL)
+	if result.event != null:
+		return result
+
 	result.encounter = _encounter_at(target)
 	return result
+
+
+## The event on the cell the walker faces, or null.
+##
+## Interacting is its own moment (decision 0043), separate from stepping: the
+## player asks, rather than the world noticing.
+func interact() -> VltEvent:
+	if map == null:
+		return null
+	return map.event_at(cell + VltFacing.delta(facing), VltEvent.Trigger.INTERACT)
 
 
 ## Only inside a zone, and only on a step that actually moved. Standing still in

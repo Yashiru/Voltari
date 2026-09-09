@@ -140,8 +140,8 @@ Conversation with the maintainer: **French**.
 
 ## Current state
 
-Specs 01 to 16 are written, 17 onwards are not — see `docs/specs/README.md`.
-Decisions 0001 to 0048 are recorded in `docs/decisions/`.
+Specs 01 to 17 are written, 18 onwards are not — see `docs/specs/README.md`.
+Decisions 0001 to 0050 are recorded in `docs/decisions/`.
 
 **The simulation core is implemented and oracle-backed**: battle state, the
 semantic decision interface, the battle log, the turn state machine, the effect
@@ -155,7 +155,9 @@ Node build that validates it.
 
 **Two suspendable machines, one shape** — turn resolution (decision 0012) and
 event runs (decision 0044). Both advance until they need an answer, say what they
-want, and are resumed. Neither uses `await`.
+want, and are resumed. Neither uses `await`. The battle log reader is the third
+thing that stops and continues and it *does* use `await` — decision 0050 records
+why the reason behind the other two does not reach it.
 
 **Four decision vocabularies** — battle, generation, policy, encounter — kept
 disjoint by a meta-test (decision 0029). One generator backs them all.

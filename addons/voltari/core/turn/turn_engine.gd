@@ -428,15 +428,11 @@ func _deal_damage(
 
 
 func _offence(state: VltBattleState, reference: VltSlotRef, move: VltMoveDefinition) -> int:
-	var physical: bool = move.category == VltMoveDefinition.Category.PHYSICAL
-	var stat: int = VltStats.Stat.ATK if physical else VltStats.Stat.SPA
-	return _stat_with_stage(state, reference, stat)
+	return _stat_with_stage(state, reference, VltDamage.offensive_stat(move.category))
 
 
 func _defence(state: VltBattleState, reference: VltSlotRef, move: VltMoveDefinition) -> int:
-	var physical: bool = move.category == VltMoveDefinition.Category.PHYSICAL
-	var stat: int = VltStats.Stat.DEF if physical else VltStats.Stat.SPD
-	return _stat_with_stage(state, reference, stat)
+	return _stat_with_stage(state, reference, VltDamage.defensive_stat(move.category))
 
 
 func _stat_with_stage(state: VltBattleState, reference: VltSlotRef, stat: int) -> int:

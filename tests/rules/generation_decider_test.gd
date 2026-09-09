@@ -17,20 +17,33 @@ func _script_methods(instance: Object) -> PackedStringArray:
 @warning_ignore_restore("unsafe_cast")
 
 
-func test_the_two_vocabularies_are_disjoint() -> void:
-	# Decision 0029: one pattern applied to two jobs, not two ways of doing one.
-	# The rule that keeps that true is that no question is asked in both places,
-	# and this is what would notice the day they started to converge.
-	var battle: PackedStringArray = _script_methods(VltDecider.new())
-	var generation: PackedStringArray = _script_methods(VltGenerationDecider.new())
+func test_the_vocabularies_are_disjoint() -> void:
+	# Decision 0029: one pattern applied to disjoint jobs, not several ways of
+	# doing one. There are three now — battle, generation, policy — and the rule
+	# is unchanged: no question appears in two of them.
+	#
+	# At two this was nearly self-evident. At three it is the thing that would
+	# notice the day they started to converge, which is why it checks every pair
+	# rather than the one that happened to be added last.
+	var vocabularies: Dictionary[String, PackedStringArray] = {
+		"battle": _script_methods(VltDecider.new()),
+		"generation": _script_methods(VltGenerationDecider.new()),
+		"policy": _script_methods(VltPolicyDecider.new()),
+	}
 
-	assert_int(battle.size()).is_greater(0)
-	assert_int(generation.size()).is_greater(0)
+	var names: Array[String] = ["battle", "generation", "policy"]
+	for vocabulary: String in names:
+		assert_int(vocabularies[vocabulary].size()).override_failure_message(
+			"the %s decider declares no questions at all" % vocabulary
+		).is_greater(0)
 
-	for question: String in generation:
-		assert_bool(battle.has(question)).override_failure_message(
-			"\"%s\" is asked by both deciders; one pattern, disjoint vocabularies" % question
-		).is_false()
+	for first: int in range(names.size()):
+		for second: int in range(first + 1, names.size()):
+			for question: String in vocabularies[names[second]]:
+				assert_bool(vocabularies[names[first]].has(question)).override_failure_message(
+					"\"%s\" is asked by both the %s and %s deciders"
+					% [question, names[first], names[second]]
+				).is_false()
 
 
 func test_a_scripted_decider_answers_what_it_was_told() -> void:
@@ -50,6 +63,17 @@ func test_a_nature_choice_stays_inside_the_table() -> void:
 
 	decider.nature_index = -4
 	assert_int(decider.nature_choice(25)).is_equal(0)
+
+
+func test_a_policy_choice_stays_inside_the_options() -> void:
+	# An index past the options would read off the end of them, somewhere far
+	# from here. The same guard the nature table has, for the same reason.
+	var decider: VltScriptedPolicyDecider = VltScriptedPolicyDecider.new(true, 99)
+	assert_int(decider.among_equals(3)).is_equal(2)
+	assert_int(decider.among_equals(1)).is_equal(0)
+
+	var below: VltScriptedPolicyDecider = VltScriptedPolicyDecider.new(true, -7)
+	assert_int(below.among_equals(3)).is_equal(0)
 
 
 func test_individual_values_can_differ_per_stat() -> void:

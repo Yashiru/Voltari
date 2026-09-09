@@ -18,9 +18,14 @@ extends RefCounted
 
 ## `known_tables` is the ids the content build produced. `entry_map` is where a
 ## new game begins; leave it empty to skip the reachability check, which has no
-## meaning without somewhere to start from.
+## meaning without somewhere to start from. `known_lines` is the localisation
+## table; leave it empty to skip the line check, which has nothing to check
+## against until a localisation format exists (spec 15, open points).
 static func check(
-	maps: Array[VltWorldMap], known_tables: PackedStringArray, entry_map: String = ""
+	maps: Array[VltWorldMap],
+	known_tables: PackedStringArray,
+	entry_map: String = "",
+	known_lines: PackedStringArray = PackedStringArray()
 ) -> PackedStringArray:
 	var problems: PackedStringArray = PackedStringArray()
 	var by_id: Dictionary[String, VltWorldMap] = {}
@@ -39,10 +44,12 @@ static func check(
 	for map: VltWorldMap in by_id.values():
 		problems.append_array(_check_warps(map, by_id))
 		problems.append_array(_check_zones(map, known_tables))
+		problems.append_array(_check_events(map, known_lines))
 
 	if not entry_map.is_empty():
 		problems.append_array(_check_reachable(by_id, entry_map))
 
+	problems.append_array(_check_flags(by_id))
 	return problems
 
 
@@ -116,6 +123,106 @@ static func _overlap(one: VltEncounterZone, two: VltEncounterZone) -> bool:
 		and one.origin.y < two.origin.y + two.size.y
 		and two.origin.y < one.origin.y + one.size.y
 	)
+
+
+static func _check_events(map: VltWorldMap, known_lines: PackedStringArray) -> PackedStringArray:
+	var problems: PackedStringArray = PackedStringArray()
+
+	for event: VltEvent in map.events():
+		var where: String = "map \"%s\", event at %s" % [map.map_id, event.cell]
+
+		# An event with no steps has nothing to run, so it fires and appears
+		# broken rather than absent.
+		if not event.is_complete():
+			problems.append("%s: has no steps" % where)
+
+		for step: VltEventStep in steps_in(event):
+			var say: VltSayStep = step as VltSayStep
+			if say != null:
+				if say.line_id.is_empty():
+					problems.append("%s: a line with no id" % where)
+				elif not known_lines.is_empty() and not known_lines.has(say.line_id):
+					problems.append("%s: unknown line \"%s\"" % [where, say.line_id])
+
+			var branch: VltBranchStep = step as VltBranchStep
+			if branch != null and not branch.is_complete():
+				# Both arms empty means the branch decides nothing, which is
+				# either a mistake or a step that should not be there.
+				problems.append("%s: a branch with no flag or no arm at all" % where)
+
+			var set_flag: VltSetFlagStep = step as VltSetFlagStep
+			if set_flag != null and set_flag.flag.is_empty():
+				problems.append("%s: a set-flag step with no flag" % where)
+
+			var set_counter: VltSetCounterStep = step as VltSetCounterStep
+			if set_counter != null and set_counter.flag.is_empty():
+				problems.append("%s: a set-counter step with no flag" % where)
+
+	return problems
+
+
+## The check nothing else can make (spec 15, section 7).
+##
+## A flag name misspelled at one of its two sites reads perfectly, sets
+## perfectly, and gates something forever. No test of any single event finds it,
+## because each half is correct on its own — only comparing every write against
+## every read does.
+##
+## Both directions are reported. A flag written and never read is usually the
+## other half of the same typo.
+static func _check_flags(by_id: Dictionary[String, VltWorldMap]) -> PackedStringArray:
+	var problems: PackedStringArray = PackedStringArray()
+	var written: Dictionary[String, bool] = {}
+	var read: Dictionary[String, String] = {}
+	var wrote_at: Dictionary[String, String] = {}
+
+	for map: VltWorldMap in by_id.values():
+		for event: VltEvent in map.events():
+			var where: String = "map \"%s\", event at %s" % [map.map_id, event.cell]
+
+			for step: VltEventStep in steps_in(event):
+				var set_flag: VltSetFlagStep = step as VltSetFlagStep
+				if set_flag != null and not set_flag.flag.is_empty():
+					written[set_flag.flag] = true
+					wrote_at[set_flag.flag] = where
+
+				var set_counter: VltSetCounterStep = step as VltSetCounterStep
+				if set_counter != null and not set_counter.flag.is_empty():
+					written[set_counter.flag] = true
+					wrote_at[set_counter.flag] = where
+
+				var branch: VltBranchStep = step as VltBranchStep
+				if branch != null and not branch.flag.is_empty():
+					read[branch.flag] = where
+
+	for flag: String in read.keys():
+		if not written.has(flag):
+			problems.append(
+				"%s: branches on \"%s\", which nothing ever sets" % [read[flag], flag]
+			)
+
+	for flag: String in written.keys():
+		if not read.has(flag):
+			problems.append("%s: sets \"%s\", which nothing ever reads" % [wrote_at[flag], flag])
+
+	return problems
+
+
+## Every step under an event, arms included. Branch arms are children of the
+## branch, so a plain walk of the subtree reaches everything an event can run.
+static func steps_in(root: Node) -> Array[VltEventStep]:
+	var found: Array[VltEventStep] = []
+	var pending: Array[Node] = [root]
+
+	while not pending.is_empty():
+		var node: Node = pending.pop_back()
+		for child: Node in node.get_children():
+			var step: VltEventStep = child as VltEventStep
+			if step != null:
+				found.append(step)
+			pending.append(child)
+
+	return found
 
 
 ## Maps no warp leads to, walking outward from where a new game begins. An

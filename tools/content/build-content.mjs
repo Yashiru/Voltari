@@ -20,6 +20,7 @@ const NATURES_YAML = join(REPO, "content", "natures.yaml");
 const CURVES_YAML = join(REPO, "content", "growth-curves.yaml");
 const MOVES_DIR = join(REPO, "content", "moves");
 const SPECIES_DIR = join(REPO, "content", "species");
+const ITEMS_DIR = join(REPO, "content", "items");
 const OUT_DIR = join(REPO, "content", "generated");
 
 /// The payload schema. A loader refuses a version it does not know, because
@@ -61,6 +62,10 @@ export function loadMoves() {
 
 export function loadSpecies() {
   return loadEntities(SPECIES_DIR);
+}
+
+export function loadItems() {
+  return loadEntities(ITEMS_DIR);
 }
 
 // Validation is the build's job, not the engine's: a malformed chart must fail
@@ -193,6 +198,36 @@ function validateMoves(moves, knownTypes) {
 // to know that the authored form was a word.
 function flattenMove(move) {
   return { ...move, accuracy: move.accuracy === "always" ? ALWAYS_HITS : move.accuracy };
+}
+
+// The least an item needs for capture to work, and no more (spec 11, section 6).
+// Other kinds extend this when they have a spec to justify their fields.
+const ITEM_KINDS = new Set(["ball"]);
+const MIN_CATCH_MULTIPLIER = 0.1;
+const MAX_CATCH_MULTIPLIER = 255;
+
+function validateItems(items) {
+  const problems = [];
+
+  for (const item of items) {
+    const where = `item "${item.id}"`;
+
+    if (!ITEM_KINDS.has(item.kind)) {
+      problems.push(`${where}: unknown kind "${item.kind}"`);
+      continue;
+    }
+
+    if (item.kind === "ball") {
+      const bonus = item.catch_multiplier;
+      if (typeof bonus !== "number" || bonus < MIN_CATCH_MULTIPLIER || bonus > MAX_CATCH_MULTIPLIER) {
+        problems.push(
+          `${where}: catch_multiplier must be ${MIN_CATCH_MULTIPLIER} to ${MAX_CATCH_MULTIPLIER}`,
+        );
+      }
+    }
+  }
+
+  return problems;
 }
 
 const MAX_LEVEL = 100;
@@ -382,6 +417,7 @@ function main() {
   const curves = loadCurves();
   const moves = loadMoves();
   const species = loadSpecies();
+  const items = loadItems();
   const knownTypes = new Set(chart.types);
   const knownMoves = new Set(moves.map((move) => move.id));
 
@@ -391,6 +427,7 @@ function main() {
     ...validateMoves(moves, knownTypes),
     ...validateSpecies(species, knownTypes, knownMoves),
     ...validateCurves(curves, GROWTH_RATES),
+    ...validateItems(items),
   ]);
 
   mkdirSync(OUT_DIR, { recursive: true });
@@ -411,6 +448,9 @@ function main() {
 
   const speciesDir = writeEntities("species", species);
   console.log(`species:    ${species.length} entries -> ${speciesDir}/`);
+
+  const itemsDir = writeEntities("items", items);
+  console.log(`items:      ${items.length} entries -> ${itemsDir}/`);
 
   const curvesPath = join(OUT_DIR, "growth-curves.json");
   writeFileSync(curvesPath, JSON.stringify(curves, null, 2) + "\n");

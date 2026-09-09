@@ -105,21 +105,30 @@ rather than a habit:
 
 ### Target
 
-A **ratchet**, measured rather than chosen: the recorded baseline is **86.4%**
-across **every mutation site in the core** — 241 of 279, not a sample — and it
-may not go down. See decision 0021 for why the target is a measurement rather
-than a number.
+A **ratchet**, measured rather than chosen: the recorded baseline is **85.2%**
+across **every mutation site in the purity-enforced layers** — 254 of 298, not a
+sample — and it may not go down. See decision 0021 for why the target is a
+measurement rather than a number.
+
+**It ratchets across like populations.** Adding code adds sites, and a module
+whose survivors are structurally unkillable lowers the percentage while losing
+nothing: the figure went from 86.4% to 85.2% when the rules layer arrived, with
+every one of its survivors an assert. Comparing raw percentages across different
+populations does not answer the question the ratchet asks. When the site count
+changes, re-establish the baseline and let the **survivor classification** below
+carry the argument — a run whose survivors are all unkillable has lost no test,
+whatever the percentage did.
 
 Run it exhaustively — `--limit 9999`, no `--file`. It takes about fifteen
 minutes and it replaces sampling entirely, so there is little reason to sample
 the whole core any more. Narrow with `--file` only to iterate on one module.
 
-**Do not read the remaining percentage as work left.** All 38 survivors are ones
+**Do not read the remaining percentage as work left.** All 44 survivors are ones
 no passing test can kill, and they account for exactly three kinds:
 
 | Kind | Count | Why it cannot be killed |
 |------|-------|-------------------------|
-| Asserts | 21 | Abstract base methods and preconditions. The original aborts on the very input that would tell the mutant apart, so chasing these means testing that an abstract method is abstract. |
+| Asserts | 27 | Abstract base methods and preconditions. The original aborts on the very input that would tell the mutant apart, so chasing these means testing that an abstract method is abstract. |
 | Guarded comparisons | 13 | A `>` or `<` immediately under an `if a != b`. The operands are never equal there, so the two forms cannot differ. |
 | Field defaults | 4 | Every constructor overwrites them before anything reads. |
 

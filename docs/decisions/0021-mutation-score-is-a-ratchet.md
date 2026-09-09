@@ -69,6 +69,13 @@ file score was 53% rather than the 71% the core-wide figure suggested. It also
 found a defect rather than only thin tests — see decision 0022. A per-module
 number needs a per-module run.
 
+**A ratchet needs a fixed population, which was not obvious when this was
+written.** Adding the rules layer added nineteen sites, every one of whose
+survivors is an assert, and the figure fell from 86.4% to 85.2% without a single
+test being lost. "It may not go down" only means anything between runs over the
+same sites. Across a change in population, the survivor classification is the
+argument and the percentage is just a summary of it.
+
 **The two categories above turned out to be the whole story.** Once
 `effect_dispatch.gd`, `turn_engine.gd`, `burn.gd`, `log_heal.gd` and
 `log_move_used.gd` were covered, every survivor left in the sample was

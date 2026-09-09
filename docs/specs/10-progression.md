@@ -164,6 +164,11 @@ pretending otherwise is how the weak parts get trusted like the strong ones.
 
 ## Open points
 
+- **Gender is not drawn yet.** The species declares its ratio and the table
+  above lists gender among the drawn values, but nothing in the engine
+  represents a creature's gender — so there is no field to put an answer in, and
+  a question with nowhere to send its answer would be a vocabulary entry that
+  does nothing. It arrives with the first mechanic that reads it.
 - **The experience formula's participation rules** — whether a creature that
   switched out still counts, and how a shared award rounds. Settled with the
   formula, in the entry that records its source.

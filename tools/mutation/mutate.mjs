@@ -30,7 +30,9 @@ import { stripCommentsAndStrings, collectScripts } from "../lib/gdscript.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, "..", "..");
-const CORE_DIRS = ["addons/voltari/core", "addons/voltari/loaders"];
+// The layers held to a purity constraint, which is what makes them mutable in
+// isolation: core, the rules that sit beside it, and the typing boundary.
+const CORE_DIRS = ["addons/voltari/core", "addons/voltari/rules", "addons/voltari/loaders"];
 
 // Each operator rewrites one token into another that is still valid GDScript
 // but means something different. Anything the tests do not distinguish is a gap

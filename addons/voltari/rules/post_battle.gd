@@ -10,6 +10,10 @@ extends RefCounted
 ## mid-battle benefits once the battle ends, which is the divergence that keeps
 ## the L0/L1 frontier a frontier.
 
+## The one evolution trigger there is code for. Content can already express
+## others (spec 09); each needs the code its trigger id names.
+const LEVEL_TRIGGER: String = "level"
+
 ## What one creature gained.
 class Award:
 	extends RefCounted
@@ -18,6 +22,16 @@ class Award:
 	var experience: int = 0
 	var level_before: int = 1
 	var level_after: int = 1
+
+	## Moves taken without asking, because there was room for them.
+	var learned: PackedStringArray = PackedStringArray()
+
+	## Moves the creature has no room for. The choice is the player's, not this
+	## layer's (spec 10, section 7), so they come back unanswered.
+	var offered: PackedStringArray = PackedStringArray()
+
+	## The species it became, or empty.
+	var evolved_into: String = ""
 
 	func _init(index: int, earned: int, before: int, after: int) -> void:
 		party_index = index
@@ -37,7 +51,8 @@ class Award:
 		return passed
 
 
-## Awards experience, raises levels and re-derives stats, in that order.
+## The whole pipeline, in the order spec 10 section 5 sets: experience, levels,
+## stats, moves, evolution.
 ##
 ## `state` is mutated: it is the party after the battle, and this is what
 ## happens to it next. The awards are returned so a caller can show them.
@@ -48,6 +63,7 @@ static func resolve(
 	earning_side: int,
 	species: Dictionary[String, VltSpecies],
 	curves: Dictionary[String, PackedInt32Array],
+	moves: Dictionary[String, VltMoveDefinition],
 	from_trainer: bool
 ) -> Array[Award]:
 	var earned: Dictionary[int, int] = _experience_earned(
@@ -68,9 +84,96 @@ static func resolve(
 		if creature.level != before:
 			_rederive(creature)
 
-		awards.append(Award.new(index, earned[index], before, creature.level))
+		var award: Award = Award.new(index, earned[index], before, creature.level)
+		_offer_moves(creature, species[creature.species_id], award, moves)
+
+		# Last, because it changes the species and everything above reads it —
+		# including the learnset the offers just came from (spec 10, section 5).
+		_evolve(creature, species, award)
+
+		awards.append(award)
 
 	return awards
+
+
+## What the creature would have learned on the way up.
+##
+## Every level passed, not just the one it landed on: a move learnable at 15 is
+## offered even when the battle ended at 18.
+static func _offer_moves(
+	creature: VltBattleCreature,
+	species: VltSpecies,
+	award: Award,
+	moves: Dictionary[String, VltMoveDefinition]
+) -> void:
+	for level: int in award.levels_gained():
+		for entry: VltSpecies.Learned in species.learnset:
+			if entry.level != level or _knows(creature, entry.move_id):
+				continue
+
+			if creature.moves.size() < VltBirth.MOVE_LIMIT:
+				creature.moves.append(
+					VltMoveSlot.create(entry.move_id, moves[entry.move_id].max_pp)
+				)
+				award.learned.append(entry.move_id)
+			else:
+				award.offered.append(entry.move_id)
+
+
+## Applies an evolution whose trigger is satisfied.
+##
+## The creature is the same individual wearing a different species: experience,
+## individual values, effort and the moveset all survive (spec 10, section 8).
+static func _evolve(
+	creature: VltBattleCreature, species: Dictionary[String, VltSpecies], award: Award
+) -> void:
+	var current: VltSpecies = species[creature.species_id]
+
+	for evolution: VltSpecies.Evolution in current.evolutions:
+		if not _triggered(evolution, creature):
+			continue
+
+		var into: VltSpecies = species[evolution.into]
+		creature.species_id = into.id
+		creature.types = into.types.duplicate()
+		creature.base = into.base_stats.duplicate()
+		_rederive(creature)
+		award.evolved_into = into.id
+		return
+
+
+static func _triggered(evolution: VltSpecies.Evolution, creature: VltBattleCreature) -> bool:
+	# The trigger names code, never a condition written in the content
+	# (spec 06, section 8). One trigger exists; the rest arrive with their own.
+	match evolution.trigger:
+		LEVEL_TRIGGER:
+			return creature.level >= evolution.level
+	return false
+
+
+static func _knows(creature: VltBattleCreature, move_id: String) -> bool:
+	for slot: VltMoveSlot in creature.moves:
+		if slot.move_id == move_id:
+			return true
+	return false
+
+
+## Answers an offer: the move goes into `slot`, and what was there is forgotten.
+##
+## Declining is simply never calling this. A rules layer that chose for the
+## player would be making a decision it has no standing to make, and one that
+## cannot be replayed.
+static func learn_over(
+	creature: VltBattleCreature,
+	slot: int,
+	move_id: String,
+	moves: Dictionary[String, VltMoveDefinition]
+) -> void:
+	assert(slot >= 0 and slot < creature.moves.size(), "no move slot %d to replace" % slot)
+	assert(moves.has(move_id), "unknown move \"%s\"" % move_id)
+	assert(not _knows(creature, move_id), "\"%s\" is already known" % move_id)
+
+	creature.moves[slot] = VltMoveSlot.create(move_id, moves[move_id].max_pp)
 
 
 ## The highest level `total` experience reaches.

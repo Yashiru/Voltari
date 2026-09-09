@@ -59,6 +59,36 @@ func test_a_richer_species_pays_more() -> void:
 	assert_int(_award(50, 50, 1, false, 250)).is_greater(_award(50, 50, 1, false, 60))
 
 
+# --- the numbers themselves --------------------------------------------------
+
+
+func test_the_award_matches_a_hand_derived_vector() -> void:
+	# Every other test here is comparative, and an exponent that was wrong would
+	# preserve every ordering while paying the wrong amount. These four were
+	# computed from the formula outside this implementation, which is what spec
+	# 10 section 9 asks for in the absence of an oracle.
+	#
+	#   b=200, L=50, Lp=50, s=1, wild  ->  share 2000, ratio 1        -> 2001
+	#   b=200, L=25, Lp=25, s=1, wild  ->  share 1000, ratio 1        -> 1001
+	#   b=200, L=100, Lp=10, s=1, wild ->  share 4000, ratio 4.0513   -> 16206
+	#   b=200, L=5,  Lp=80, s=1, wild  ->  share  200, ratio 0.02034  ->     5
+	assert_int(VltExperience.award(200, 50, 50, 1, false)).is_equal(2001)
+	assert_int(VltExperience.award(200, 25, 25, 1, false)).is_equal(1001)
+	assert_int(VltExperience.award(200, 100, 10, 1, false)).is_equal(16206)
+	assert_int(VltExperience.award(200, 5, 80, 1, false)).is_equal(5)
+
+
+func test_the_ratio_is_one_when_the_levels_match() -> void:
+	# The clearest case to reason about: equal levels make numerator and
+	# denominator identical, so the award is the share plus one and nothing else.
+	# It pins the exponent without needing to evaluate it.
+	for level: int in [1, 10, 50, 100]:
+		var share: int = (200 * level) / 5
+		assert_int(VltExperience.award(200, level, level, 1, false)).override_failure_message(
+			"at equal levels the ratio must be exactly one"
+		).is_equal(share + 1)
+
+
 # --- the arithmetic promises -------------------------------------------------
 
 

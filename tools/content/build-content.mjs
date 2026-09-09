@@ -17,6 +17,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, "..", "..");
 const CHART_YAML = join(REPO, "content", "type-chart.yaml");
 const NATURES_YAML = join(REPO, "content", "natures.yaml");
+const CURVES_YAML = join(REPO, "content", "growth-curves.yaml");
 const MOVES_DIR = join(REPO, "content", "moves");
 const SPECIES_DIR = join(REPO, "content", "species");
 const OUT_DIR = join(REPO, "content", "generated");
@@ -31,6 +32,10 @@ export function loadChart() {
 
 export function loadNatures() {
   return parse(readFileSync(NATURES_YAML, "utf8"));
+}
+
+export function loadCurves() {
+  return parse(readFileSync(CURVES_YAML, "utf8"));
 }
 
 /// Reads a directory of one-file-per-entity YAML.
@@ -190,6 +195,42 @@ function flattenMove(move) {
   return { ...move, accuracy: move.accuracy === "always" ? ALWAYS_HITS : move.accuracy };
 }
 
+const MAX_LEVEL = 100;
+
+// The same structural claims the seeding tool checked, re-checked here so an
+// edit to the committed table is caught by the build rather than by a player
+// whose creature stopped levelling. Progression has no oracle (spec 02), so
+// these are the only automatic guard these numbers get.
+function validateCurves(data, knownRates) {
+  const problems = [];
+
+  for (const rate of knownRates) {
+    if (!(rate in data.curves)) problems.push(`growth curves: "${rate}" is missing`);
+  }
+
+  for (const [name, totals] of Object.entries(data.curves)) {
+    const where = `growth curve "${name}"`;
+
+    if (!knownRates.has(name)) problems.push(`${where}: not a declared growth rate`);
+    if (totals.length !== MAX_LEVEL) {
+      problems.push(`${where}: ${totals.length} levels, expected ${MAX_LEVEL}`);
+      continue;
+    }
+    if (totals[0] !== 0) problems.push(`${where}: level 1 is not zero`);
+
+    for (let index = 1; index < totals.length; index++) {
+      if (!Number.isInteger(totals[index])) {
+        problems.push(`${where}: level ${index + 1} is not an integer`);
+      }
+      if (totals[index] <= totals[index - 1]) {
+        problems.push(`${where}: level ${index + 1} does not exceed the one before it`);
+      }
+    }
+  }
+
+  return problems;
+}
+
 const STATS = ["hp", "atk", "def", "spa", "spd", "spe"];
 const GROWTH_RATES = new Set(["erratic", "fast", "medium_fast", "medium_slow", "slow", "fluctuating"]);
 const EVOLUTION_TRIGGERS = new Set(["level"]);
@@ -338,6 +379,7 @@ function report(problems) {
 function main() {
   const chart = loadChart();
   const natures = loadNatures();
+  const curves = loadCurves();
   const moves = loadMoves();
   const species = loadSpecies();
   const knownTypes = new Set(chart.types);
@@ -348,6 +390,7 @@ function main() {
     ...validateNatures(natures),
     ...validateMoves(moves, knownTypes),
     ...validateSpecies(species, knownTypes, knownMoves),
+    ...validateCurves(curves, GROWTH_RATES),
   ]);
 
   mkdirSync(OUT_DIR, { recursive: true });
@@ -368,6 +411,10 @@ function main() {
 
   const speciesDir = writeEntities("species", species);
   console.log(`species:    ${species.length} entries -> ${speciesDir}/`);
+
+  const curvesPath = join(OUT_DIR, "growth-curves.json");
+  writeFileSync(curvesPath, JSON.stringify(curves, null, 2) + "\n");
+  console.log(`curves:     ${Object.keys(curves.curves).length} curves -> ${curvesPath}`);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) main();

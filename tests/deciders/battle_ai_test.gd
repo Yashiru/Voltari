@@ -162,6 +162,35 @@ func test_it_skips_a_move_the_registry_does_not_know() -> void:
 	).is_equal(WEAK)
 
 
+func test_it_aims_past_a_position_with_nobody_standing_in_it() -> void:
+	# Both halves again, and only a wider field can show them: an empty slot and
+	# a fallen occupant are different reasons not to aim there, and either one
+	# alone must be enough. Singles never poses it, because the only opponent is
+	# the one that is there.
+	var state: VltBattleState = VltBattleState.create(2)
+	var ids: Array[String] = [WEAK]
+	for slot: int in range(2):
+		state.sides[OURS].party.append(_creature("attacker", ids))
+		state.sides[THEIRS].party.append(_creature("defender", ids))
+		state.sides[OURS].slots[slot].occupy(slot)
+		state.sides[THEIRS].slots[slot].occupy(slot)
+
+	# Nobody in the first position at all.
+	state.sides[THEIRS].slots[0].vacate()
+	var past_empty: VltCommand = _choose(state, VltBattleAi.expert())
+	assert_int(past_empty.target.slot).override_failure_message(
+		"the AI aimed at an empty position"
+	).is_equal(1)
+
+	# Someone there, but already down.
+	state.sides[THEIRS].slots[0].occupy(0)
+	state.creature_at(VltSlotRef.at(THEIRS, 0)).current_hp = 0
+	var past_fallen: VltCommand = _choose(state, VltBattleAi.expert())
+	assert_int(past_fallen.target.slot).override_failure_message(
+		"the AI aimed at a creature that had already fallen"
+	).is_equal(1)
+
+
 # --- each parameter changes something ----------------------------------------
 
 

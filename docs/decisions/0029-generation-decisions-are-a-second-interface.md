@@ -57,3 +57,8 @@ applied to two disjoint jobs, with a vocabulary each and a test that keeps them
 from overlapping. If a question ever needed to be asked in both, that would be
 the signal to reconsider — and the meta-test is what would raise it, rather than
 the two drifting together unnoticed.
+
+**A third arrived**: spec 12 gives the AI its own vocabulary, for the questions a
+policy asks. The rule is unchanged and the meta-test now covers all three pairs.
+Three is where it stops being obvious, so the test earning its keep matters more
+than it did at two.

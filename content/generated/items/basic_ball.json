@@ -1,0 +1,5 @@
+{
+  "id": "basic_ball",
+  "kind": "ball",
+  "catch_multiplier": 1
+}

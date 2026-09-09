@@ -231,6 +231,21 @@ func test_a_scripted_decider_answers_what_it_was_told() -> void:
 	assert_int(outcome.level).is_equal(5)
 
 
+func test_a_bare_scripted_decider_says_an_encounter_happens() -> void:
+	# Found by mutation: nothing pinned the constructor's default. A decider built
+	# with no arguments and quietly defaulting to "no encounter" would make every
+	# test that used one pass by drawing nothing at all.
+	var decider: VltScriptedEncounterDecider = VltScriptedEncounterDecider.new()
+
+	assert_bool(VltEncounter.occurs(_table(), decider)).override_failure_message(
+		"a scripted decider built with no arguments refused every encounter"
+	).is_true()
+
+	assert_bool(
+		VltEncounter.occurs(_table(), VltScriptedEncounterDecider.new(false))
+	).is_false()
+
+
 func test_a_scripted_draw_stays_inside_the_weight_space() -> void:
 	# A draw past the total would read off the end of the table, far from here —
 	# the same guard the nature table and the policy options already have.

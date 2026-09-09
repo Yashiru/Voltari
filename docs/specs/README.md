@@ -33,7 +33,7 @@ describe.
 | 09 | [Data schema and content build](09-data-schema.md) — *draft* |
 | 10 | [Progression and post-battle pipeline](10-progression.md) — *draft* |
 | 11 | [Capture](11-capture.md) — *draft* |
-| 12 | Battle AI |
+| 12 | [Battle AI](12-battle-ai.md) — *draft* |
 
 ## Block 3 — Game and presentation
 

@@ -62,3 +62,10 @@ the two drifting together unnoticed.
 policy asks. The rule is unchanged and the meta-test now covers all three pairs.
 Three is where it stops being obvious, so the test earning its keep matters more
 than it did at two.
+
+**A fourth arrived**: spec 14 gives encounters their own — does one happen, which
+slot, what level. It sits closest to this one, since a wild encounter runs
+straight into a birth, and that is exactly why it is separate: the world asks
+where and when, birth asks with what, and two vocabularies that run back to back
+are the ones most easily merged and then answered in a context neither was
+written for. The meta-test now covers six pairs.

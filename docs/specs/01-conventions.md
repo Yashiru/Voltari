@@ -27,10 +27,12 @@ addons/voltari/       the reusable engine
   deciders/           L0bis — AI, player input
   rules/              L1  — out-of-battle rules, purity-enforced
   save/               the save format, purity-enforced: dictionaries, never files
+  world/              L3  — the overworld, engine-native by decision 0038
   platform/           L5  — the only place in the engine that touches a file
   loaders/            the typing boundary: parsed data in, typed objects out
 game/                 this game: scenes, assets, presentation
   assets/
+  maps/               map scenes, painted not written (decision 0039)
 content/              YAML source of truth
   generated/          build output, committed; CI checks it is current
 tests/                test suites, mirroring the source tree
@@ -42,6 +44,13 @@ docs/                 specs, architecture, decision journal
 data and performs no I/O (spec 03), so something has to convert — and that
 something is where the unsafe-cast suppressions belong, confined and visible,
 rather than spread through the engine.
+
+The purity lint covers `core/`, `deciders/`, `rules/` and `save/`. **`world/` and
+`platform/` are the two directories that depend on the engine on purpose** —
+one draws and walks a map (decision 0038), the other writes bytes. They are named
+here rather than inferred from the lint's configuration, so that the exemption is
+a stated boundary and not a gap. `loaders/` is outside the lint too, but for a
+different reason: it handles untyped values, not engine objects.
 
 `content/generated/` is build output that is nonetheless committed. The test
 suite stays hermetic that way, and CI rebuilds it to prove it still matches the

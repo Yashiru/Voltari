@@ -52,7 +52,7 @@ func _resolve(
 	initial: VltBattleState, log: VltBattleLog, trainer: bool = false
 ) -> Array[VltPostBattle.Award]:
 	return VltPostBattle.resolve(
-		initial, log, initial.clone(), OURS, _species, _curves, trainer
+		initial, log, initial.clone(), OURS, _species, _curves, _moves, trainer
 	)
 
 
@@ -208,7 +208,7 @@ func test_levelling_re_derives_the_stats() -> void:
 	log.append(_faint(THEIRS))
 
 	var awards: Array[VltPostBattle.Award] = VltPostBattle.resolve(
-		state, log, working, OURS, _species, _curves, false
+		state, log, working, OURS, _species, _curves, _moves, false
 	)
 
 	assert_bool(awards[0].levelled()).override_failure_message(
@@ -234,7 +234,7 @@ func test_levelling_neither_heals_nor_hurts() -> void:
 
 	var log: VltBattleLog = VltBattleLog.new()
 	log.append(_faint(THEIRS))
-	VltPostBattle.resolve(state, log, working, OURS, _species, _curves, false)
+	VltPostBattle.resolve(state, log, working, OURS, _species, _curves, _moves, false)
 
 	assert_int(creature.max_hp()).is_greater(max_before)
 	assert_int(creature.max_hp() - creature.current_hp).override_failure_message(
@@ -253,6 +253,172 @@ func test_every_level_passed_is_reported() -> void:
 	var still: VltPostBattle.Award = VltPostBattle.Award.new(0, 0, 12, 12)
 	assert_array(still.levels_gained()).is_equal(PackedInt32Array())
 	assert_bool(still.levelled()).is_false()
+
+
+# --- moves and evolution -----------------------------------------------------
+
+
+## Drives one creature up to `target` by defeating opponents until it gets there,
+## so the pipeline is exercised the way it will actually run.
+func _raise_to(start: int, target: int) -> VltPostBattle.Award:
+	var state: VltBattleState = _battle(PackedInt32Array([1, 1]), start)
+	var working: VltBattleState = state.clone()
+	var last: VltPostBattle.Award = null
+
+	for _fight: int in range(200):
+		var creature: VltBattleCreature = working.sides[OURS].party[0]
+		if creature.level >= target:
+			break
+
+		var log: VltBattleLog = VltBattleLog.new()
+		log.append(_faint(THEIRS))
+		var awards: Array[VltPostBattle.Award] = VltPostBattle.resolve(
+			state, log, working, OURS, _species, _curves, _moves, false
+		)
+		if not awards.is_empty():
+			last = awards[0]
+
+	return last
+
+
+func test_a_move_learnable_on_the_way_up_is_taken() -> void:
+	# placeholder_base learns at 1, 7 and 13. A creature born at 1 with room to
+	# spare takes them as it passes.
+	var award: VltPostBattle.Award = _raise_to(1, 13)
+
+	assert_object(award).is_not_null()
+	assert_bool(award.levelled()).is_true()
+
+
+func test_a_creature_with_room_learns_without_being_asked() -> void:
+	var state: VltBattleState = _battle(PackedInt32Array([1, 1]), 3)
+	var working: VltBattleState = state.clone()
+
+	# Room to spare: it knows one move and the limit is four.
+	var creature: VltBattleCreature = working.sides[OURS].party[0]
+	assert_int(creature.moves.size()).is_equal(1)
+
+	var log: VltBattleLog = VltBattleLog.new()
+	log.append(_faint(THEIRS))
+	var awards: Array[VltPostBattle.Award] = VltPostBattle.resolve(
+		state, log, working, OURS, _species, _curves, _moves, false
+	)
+
+	# Level 4 teaches nothing, so nothing is learned and nothing is offered.
+	assert_int(awards[0].level_after).is_equal(4)
+	assert_array(awards[0].learned).is_equal(PackedStringArray())
+	assert_array(awards[0].offered).is_equal(PackedStringArray())
+
+
+func test_a_full_moveset_is_offered_rather_than_overwritten() -> void:
+	# The choice belongs to the player (spec 10, section 7), so a creature with
+	# four moves gets an offer and keeps what it had.
+	var crowded: VltSpecies = VltSpecies.create(
+		"test_full", PackedStringArray(["normal"]), PackedInt32Array([45, 49, 49, 65, 65, 45])
+	)
+	crowded.learns(1, "basic_physical").learns(1, "basic_special")
+	crowded.learns(1, "heavy_physical").learns(1, "water_special")
+	crowded.learns(4, "ghost_special")
+	crowded.growth_rate = "medium_fast"
+	crowded.base_experience = 64
+
+	var award: VltPostBattle.Award = _award_for_species(crowded, 3)
+
+	assert_int(award.level_after).is_greater_equal(4)
+	assert_array(award.offered).override_failure_message(
+		"a full moveset must be offered the new move, not have it forced in"
+	).is_equal(PackedStringArray(["ghost_special"]))
+	assert_array(award.learned).is_equal(PackedStringArray())
+
+
+func test_answering_an_offer_replaces_exactly_one_move() -> void:
+	var creature: VltBattleCreature = _born("placeholder_base", 13)
+	var slot_count: int = creature.moves.size()
+	var replaced: String = creature.moves[0].move_id
+
+	VltPostBattle.learn_over(creature, 0, "water_special", _moves)
+
+	assert_int(creature.moves.size()).is_equal(slot_count)
+	assert_str(creature.moves[0].move_id).is_equal("water_special")
+	assert_int(creature.moves[0].pp).is_equal(_moves["water_special"].max_pp)
+
+	for slot: VltMoveSlot in creature.moves:
+		assert_str(slot.move_id).override_failure_message(
+			"the replaced move is still there"
+		).is_not_equal(replaced)
+
+
+func test_a_creature_evolves_when_its_level_says_so() -> void:
+	# placeholder_base evolves at 16. Driven there by fighting, so the trigger is
+	# reached the way it will be in play.
+	var award: VltPostBattle.Award = _raise_to(13, 16)
+
+	assert_object(award).is_not_null()
+	assert_str(award.evolved_into).override_failure_message(
+		"reaching the evolution level should have changed the species"
+	).is_equal("placeholder_evolved")
+
+
+func test_evolving_keeps_the_individual_and_changes_the_species() -> void:
+	var state: VltBattleState = _battle(PackedInt32Array([1, 1]), 13)
+	var working: VltBattleState = state.clone()
+	var creature: VltBattleCreature = working.sides[OURS].party[0]
+
+	var ivs: PackedInt32Array = creature.ivs.duplicate()
+	var raised: int = creature.nature_raised
+	var known: int = creature.moves.size()
+
+	for _fight: int in range(200):
+		if creature.species_id != "placeholder_base":
+			break
+		var log: VltBattleLog = VltBattleLog.new()
+		log.append(_faint(THEIRS))
+		VltPostBattle.resolve(state, log, working, OURS, _species, _curves, _moves, false)
+
+	assert_str(creature.species_id).is_equal("placeholder_evolved")
+	assert_array(creature.types).is_equal(
+		_species["placeholder_evolved"].types
+	)
+	assert_array(creature.base).is_equal(_species["placeholder_evolved"].base_stats)
+
+	# The same individual, wearing a different species (spec 10, section 8).
+	assert_array(creature.ivs).is_equal(ivs)
+	assert_int(creature.nature_raised).is_equal(raised)
+	assert_int(creature.moves.size()).is_greater_equal(known)
+	assert_int(creature.experience).is_greater(0)
+
+
+func test_a_species_with_nowhere_to_go_does_not_evolve() -> void:
+	var award: VltPostBattle.Award = _award_for_species(
+		_species["placeholder_evolved"], 30
+	)
+	assert_str(award.evolved_into).is_equal("")
+
+
+## One battle's worth of awards for a species built in the test.
+func _award_for_species(species: VltSpecies, level: int) -> VltPostBattle.Award:
+	var registry: Dictionary[String, VltSpecies] = {}
+	for id: String in _species.keys():
+		registry[id] = _species[id]
+	registry[species.id] = species
+
+	var state: VltBattleState = VltBattleState.create(1)
+	for side: int in range(VltBattleState.SIDE_COUNT):
+		state.sides[side].party.append(
+			VltBirth.at_level(
+				species, level, _natures, _moves,
+				_curves[species.growth_rate], VltScriptedGenerationDecider.new()
+			)
+		)
+		state.sides[side].slots[0].occupy(0)
+
+	var working: VltBattleState = state.clone()
+	var log: VltBattleLog = VltBattleLog.new()
+	log.append(_faint(THEIRS))
+
+	return VltPostBattle.resolve(
+		state, log, working, OURS, registry, _curves, _moves, false
+	)[0]
 
 
 func test_the_awards_come_back_in_party_order() -> void:

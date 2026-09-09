@@ -1,0 +1,12 @@
+{
+  "note": "Provisional. Nobody has profiled this game on any device, so these are informed guesses (decision 0048). They live in one file so that the afternoon somebody runs it on a real mid-range phone, every past report becomes re-readable rather than discarded.",
+  "composition": {
+    "creatures": 4,
+    "why": "a double battle shows four creatures plus terrain"
+  },
+  "tiers": [
+    { "name": "low", "stands_for": "a five-year-old budget phone", "triangles": 150000, "texture_bytes": 268435456 },
+    { "name": "mid", "stands_for": "the median phone in use", "triangles": 400000, "texture_bytes": 536870912 },
+    { "name": "high", "stands_for": "current flagship", "triangles": 1000000, "texture_bytes": 1073741824 }
+  ]
+}

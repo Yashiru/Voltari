@@ -301,7 +301,9 @@ func _run_switch(state: VltBattleState, command: VltCommand, log: VltBattleLog) 
 			command.actor,
 			command.party_index,
 			state.creature_at(command.actor).species_id,
-			state.creature_at(command.actor).level
+			state.creature_at(command.actor).level,
+			state.creature_at(command.actor).current_hp,
+			state.creature_at(command.actor).max_hp()
 		)
 	)
 
@@ -507,7 +509,9 @@ func _resume(state: VltBattleState, commands: Array[VltCommand]) -> VltTurnOutco
 				command.actor,
 				command.party_index,
 				working.creature_at(command.actor).species_id,
-				working.creature_at(command.actor).level
+				working.creature_at(command.actor).level,
+				working.creature_at(command.actor).current_hp,
+				working.creature_at(command.actor).max_hp()
 			)
 		)
 

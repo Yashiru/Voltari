@@ -71,7 +71,12 @@ func _play(state: VltBattleState) -> VltBattleLog:
 	state.slot_at(target).occupy(1)
 	log.append(
 		VltLogSwitchIn.create(
-			target, 1, state.creature_at(target).species_id, state.creature_at(target).level
+			target,
+			1,
+			state.creature_at(target).species_id,
+			state.creature_at(target).level,
+			state.creature_at(target).current_hp,
+			state.creature_at(target).max_hp()
 		)
 	)
 
@@ -293,6 +298,14 @@ func test_a_switch_announces_the_level() -> void:
 	)
 
 	assert_int(event.level).is_equal(creature.level)
-	assert_int(event.visibility).override_failure_message(
-		"the level is public knowledge and the event says otherwise"
-	).is_equal(VltLogEvent.Visibility.PUBLIC)
+	# Transformed rather than public: the species and the level are announced
+	# openly, but the health it arrives on is not, so the event carries a reduced
+	# form for everyone else.
+	assert_int(event.visibility).is_equal(VltLogEvent.Visibility.TRANSFORMED)
+
+	@warning_ignore("unsafe_cast")
+	var seen: VltLogSwitchIn = event.reduced() as VltLogSwitchIn
+	assert_int(seen.level).override_failure_message(
+		"the level was hidden from the other side"
+	).is_equal(creature.level)
+	assert_int(seen.max_hp).is_equal(VltLogEvent.REDUCED_SCALE)

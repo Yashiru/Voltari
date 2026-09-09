@@ -72,6 +72,17 @@ prevent.
 Experience is awarded **when an opponent faints**, split among the creatures
 that took part and did not faint themselves.
 
+**The award formula is ours** (decision 0030), not Gen 4's. There is no oracle
+here, so there is nothing to reproduce — and a formula that answers to nobody is
+design rather than fidelity. It scales on the gap between the two levels, so
+beating something stronger pays sharply more and grinding on the weak collapses;
+the exponent is the lever that tunes it. One truncation, at the very end, after
+every modifier has composed.
+
+**The curves are not ours** (decision 0031). They come from a published table,
+verified against its own published formula rather than trusted — which caught,
+immediately, that the formulas disagree with their tables at level 1.
+
 **Participation is read from the battle log, not tracked in the state.** The log
 already records every switch-in and every faint, and invariant 8 guarantees it is
 complete — a state change that does not appear there is already a defect

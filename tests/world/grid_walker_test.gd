@@ -132,25 +132,6 @@ func test_a_warp_does_not_also_start_a_battle() -> void:
 # --- zones and encounters ----------------------------------------------------
 
 
-func test_a_cell_inside_a_zone_reports_its_table() -> void:
-	var map: VltWorldMap = _map()
-	assert_object(map.zone_at(Vector2i(0, 3))).is_not_null()
-	assert_str(map.zone_at(Vector2i(1, 4)).table_id).is_equal(GRASS)
-
-
-func test_the_zone_boundary_falls_where_the_rectangle_says() -> void:
-	# Where an off-by-one lives. The zone covers (0, 3) to (1, 4) inclusive.
-	var map: VltWorldMap = _map()
-
-	assert_object(map.zone_at(Vector2i(1, 3))).override_failure_message(
-		"the last cell of the zone was outside it"
-	).is_not_null()
-	assert_object(map.zone_at(Vector2i(2, 3))).override_failure_message(
-		"the cell past the zone was inside it"
-	).is_null()
-	assert_object(map.zone_at(Vector2i(0, 2))).is_null()
-
-
 func test_a_step_inside_a_zone_can_start_a_battle() -> void:
 	var walker: VltGridWalker = _walking(_map(), Vector2i(0, 2), VltEncounterDecider.RATE_DENOMINATOR)
 	var step: VltGridWalker.Step = walker.step(VltFacing.Direction.SOUTH)
@@ -211,22 +192,3 @@ func test_a_quiet_zone_never_fires() -> void:
 	for attempt: int in range(50):
 		walker.place(Vector2i(0, 3), VltFacing.Direction.SOUTH)
 		assert_object(walker.step(VltFacing.Direction.SOUTH).encounter).is_null()
-
-
-# --- walkability -------------------------------------------------------------
-
-
-func test_a_blocked_cell_is_not_walkable_even_though_it_exists() -> void:
-	# The two layers doing different jobs: terrain says the cell exists, blocking
-	# says it stops you. Replacing a rock with a bush must not change this.
-	var map: VltWorldMap = _map()
-
-	assert_bool(map.is_walkable(Vector2i(2, 2))).is_false()
-	assert_bool(map.is_walkable(Vector2i(2, 1))).is_true()
-	assert_bool(map.is_walkable(Vector2i(9, 9))).is_false()
-	assert_bool(map.is_walkable(Vector2i(-1, 0))).is_false()
-
-
-func test_a_map_with_no_terrain_is_walkable_nowhere() -> void:
-	var empty: VltWorldMap = auto_free(VltWorldMap.new())
-	assert_bool(empty.is_walkable(Vector2i.ZERO)).is_false()

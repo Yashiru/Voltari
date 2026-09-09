@@ -5,16 +5,19 @@ extends GdUnitTestSuite
 const SPECIES_DIR: String = "res://content/generated/species"
 const MOVES_DIR: String = "res://content/generated/moves"
 const NATURES_PAYLOAD: String = "res://content/generated/natures.json"
+const CURVES_PAYLOAD: String = "res://content/generated/growth-curves.json"
 
 var _species: Dictionary[String, VltSpecies]
 var _moves: Dictionary[String, VltMoveDefinition]
 var _natures: Array[PackedInt32Array]
+var _curves: Dictionary[String, PackedInt32Array]
 
 
 func before() -> void:
 	_species = VltSpeciesLoader.from_entries(VltContentPayloads.read_indexed(SPECIES_DIR))
 	_moves = VltMoveRegistryLoader.from_entries(VltContentPayloads.read_indexed(MOVES_DIR))
 	_natures = VltNatureLoader.from_payload(VltContentPayloads.read_json(NATURES_PAYLOAD))
+	_curves = VltGrowthCurveLoader.from_payload(VltContentPayloads.read_json(CURVES_PAYLOAD))
 
 
 func _decider(iv: int = 31, nature: int = 0) -> VltScriptedGenerationDecider:
@@ -23,8 +26,12 @@ func _decider(iv: int = 31, nature: int = 0) -> VltScriptedGenerationDecider:
 	return decider
 
 
+func _curve_of(id: String) -> PackedInt32Array:
+	return _curves[_species[id].growth_rate]
+
+
 func _born(id: String, level: int, decider: VltGenerationDecider) -> VltBattleCreature:
-	return VltBirth.at_level(_species[id], level, _natures, _moves, decider)
+	return VltBirth.at_level(_species[id], level, _natures, _moves, _curve_of(id), decider)
 
 
 func test_the_authored_species_load() -> void:
@@ -138,7 +145,7 @@ func test_only_the_last_four_moves_are_kept() -> void:
 	crowded.learns(17, "ghost_special")
 
 	var creature: VltBattleCreature = VltBirth.at_level(
-		crowded, 20, _natures, _moves, _decider()
+		crowded, 20, _natures, _moves, _curve_of("placeholder_base"), _decider()
 	)
 
 	assert_int(creature.moves.size()).is_equal(VltBirth.MOVE_LIMIT)
@@ -164,7 +171,7 @@ func test_a_move_learned_twice_occupies_one_slot() -> void:
 	repeater.learns(9, "basic_physical")
 
 	var creature: VltBattleCreature = VltBirth.at_level(
-		repeater, 10, _natures, _moves, _decider()
+		repeater, 10, _natures, _moves, _curve_of("placeholder_base"), _decider()
 	)
 
 	assert_int(creature.moves.size()).is_equal(2)
@@ -183,7 +190,7 @@ func test_a_move_learned_twice_occupies_one_slot() -> void:
 	later.learns(1, "basic_physical").learns(5, "basic_special")
 	later.learns(9, "basic_special")
 
-	var second: VltBattleCreature = VltBirth.at_level(later, 10, _natures, _moves, _decider())
+	var second: VltBattleCreature = VltBirth.at_level(later, 10, _natures, _moves, _curve_of("placeholder_base"), _decider())
 
 	assert_int(second.moves.size()).override_failure_message(
 		"the relearned move was kept twice"

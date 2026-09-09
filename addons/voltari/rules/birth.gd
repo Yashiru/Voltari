@@ -17,15 +17,20 @@ const MAX_LEVEL: int = 100
 
 ## `natures` is the nature table as (raised, lowered) stat pairs; the decider
 ## picks one by index. `moves` supplies the PP a freshly learned move starts on.
+## `curve` is the species' experience table, which sets where a creature born at
+## this level already stands — without it the first award it ever earned would
+## drop it back to level one.
 static func at_level(
 	species: VltSpecies,
 	level: int,
 	natures: Array[PackedInt32Array],
 	moves: Dictionary[String, VltMoveDefinition],
+	curve: PackedInt32Array,
 	decider: VltGenerationDecider
 ) -> VltBattleCreature:
 	assert(level >= MIN_LEVEL and level <= MAX_LEVEL, "level %d is out of range" % level)
 	assert(not natures.is_empty(), "the nature table is empty")
+	assert(level <= curve.size(), "the curve does not reach level %d" % level)
 
 	var input: VltStatInput = VltStatInput.new()
 	input.level = level
@@ -47,6 +52,7 @@ static func at_level(
 	var creature: VltBattleCreature = VltBattleCreature.create(
 		input, species.id, species.types
 	)
+	creature.experience = curve[level - 1]
 
 	for move_id: String in moves_at_level(species, level):
 		assert(moves.has(move_id), "species \"%s\" learns unknown move \"%s\"" % [species.id, move_id])

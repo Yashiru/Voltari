@@ -20,6 +20,18 @@ roster to trace.
 **The build reports; it refuses nothing.** Triangles, texture sizes, bone counts,
 per asset and as a roster total.
 
+**The report is read against named device tiers** — `low`, `mid`, `high` — and
+says which of them a scene composition fits. A raw total tells nobody whether the
+game runs; a total beside a budget does.
+
+**The tier numbers are provisional and say so.** They are informed guesses, and
+they live in one file so the afternoon somebody profiles a real mid-range phone,
+every past report becomes re-readable rather than discarded.
+
+**No frame rate is predicted.** "This composition is at 140% of `mid`" is a fact
+about the assets. "This will run at 42 fps" would be a guess wearing the
+authority of a measurement, which is the failure this whole decision is about.
+
 ## Options rejected
 
 **A ceiling that refuses an over-budget asset.** The argument for it is real and

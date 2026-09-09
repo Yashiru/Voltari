@@ -72,14 +72,48 @@ argued away — see decision 0045 for what is being paid and what was rejected.
 
 **Fakemon use declared clip names**, checked against the model.
 
-The placeholder era does it differently and cannot be fixed: take names differ
-between source models — one names a clip `waitA01`, another names the same thing
-`ba10_waitA01` — so loop selection is a **substring test on `wait`**. An
-exact-match list was tried first and matched nothing, silently, on the second
-model exported.
+| Name | Meaning |
+|------|---------|
+| `enter` | arriving — sent out, or walking into a scene |
+| `idle` | the resting loop |
+| `attack_physical` | a contact move |
+| `attack_special` | a ranged move |
+| `hurt` | taking damage |
+| `faint` | going down |
+| `walk` | overworld locomotion |
+| `run` | overworld locomotion, faster |
 
-That substring rule stays for placeholders and is named for what it is: a
-workaround for names nobody controlled. It is not the convention.
+### Mapping the placeholders onto it
+
+The source library turns out to carry **a standard of its own**, and a better one
+than a word: a two-letter context and a two-digit slot. `ba20` is the physical
+attack whatever the rest of the name says.
+
+| Ours | Source code | Source word | Models carrying it |
+|------|-------------|-------------|--------------------|
+| `enter` | `ba01` | land | 78% |
+| `idle` | `ba10` | wait | 78% |
+| `attack_physical` | `ba20` | buturi (物理) | 69% |
+| `attack_special` | `ba21` | tokusyu (特殊) | 76% |
+| `hurt` | `ba30` | damage | 78% |
+| `faint` | `ba41` | down | 72% |
+| `walk` | `fi20` | walk | 76% |
+| `run` | `fi21` | run | 76% |
+
+Measured across 569 animated models carrying 7,792 clips between them.
+
+**The resolver takes two rules, in order: the code, then the word.** Some models
+carry no prefix at all — `waitA01`, `buturi01` — which is the trap that made an
+exact-match list match nothing, silently, on the second model ever exported.
+Matching the code first and the word second covers both, and neither rule is a
+guess about the other.
+
+For a fakemon the resolver does nothing: the manifest already names our clips.
+The mapping is a placeholder-era bridge and should be readable as one.
+
+Loop selection follows from the vocabulary rather than from a substring: `idle`,
+`walk` and `run` loop, everything else holds on its last frame. The old
+substring-on-`wait` rule is what the bridge replaces.
 
 **A clip in the vocabulary that a creature has not got is refused at build,
 unless the manifest declares a fallback** — `hurt: use idle` is accepted because
@@ -128,21 +162,39 @@ creature with.**
 So they move out (decision 0046). What stays behind the guard is what the guard
 was written for: the models, their textures, and their scenes.
 
-## 7. The budget is measured, not enforced
+## 7. The budget is measured, not enforced — and read against device tiers
 
 The build reports triangles, texture sizes, bone counts and the roster totals. It
 refuses nothing.
 
-This follows the standing rule that performance is measured rather than asserted,
-and it carries a risk worth naming plainly: **a number nobody is obliged to
-respect is a number nobody respects.** The failure is cumulative and only appears
-with the full roster on a real device, at which point the fix is re-authoring
-assets rather than changing code.
+**A raw total tells nobody whether the game runs.** So the report is read against
+named device tiers, and says which of them a scene fits:
 
-What makes it acceptable is that the report is per-asset *and* cumulative, so the
-trend is visible long before the device says anything. If it turns out not to be
-enough, the ceiling is one line in the build and this section is what should be
-revisited.
+| Tier | Stands for | Triangles on screen | Texture memory |
+|------|-----------|--------------------:|---------------:|
+| `low` | a five-year-old budget phone | 150,000 | 256 MB |
+| `mid` | the median phone in use | 400,000 | 512 MB |
+| `high` | current flagship | 1,000,000 | 1 GB |
+
+A battle shows two to four creatures plus terrain, so the per-creature figure
+that matters is the total divided by that, not the model on its own.
+
+**These numbers are provisional and are marked as such in the tool.** Nobody has
+profiled this game on any device, so they are informed guesses, and an informed
+guess presented as a frame rate would be worse than no number at all. What the
+report gives honestly is a *comparison against a stated budget*, not a
+prediction — "this composition is at 140% of `mid`" is a fact about the assets;
+"this will run at 42 fps" would not be.
+
+The tiers live in one file so that the afternoon somebody runs the game on a real
+mid-range phone, the guesses are replaced by measurements in one place and every
+past report becomes re-readable.
+
+The risk stands and is worth naming plainly: **a number nobody is obliged to
+respect is a number nobody respects.** What makes it survivable is that the
+report is cumulative, so the trend is visible long before a device says anything.
+If the trend is ignored, the ceiling is one line in the build and decision 0048
+is what should be revisited.
 
 ## 8. Placeholders and the swap
 
@@ -154,7 +206,19 @@ The guard of decision 0027 is what keeps that from being an accident waiting to
 happen, and it stays exactly as strict as it is. Moving the runtime code out
 (section 6) narrows what it guards; it does not weaken it.
 
-## 9. Testing obligations
+## 9. The art direction is comic-manga
+
+**The look is the `comic` shader**, with its ink outline. That settles what was
+open: the runtime carries several shading styles, and this is the one the game
+wears.
+
+It is recorded here rather than left in a settings file because it constrains
+everything downstream — a cartoon shader wants flat, saturated albedo and clean
+silhouettes, which is a brief for the artist and not a runtime toggle. Named
+variations of it (`comic-noir` and the like) are sets of numbers for the same
+shader, not separate looks.
+
+## 10. Testing obligations
 
 - **Every manifest loads** into its typed form, and every path it names exists.
 - **Every clip a manifest declares is really in its model** — the engine-side
@@ -169,15 +233,24 @@ happen, and it stays exactly as strict as it is. Moving the runtime code out
   error, for every committed creature.
 - **The budget report is produced**, and its totals are non-zero — a reporter
   that silently measures nothing looks exactly like a roster under budget.
+- **The report names a tier for every composition it measures.** A total with no
+  budget beside it is the thing section 7 exists to avoid.
+- **The placeholder mapping resolves by code before word**, proven on both
+  shapes: a prefixed name and a bare one. Getting the order wrong still resolves
+  most clips, which is what makes it worth a test rather than a reading.
+- **A source clip the mapping does not recognise is reported, not guessed at** —
+  silently mapping an unknown clip to `idle` is how the first exact-match
+  attempt failed without anybody noticing.
 
 ## Open points
 
 - **Characters, as opposed to creatures.** The player and NPCs need the same
   contract and a different vocabulary — walking has facings, a creature has none.
   Nothing here covers them.
-- **The style system.** The runtime carries several looks and a per-roster
-  setting. It works; what it should be for the real art direction is a design
-  question nobody has answered.
+- **Whether the style switcher ships.** The art direction is settled (section 9)
+  and the runtime still carries several looks. Keeping the switcher costs a menu
+  nobody outside the team needs; removing it costs the ability to compare. Which
+  one ships is undecided.
 - **Type colours** are provisional in the runtime and are a first reading rather
   than an art direction.
 - **Level of detail and culling.** Untouched, and section 7 is what would tell us

@@ -298,7 +298,10 @@ func _run_switch(state: VltBattleState, command: VltCommand, log: VltBattleLog) 
 	slot.occupy(command.party_index)
 	log.append(
 		VltLogSwitchIn.create(
-			command.actor, command.party_index, state.creature_at(command.actor).species_id
+			command.actor,
+			command.party_index,
+			state.creature_at(command.actor).species_id,
+			state.creature_at(command.actor).level
 		)
 	)
 
@@ -501,7 +504,10 @@ func _resume(state: VltBattleState, commands: Array[VltCommand]) -> VltTurnOutco
 		slot.occupy(command.party_index)
 		log.append(
 			VltLogSwitchIn.create(
-				command.actor, command.party_index, working.creature_at(command.actor).species_id
+				command.actor,
+				command.party_index,
+				working.creature_at(command.actor).species_id,
+				working.creature_at(command.actor).level
 			)
 		)
 

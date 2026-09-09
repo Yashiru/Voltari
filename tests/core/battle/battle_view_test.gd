@@ -29,6 +29,13 @@ func _creature(species: String) -> VltBattleCreature:
 	return creature
 
 
+## The registry the view needs to tell a major status from any other effect.
+func _registry() -> VltEffectRegistry:
+	var registry: VltEffectRegistry = VltEffectRegistry.new()
+	registry.register(VltBurn.define())
+	return registry
+
+
 func _battle(slots: int = 1) -> VltBattleState:
 	var state: VltBattleState = VltBattleState.create(slots)
 	for side: int in range(VltBattleState.SIDE_COUNT):
@@ -46,7 +53,7 @@ func test_your_own_creature_is_shown_exactly() -> void:
 	var creature: VltBattleCreature = state.creature_at(VltSlotRef.at(OURS, 0))
 	creature.current_hp -= 13
 
-	var mine: VltBattleView.Combatant = VltBattleView.of(state, OURS).mine[0]
+	var mine: VltBattleView.Combatant = VltBattleView.of(state, _registry(), OURS).mine[0]
 
 	assert_bool(mine.knows_exact_health()).is_true()
 	assert_int(mine.current_hp).is_equal(creature.current_hp)
@@ -60,16 +67,18 @@ func test_both_sides_show_what_is_announced() -> void:
 	# Species, types, level, status and stat stages are all perceived in play,
 	# so hiding them would make the AI blinder than a player.
 	var state: VltBattleState = _battle()
-	state.creature_at(VltSlotRef.at(THEIRS, 0)).status = VltBattleCreature.Status.BURN
+	VltEffectDispatch.apply(
+		state, _registry(), VltBurn.ID, VltSlotRef.at(THEIRS, 0), VltSlotRef.at(OURS, 0)
+	)
 	state.slot_at(VltSlotRef.at(THEIRS, 0)).set_stage(VltStats.Stat.ATK, -2)
 
-	var theirs: VltBattleView.Combatant = VltBattleView.of(state, OURS).theirs[0]
+	var theirs: VltBattleView.Combatant = VltBattleView.of(state, _registry(), OURS).theirs[0]
 
 	assert_bool(theirs.present).is_true()
 	assert_str(theirs.species_id).is_equal("species_1_0")
 	assert_array(theirs.types).is_equal(PackedStringArray(["water", "normal"]))
 	assert_int(theirs.level).is_equal(50)
-	assert_int(theirs.status).is_equal(VltBattleCreature.Status.BURN)
+	assert_str(theirs.status_id).is_equal(VltBurn.ID)
 	assert_int(theirs.stat_stages[VltStats.Stat.ATK]).is_equal(-2)
 
 
@@ -78,7 +87,7 @@ func test_health_reads_as_a_proportion_for_both() -> void:
 	var creature: VltBattleCreature = state.creature_at(VltSlotRef.at(THEIRS, 0))
 	creature.current_hp = creature.max_hp() / 2
 
-	var view: VltBattleView = VltBattleView.of(state, OURS)
+	var view: VltBattleView = VltBattleView.of(state, _registry(), OURS)
 
 	assert_int(view.theirs[0].health).is_between(49, 51)
 	assert_int(view.mine[0].health).is_equal(100)
@@ -90,7 +99,7 @@ func test_a_survivor_never_reads_as_dead() -> void:
 	var state: VltBattleState = _battle()
 	state.creature_at(VltSlotRef.at(THEIRS, 0)).current_hp = 1
 
-	var theirs: VltBattleView.Combatant = VltBattleView.of(state, OURS).theirs[0]
+	var theirs: VltBattleView.Combatant = VltBattleView.of(state, _registry(), OURS).theirs[0]
 
 	assert_int(theirs.health).is_equal(1)
 	assert_bool(theirs.fainted).is_false()
@@ -100,7 +109,7 @@ func test_an_empty_slot_is_absent_not_blank() -> void:
 	var state: VltBattleState = _battle()
 	state.slot_at(VltSlotRef.at(THEIRS, 0)).vacate()
 
-	var theirs: VltBattleView.Combatant = VltBattleView.of(state, OURS).theirs[0]
+	var theirs: VltBattleView.Combatant = VltBattleView.of(state, _registry(), OURS).theirs[0]
 
 	assert_bool(theirs.present).is_false()
 	assert_str(theirs.species_id).is_empty()
@@ -111,7 +120,7 @@ func test_an_empty_slot_is_absent_not_blank() -> void:
 
 func test_the_opponents_exact_health_is_not_there() -> void:
 	var state: VltBattleState = _battle()
-	var theirs: VltBattleView.Combatant = VltBattleView.of(state, OURS).theirs[0]
+	var theirs: VltBattleView.Combatant = VltBattleView.of(state, _registry(), OURS).theirs[0]
 
 	assert_bool(theirs.knows_exact_health()).override_failure_message(
 		"the view handed over exact health for the other side"
@@ -123,7 +132,7 @@ func test_the_opponents_exact_health_is_not_there() -> void:
 func test_the_opponents_stats_are_not_there() -> void:
 	# Which is what stops the AI reading individual values and effort through
 	# the derived spread.
-	var theirs: VltBattleView.Combatant = VltBattleView.of(_battle(), OURS).theirs[0]
+	var theirs: VltBattleView.Combatant = VltBattleView.of(_battle(), _registry(), OURS).theirs[0]
 
 	assert_bool(theirs.stats.is_empty()).override_failure_message(
 		"the view handed over the other side's derived stats"
@@ -133,14 +142,14 @@ func test_the_opponents_stats_are_not_there() -> void:
 func test_an_unseen_move_is_not_there() -> void:
 	var state: VltBattleState = _battle()
 
-	var blind: VltBattleView.Combatant = VltBattleView.of(state, OURS).theirs[0]
+	var blind: VltBattleView.Combatant = VltBattleView.of(state, _registry(), OURS).theirs[0]
 	assert_bool(blind.moves.is_empty()).is_true()
 	assert_array(blind.revealed_moves).override_failure_message(
 		"a move nobody has seen was handed over"
 	).is_equal(PackedStringArray())
 
 	var seen: VltBattleView.Combatant = VltBattleView.of(
-		state, OURS, PackedStringArray([TACKLE])
+		state, _registry(), OURS, PackedStringArray([TACKLE])
 	).theirs[0]
 	assert_array(seen.revealed_moves).is_equal(PackedStringArray([TACKLE]))
 	assert_bool(seen.revealed_moves.has(SECRET)).override_failure_message(
@@ -154,7 +163,7 @@ func test_the_opposing_bench_is_not_there() -> void:
 	var state: VltBattleState = _battle()
 	state.sides[THEIRS].party.append(_creature("hidden_reserve"))
 
-	var view: VltBattleView = VltBattleView.of(state, OURS)
+	var view: VltBattleView = VltBattleView.of(state, _registry(), OURS)
 
 	assert_int(view.theirs.size()).is_equal(state.slots_per_side())
 	for combatant: VltBattleView.Combatant in view.theirs:
@@ -167,8 +176,8 @@ func test_the_opposing_bench_is_not_there() -> void:
 func test_the_two_viewpoints_mirror_each_other() -> void:
 	var state: VltBattleState = _battle()
 
-	var ours: VltBattleView = VltBattleView.of(state, OURS)
-	var theirs: VltBattleView = VltBattleView.of(state, THEIRS)
+	var ours: VltBattleView = VltBattleView.of(state, _registry(), OURS)
+	var theirs: VltBattleView = VltBattleView.of(state, _registry(), THEIRS)
 
 	assert_str(ours.mine[0].species_id).is_equal(theirs.theirs[0].species_id)
 	assert_str(ours.theirs[0].species_id).is_equal(theirs.mine[0].species_id)
@@ -177,7 +186,7 @@ func test_the_two_viewpoints_mirror_each_other() -> void:
 
 
 func test_a_view_covers_every_position() -> void:
-	var view: VltBattleView = VltBattleView.of(_battle(2), OURS)
+	var view: VltBattleView = VltBattleView.of(_battle(2), _registry(), OURS)
 
 	assert_int(view.mine.size()).is_equal(2)
 	assert_int(view.theirs.size()).is_equal(2)
@@ -191,7 +200,7 @@ func test_a_view_is_a_copy_and_not_a_window() -> void:
 	# Holding a view must not be a way to reach the battle. Changing the state
 	# after the fact leaves the view as it was.
 	var state: VltBattleState = _battle()
-	var view: VltBattleView = VltBattleView.of(state, OURS)
+	var view: VltBattleView = VltBattleView.of(state, _registry(), OURS)
 	var before: int = view.mine[0].current_hp
 
 	state.creature_at(VltSlotRef.at(OURS, 0)).current_hp -= 20

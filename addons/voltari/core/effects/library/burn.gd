@@ -62,6 +62,7 @@ static func define() -> VltEffectDefinition:
 	return (
 		VltEffectDefinition
 		. create(ID, VltEffectDefinition.Scope.CREATURE)
+		. as_major_status()
 		. with_modifier(HalvePhysical.new())
 		. with_trigger(ResidualDamage.new())
 	)

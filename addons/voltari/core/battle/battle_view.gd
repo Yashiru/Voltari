@@ -32,7 +32,12 @@ class Combatant:
 	var species_id: String = ""
 	var types: PackedStringArray = PackedStringArray()
 	var level: int = 1
-	var status: VltBattleCreature.Status = VltBattleCreature.Status.NONE
+
+	## The major status effect's id, or empty. An identifier rather than an enum:
+	## the effect already has a name, and a second vocabulary for the same set
+	## would be one more thing to keep in step (spec 07, section 6).
+	var status_id: String = ""
+
 	var fainted: bool = false
 
 	## Out of a hundred, for either side. It is what a health bar shows.
@@ -70,8 +75,14 @@ var theirs: Array[Combatant] = []
 ## rather than derived here because nothing in the state records what has been
 ## witnessed — the battle log does, and accumulating it across a battle belongs
 ## to whoever owns the battle, not to a view of one moment.
+## The registry is required rather than optional: a status is derived from the
+## effects present, and a view built without one would report every creature
+## healthy — quietly, and only in whatever forgot to pass it.
 static func of(
-	state: VltBattleState, side: int, revealed: PackedStringArray = PackedStringArray()
+	state: VltBattleState,
+	registry: VltEffectRegistry,
+	side: int,
+	revealed: PackedStringArray = PackedStringArray()
 ) -> VltBattleView:
 	assert(side >= 0 and side < VltBattleState.SIDE_COUNT, "no side %d to look from" % side)
 
@@ -80,16 +91,22 @@ static func of(
 	view.turn = state.turn
 
 	for slot: int in range(state.slots_per_side()):
-		view.mine.append(_combatant(state, VltSlotRef.at(side, slot), true, revealed))
+		view.mine.append(
+			_combatant(state, registry, VltSlotRef.at(side, slot), true, revealed)
+		)
 		view.theirs.append(
-			_combatant(state, VltSlotRef.at(1 - side, slot), false, revealed)
+			_combatant(state, registry, VltSlotRef.at(1 - side, slot), false, revealed)
 		)
 
 	return view
 
 
 static func _combatant(
-	state: VltBattleState, at: VltSlotRef, own: bool, revealed: PackedStringArray
+	state: VltBattleState,
+	registry: VltEffectRegistry,
+	at: VltSlotRef,
+	own: bool,
+	revealed: PackedStringArray
 ) -> Combatant:
 	var combatant: Combatant = Combatant.new()
 	combatant.reference = VltSlotRef.at(at.side, at.slot)
@@ -102,7 +119,7 @@ static func _combatant(
 	combatant.species_id = creature.species_id
 	combatant.types = creature.types.duplicate()
 	combatant.level = creature.level
-	combatant.status = creature.status
+	combatant.status_id = VltEffectDispatch.major_status(state, registry, at)
 	combatant.fainted = creature.is_fainted()
 	combatant.health = VltLogEvent.scaled_health(creature.current_hp, creature.max_hp())
 	combatant.stat_stages = state.slot_at(at).stat_stages.duplicate()

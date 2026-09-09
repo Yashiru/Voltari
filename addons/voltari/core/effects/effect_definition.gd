@@ -38,6 +38,15 @@ enum Stacking {
 
 var id: String = ""
 var scope: Scope = Scope.SLOT
+
+## A major status — burn, freeze, paralysis, sleep, poison. Gen 4 allows a
+## creature exactly one at a time, and this is what makes that a rule the engine
+## enforces rather than a convention every effect has to remember.
+##
+## A marker rather than a separate kind of effect: a status is an ordinary effect
+## in every other respect, and giving it its own type would duplicate the whole
+## component system to express one exclusivity rule.
+var is_major_status: bool = false
 var reset_rule: ResetRule = ResetRule.PERSISTS
 var stacking: Stacking = Stacking.UNIQUE
 
@@ -63,6 +72,12 @@ static func create(
 	definition.stacking = stack
 	definition.default_duration = duration
 	return definition
+
+
+## Marks this as the one status a creature may carry (see `is_major_status`).
+func as_major_status() -> VltEffectDefinition:
+	is_major_status = true
+	return self
 
 
 func with_modifier(modifier: VltModifier) -> VltEffectDefinition:

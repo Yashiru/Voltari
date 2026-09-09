@@ -69,7 +69,11 @@ func _play(state: VltBattleState) -> VltBattleLog:
 	state.slot_at(target).vacate()
 	log.append(VltLogSwitchOut.create(target, 0))
 	state.slot_at(target).occupy(1)
-	log.append(VltLogSwitchIn.create(target, 1, state.creature_at(target).species_id))
+	log.append(
+		VltLogSwitchIn.create(
+			target, 1, state.creature_at(target).species_id, state.creature_at(target).level
+		)
+	)
 
 	# An effect appearing and then counting down, so replay exercises both
 	# creating an instance and reassigning one that is already there.
@@ -274,3 +278,21 @@ func test_every_declared_event_kind_appears_in_the_log_and_round_trips() -> void
 	var restored: VltBattleLog = VltBattleLog.from_array(log.to_array())
 	for index: int in range(log.size()):
 		assert_str(restored.events[index].kind()).is_equal(log.events[index].kind())
+
+
+func test_a_switch_announces_the_level() -> void:
+	# A creature that entered mid-battle has no other way of saying it, and a
+	# HUD that cannot show the opponent's level is a HUD missing the number the
+	# player decides on.
+	var state: VltBattleState = _battle()
+	var target: VltSlotRef = VltSlotRef.at(0, 0)
+	var creature: VltBattleCreature = state.creature_at(target)
+
+	var event: VltLogSwitchIn = VltLogSwitchIn.create(
+		target, 1, creature.species_id, creature.level
+	)
+
+	assert_int(event.level).is_equal(creature.level)
+	assert_int(event.visibility).override_failure_message(
+		"the level is public knowledge and the event says otherwise"
+	).is_equal(VltLogEvent.Visibility.PUBLIC)

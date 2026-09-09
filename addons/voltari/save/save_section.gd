@@ -73,4 +73,12 @@ static func read_string(stored: Dictionary, key: String, fallback: String = "") 
 static func read_bool(stored: Dictionary, key: String, fallback: bool = false) -> bool:
 	var value: Variant = stored.get(key, fallback)
 	return value as bool if value is bool else fallback
+
+
+## A nested group of fields, empty when the key is absent or holds something
+## else. Sections that store a set of named values — quest flags are the first —
+## would otherwise each write this cast themselves.
+static func read_dictionary(stored: Dictionary, key: String) -> Dictionary:
+	var value: Variant = stored.get(key, null)
+	return value as Dictionary if value is Dictionary else {}
 @warning_ignore_restore("unsafe_cast")

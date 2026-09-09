@@ -26,6 +26,8 @@ addons/voltari/       the reusable engine
   core/               L0  — simulation core, purity-enforced
   deciders/           L0bis — AI, player input
   rules/              L1  — out-of-battle rules, purity-enforced
+  save/               the save format, purity-enforced: dictionaries, never files
+  platform/           L5  — the only place in the engine that touches a file
   loaders/            the typing boundary: parsed data in, typed objects out
 game/                 this game: scenes, assets, presentation
   assets/

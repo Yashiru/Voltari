@@ -25,6 +25,11 @@ var species_id: String = ""
 var types: PackedStringArray = PackedStringArray()
 var level: int = 1
 
+## Total experience earned, ever. The core never reads it — nothing in a battle
+## depends on it — but it belongs to the creature rather than beside it, because
+## the creature is what survives the battle and what a save file holds.
+var experience: int = 0
+
 var base: PackedInt32Array = PackedInt32Array()
 var ivs: PackedInt32Array = PackedInt32Array()
 var evs: PackedInt32Array = PackedInt32Array()
@@ -69,6 +74,7 @@ func clone() -> VltBattleCreature:
 	copy.species_id = species_id
 	copy.types = types.duplicate()
 	copy.level = level
+	copy.experience = experience
 	copy.base = base.duplicate()
 	copy.ivs = ivs.duplicate()
 	copy.evs = evs.duplicate()
@@ -101,6 +107,7 @@ func to_dict() -> Dictionary:
 		"species_id": species_id,
 		"types": types,
 		"level": level,
+		"experience": experience,
 		"base": base,
 		"ivs": ivs,
 		"evs": evs,
@@ -119,6 +126,7 @@ static func from_dict(data: Dictionary) -> VltBattleCreature:
 	creature.species_id = data["species_id"]
 	creature.types = PackedStringArray(data["types"])
 	creature.level = data["level"]
+	creature.experience = data["experience"]
 	creature.base = PackedInt32Array(data["base"])
 	creature.ivs = PackedInt32Array(data["ivs"])
 	creature.evs = PackedInt32Array(data["evs"])

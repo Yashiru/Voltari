@@ -81,6 +81,26 @@ function textureBytes(gltf, path) {
   return total;
 }
 
+/// The second colouring: one texture per surface in a `shiny/` folder beside the
+/// model, named by the clip sidecar rather than by the glTF (spec 16).
+///
+/// Counted apart on purpose. A shiny **replaces** a surface's texture rather
+/// than adding to it, so it costs a scene nothing — but every one of them ships,
+/// so it costs the package everything. Folding the two together would answer
+/// neither question.
+function shinyBytes(path) {
+  const folder = join(dirname(path), "shiny");
+  let total = 0;
+  try {
+    for (const entry of readdirSync(folder)) {
+      if (entry.endsWith(".png")) total += statSync(join(folder, entry)).size;
+    }
+  } catch {
+    // No second colouring. The common case, and not a defect.
+  }
+  return total;
+}
+
 function joints(gltf) {
   return Math.max(0, ...(gltf.skins ?? []).map((skin) => skin.joints?.length ?? 0));
 }
@@ -91,6 +111,7 @@ function measure(path) {
     name: basename(path, ".glb"),
     triangles: triangles(gltf),
     textureBytes: textureBytes(gltf, path),
+    shinyBytes: shinyBytes(path),
     joints: joints(gltf),
     clips: (gltf.animations ?? []).length,
   };
@@ -129,15 +150,24 @@ function report(measured) {
     (sum, m) => ({
       triangles: sum.triangles + m.triangles,
       textureBytes: sum.textureBytes + m.textureBytes,
+      shinyBytes: sum.shinyBytes + m.shinyBytes,
     }),
-    { triangles: 0, textureBytes: 0 },
+    { triangles: 0, textureBytes: 0, shinyBytes: 0 },
   );
+  const shinies = measured.filter((m) => m.shinyBytes > 0).length;
 
   console.log(`${measured.length} model(s)`);
   console.log(`  triangles       ${total.triangles}`);
   console.log(`  texture bytes   ${mb(total.textureBytes)} (in file, not decoded)`);
   console.log(`  most joints     ${Math.max(0, ...measured.map((m) => m.joints))}`);
   console.log(`  clips           ${measured.reduce((n, m) => n + m.clips, 0)}`);
+  if (shinies > 0) {
+    const extra = Math.round((total.shinyBytes / total.textureBytes) * 100);
+    console.log(
+      `  second colouring ${mb(total.shinyBytes)} across ${shinies} model(s)`
+      + ` — ${extra}% on top of the textures above, shipped whether worn or not`,
+    );
+  }
 
   const each = TIERS.composition.creatures;
   const scene = {
@@ -153,6 +183,8 @@ function report(measured) {
       + `   (${tier.stands_for})`,
     );
   }
+  console.log("\nA shiny replaces a surface's texture rather than adding one, so it costs");
+  console.log("a scene nothing and the download everything.");
   console.log("\nProvisional budgets: no device has been profiled. No frame rate is implied.");
 
   return total;

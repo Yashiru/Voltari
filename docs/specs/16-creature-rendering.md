@@ -25,7 +25,11 @@ Node3D            the root, carrying the runtime script
 ```
 
 Beside it, a **sidecar** describing what the glTF could not carry: face-sheet
-expressions, their drivers, and the frame windows that select them.
+expressions, their drivers, the frame windows that select them, and which
+texture each surface wears in the second colouring.
+
+A creature that has a second colouring also has a `shiny/` folder beside its
+scene, one texture per surface.
 
 **There is no per-creature code.** One script covers every creature, and a
 creature that needed its own would be a creature the contract does not describe
@@ -43,10 +47,31 @@ carry:
 - **face-sheet expressions** — eyes and mouths are cells of an atlas, driven by a
   bone's position, and are keyframed rather than being a mood
 - **which parts are stowed** — a part that should be hidden when nothing hides it
+- **the second colouring** — a shiny wears different sheets on the same model
 
 All of it is reattached when the scene enters the tree. This is the part of the
 work that would otherwise be redone per creature by hand, and getting it into one
 script is what made 860 models a batch rather than a project.
+
+### The second colouring
+
+**One model, a second set of sheets.** Not a second `.glb`: sixty megabytes of
+geometry and animation do not need duplicating to change a hue, and two models
+would drift apart the first time the export changed.
+
+The textures sit in a `shiny/` folder beside the scene and the sidecar says which
+belongs to which. **They are keyed on the surface, not on the source file**,
+because by export time the two no longer line up — face sheets are copied opaque
+and several surfaces can share one file, so the export writes one texture per
+surface for exactly this reason.
+
+A model without one ignores the flag entirely, which is what makes this safe to
+carry on every creature whether or not it has a shiny.
+
+**Nothing decides who is shiny.** Wearing the second colouring is a property of a
+creature, not of a species, so it belongs in generation and in the save — and
+neither has it. That gap is named in the open points rather than papered over
+here.
 
 ## 3. Each creature brings its own rig
 
@@ -227,6 +252,11 @@ refuses nothing.
 **A raw total tells nobody whether the game runs.** So the report is read against
 named device tiers, and says which of them a scene fits:
 
+**A shiny is a package cost, not a scene cost.** It replaces a surface's texture
+rather than adding one, so a shiny creature costs a scene exactly what a normal
+one does — and every shiny in the game ships whether it is ever worn. The report
+keeps the two apart, because folding them together answers neither question.
+
 | Tier | Stands for | Triangles on screen | Texture memory |
 |------|-----------|--------------------:|---------------:|
 | `low` | a five-year-old budget phone | 150,000 | 256 MB |
@@ -292,6 +322,9 @@ shader, not separate looks.
   that silently measures nothing looks exactly like a roster under budget.
 - **The report names a tier for every composition it measures.** A total with no
   budget beside it is the thing section 7 exists to avoid.
+- **The second colouring is counted apart from the scene budget**, because it
+  replaces a texture rather than adding one. Counting it in would overstate every
+  scene; leaving it out entirely would understate the download by more than half.
 - **The placeholder mapping resolves by code before word**, proven on both
   shapes: a prefixed name and a bare one. Getting the order wrong still resolves
   most clips, which is what makes it worth a test rather than a reading.
@@ -327,5 +360,11 @@ shader, not separate looks.
   than an art direction.
 - **Level of detail and culling.** Untouched, and section 7 is what would tell us
   they are needed.
-- **Shiny or alternate colourways**, which the source library carries as separate
-  models and the manifest has no field for.
+- **What makes a creature shiny.** The rendering side is settled (section 2);
+  what is missing is upstream. It is a draw at birth, so the generation
+  vocabulary needs a question it has not got (spec 10, decision 0029), and a
+  creature needs a field the save carries. Neither exists, and inventing either
+  here would be spec 16 deciding spec 10's business.
+- **Alternate forms** — the library carries them as separate models with their
+  own ids, which the manifest already handles as separate species. Whether
+  Voltari wants forms at all is undecided.

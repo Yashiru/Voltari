@@ -1,0 +1,14 @@
+{
+  "id": "placeholder_cave",
+  "rate": 21,
+  "slots": [
+    {
+      "species": "placeholder_evolved",
+      "levels": {
+        "min": 9,
+        "max": 9
+      },
+      "weight": 1
+    }
+  ]
+}

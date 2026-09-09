@@ -21,6 +21,7 @@ const CURVES_YAML = join(REPO, "content", "growth-curves.yaml");
 const MOVES_DIR = join(REPO, "content", "moves");
 const SPECIES_DIR = join(REPO, "content", "species");
 const ITEMS_DIR = join(REPO, "content", "items");
+const ENCOUNTERS_DIR = join(REPO, "content", "encounters");
 const OUT_DIR = join(REPO, "content", "generated");
 
 /// The payload schema. A loader refuses a version it does not know, because
@@ -66,6 +67,10 @@ export function loadSpecies() {
 
 export function loadItems() {
   return loadEntities(ITEMS_DIR);
+}
+
+export function loadEncounters() {
+  return loadEntities(ENCOUNTERS_DIR);
 }
 
 // Validation is the build's job, not the engine's: a malformed chart must fail
@@ -231,6 +236,66 @@ function validateItems(items) {
 }
 
 const MAX_LEVEL = 100;
+
+// A rate is in 256ths (spec 14, section 4). The build is stricter than the
+// engine on purpose: 0 would be a zone where nothing ever appears and 256 one
+// where an encounter is certain, and both are far more likely to be a mistake
+// than an intention. The engine still tolerates them, because refusing at
+// runtime would be refusing in front of a player.
+const MIN_RATE = 1;
+const MAX_RATE = 255;
+
+// Encounter tables have no oracle (spec 02), so shape and cross-reference are
+// the whole of the automatic guard they get.
+function validateEncounters(tables, knownSpecies) {
+  const problems = [];
+
+  for (const table of tables) {
+    const where = `encounter table "${table.id}"`;
+
+    if (!Number.isInteger(table.rate) || table.rate < MIN_RATE || table.rate > MAX_RATE) {
+      problems.push(`${where}: rate must be ${MIN_RATE}-${MAX_RATE} (256ths)`);
+    }
+
+    // An empty table is a zone that can fire and then has nothing to show. The
+    // engine asserts on it, but by then a player is standing in the grass.
+    if (!Array.isArray(table.slots) || table.slots.length === 0) {
+      problems.push(`${where}: needs at least one slot`);
+      continue;
+    }
+
+    let total = 0;
+    for (const slot of table.slots) {
+      const which = `${where}, slot "${slot.species}"`;
+
+      if (!knownSpecies.has(slot.species)) {
+        problems.push(`${which}: unknown species`);
+      }
+      if (!Number.isInteger(slot.weight) || slot.weight < 1) {
+        problems.push(`${which}: weight must be a positive integer`);
+      } else {
+        total += slot.weight;
+      }
+
+      const from = slot.levels?.min;
+      const to = slot.levels?.max;
+      if (!Number.isInteger(from) || !Number.isInteger(to)) {
+        problems.push(`${which}: levels need an integer min and max`);
+      } else if (from < 1 || to > MAX_LEVEL) {
+        problems.push(`${which}: levels must be 1-${MAX_LEVEL}`);
+      } else if (from > to) {
+        problems.push(`${which}: levels run from ${from} down to ${to}`);
+      }
+    }
+
+    // Nothing downstream can draw from a table with no weight, and the check
+    // above passes when every slot is individually fine and the array is empty
+    // of valid ones.
+    if (total < 1) problems.push(`${where}: no slot carries any weight`);
+  }
+
+  return problems;
+}
 
 // The same structural claims the seeding tool checked, re-checked here so an
 // edit to the committed table is caught by the build rather than by a player
@@ -418,8 +483,10 @@ function main() {
   const moves = loadMoves();
   const species = loadSpecies();
   const items = loadItems();
+  const encounters = loadEncounters();
   const knownTypes = new Set(chart.types);
   const knownMoves = new Set(moves.map((move) => move.id));
+  const knownSpecies = new Set(species.map((entry) => entry.id));
 
   report([
     ...validateChart(chart),
@@ -428,6 +495,7 @@ function main() {
     ...validateSpecies(species, knownTypes, knownMoves),
     ...validateCurves(curves, GROWTH_RATES),
     ...validateItems(items),
+    ...validateEncounters(encounters, knownSpecies),
   ]);
 
   mkdirSync(OUT_DIR, { recursive: true });
@@ -451,6 +519,10 @@ function main() {
 
   const itemsDir = writeEntities("items", items);
   console.log(`items:      ${items.length} entries -> ${itemsDir}/`);
+
+  const encountersDir = writeEntities("encounters", encounters);
+  const slots = encounters.reduce((n, table) => n + table.slots.length, 0);
+  console.log(`encounters: ${encounters.length} tables, ${slots} slots -> ${encountersDir}/`);
 
   const curvesPath = join(OUT_DIR, "growth-curves.json");
   writeFileSync(curvesPath, JSON.stringify(curves, null, 2) + "\n");

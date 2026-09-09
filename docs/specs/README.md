@@ -39,7 +39,7 @@ describe.
 
 | #  | Document |
 |----|----------|
-| 13 | Save / load and migration |
+| 13 | [Save, load and migration](13-save-load.md) — *draft* |
 | 14 | Overworld and encounters |
 | 15 | Event scripting |
 | 16 | Creature and character rendering — rigs, animation, asset pipeline, mobile budget |

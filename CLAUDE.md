@@ -140,8 +140,8 @@ Conversation with the maintainer: **French**.
 
 ## Current state
 
-Specs 01 to 15 are written, 16 onwards are not — see `docs/specs/README.md`.
-Decisions 0001 to 0044 are recorded in `docs/decisions/`.
+Specs 01 to 16 are written, 17 onwards are not — see `docs/specs/README.md`.
+Decisions 0001 to 0048 are recorded in `docs/decisions/`.
 
 **The simulation core is implemented and oracle-backed**: battle state, the
 semantic decision interface, the battle log, the turn state machine, the effect
@@ -164,11 +164,20 @@ disjoint by a meta-test (decision 0029). One generator backs them all.
 and `platform/` depend on the engine on purpose (decisions 0038 and 0040); that
 exemption is stated in spec 01, not inferred.
 
-**What does not exist**: rendering, UI, audio, input, event scripting, and any
-authored map — the overworld machinery is tested on fixture maps built in code,
-and `game/maps/` is empty. Creatures and characters are rigged 3D (decision
-0020); the pixel-art sprite direction is superseded and should not be
-reintroduced from older notes.
+**Creatures are rigged 3D, one rig each** (decisions 0020 and 0045 — the
+pixel-art direction and the archetype-skeleton mitigation are both superseded and
+should not be reintroduced from older notes). A pipeline outside the repository
+takes a rigged FBX to a ready-to-instance `.tscn`; spec 16 describes the contract
+it produces.
+
+**Third-party placeholder models are quarantined** by decision 0027, enforced by
+a guard on the index, the tree, the whole history and every export preset. Never
+stage anything under `game/assets/placeholders/`, and prefer path-scoped
+`git add` over `-A` at the repository root.
+
+**What does not exist**: UI, audio, input, any authored map, and any fakemon —
+the overworld machinery is tested on fixture maps built in code, and `game/maps/`
+is empty.
 
 Requires Godot 4.7.2 and Node 22. gdUnit4 is not vendored — install it into
 `addons/gdUnit4/` before running tests locally. CI installs it automatically at

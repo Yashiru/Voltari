@@ -42,7 +42,7 @@ describe.
 | 13 | [Save, load and migration](13-save-load.md) — *draft* |
 | 14 | [Overworld and encounters](14-overworld-encounters.md) — *draft* |
 | 15 | [Event scripting](15-event-scripting.md) — *draft* |
-| 16 | Creature and character rendering — rigs, animation, asset pipeline, mobile budget |
+| 16 | [Creature and character rendering](16-creature-rendering.md) — *draft* |
 | 17 | UI and battle log consumption |
 | 18 | Input and platforms |
 

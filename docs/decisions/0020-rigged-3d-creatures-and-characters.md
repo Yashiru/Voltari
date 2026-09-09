@@ -1,8 +1,15 @@
 # 0020 — Creatures and characters are rigged 3D, not pixel-art sprites
 
-**Status:** Accepted
+**Status:** Accepted — **its consequences section is superseded by decision 0045**
 **Date:** 2026-09-08
 **Supersedes the rendering direction in:** `docs/architecture/layers.md`, L4
+
+> The decision itself stands: rigged 3D, no pixel art, no billboards, a free
+> camera. What no longer holds is the **mitigation** below — shared archetype
+> skeletons with retargetable animations. A working pipeline took 860 rigged
+> models to playable scenes with one rig each and no retargeting, and the fakemon
+> follow that contract. Decision 0045 records why the argument here did not carry
+> and what is being paid instead.
 
 ## Context
 
@@ -42,6 +49,10 @@ sprite. On a monster-catching roster this is the dominant constraint. The
 mitigation is **shared archetype skeletons** — biped, quadruped, serpentine,
 winged — with retargetable animations, so the marginal cost per creature
 collapses. Without that, the approach does not scale.
+
+> **Superseded by decision 0045.** The mitigation was never built and is not the
+> plan. The dominant constraint named in the paragraph above is real and is now
+> accepted unmitigated rather than argued away.
 
 **What is added to the plan.** Spec 16 widens from a rendering technique to an
 asset pipeline: skeleton conventions, animation clip naming, retargeting, LOD,

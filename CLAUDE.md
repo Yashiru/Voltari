@@ -140,8 +140,8 @@ Conversation with the maintainer: **French**.
 
 ## Current state
 
-Specs 01 to 14 are written, 15 onwards are not — see `docs/specs/README.md`.
-Decisions 0001 to 0040 are recorded in `docs/decisions/`.
+Specs 01 to 15 are written, 16 onwards are not — see `docs/specs/README.md`.
+Decisions 0001 to 0044 are recorded in `docs/decisions/`.
 
 **The simulation core is implemented and oracle-backed**: battle state, the
 semantic decision interface, the battle log, the turn state machine, the effect
@@ -149,8 +149,13 @@ system, Gen 4 damage and stat formulas, plus the differential harness and the
 invariant fuzzer.
 
 **Above it**: progression and the post-battle pipeline, capture, the battle AI,
-the save format, and the overworld with its encounters. Content is authored
-one file per entity under `content/`, with a Node build that validates it.
+the save format, the overworld with its encounters, and event scripting with
+quest flags. Content is authored one file per entity under `content/`, with a
+Node build that validates it.
+
+**Two suspendable machines, one shape** — turn resolution (decision 0012) and
+event runs (decision 0044). Both advance until they need an answer, say what they
+want, and are resumed. Neither uses `await`.
 
 **Four decision vocabularies** — battle, generation, policy, encounter — kept
 disjoint by a meta-test (decision 0029). One generator backs them all.

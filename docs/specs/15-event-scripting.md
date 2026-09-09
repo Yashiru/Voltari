@@ -89,6 +89,17 @@ is the price of an event never surfacing in the middle of something else, and it
 is worth paying: an event that can fire at any moment can fire during another
 event.
 
+**One step, one outcome.** A cell can carry a warp, an event and an encounter
+zone at once, and they cannot all happen. The order is **warp, then event, then
+encounter**: a warp is leaving, so nothing else happens on the way out; and
+between a scripted trigger and an ambient one, the deliberate thing is not the
+one to drop.
+
+**Interacting ignores walkability.** Talking to somebody means facing them, and a
+person is something you cannot walk into. Requiring the faced cell to be walkable
+would make every NPC unreachable — the one place where the grid's own rule must
+not apply.
+
 ## 5. An event is atomic
 
 **Its flags land when it finishes.** An event that is interrupted never happened,
@@ -131,7 +142,15 @@ the same class of error and would otherwise need a second mechanism:
 - **a branch reading a flag nothing ever sets** — the door that never opens
 - a flag set by nothing and read by nothing — dead, and usually a typo's other half
 - a line id with no entry in the localisation table
-- an event with no reachable end
+- an event with no steps, a branch with neither arm, a step with no flag or no line
+
+The flag check is **global across maps**, not per map. A quest that begins in one
+room and pays off in another is the normal case, and a per-map check would report
+every one of them.
+
+The last bullet is deliberately not "an event that cannot terminate". An event is
+a tree with no jumps and no loops, so it always terminates; what can go wrong is
+an event that has nothing to run or a branch that decides nothing.
 
 The first is the one nothing else catches. A flag name misspelled at one of its
 two sites reads perfectly, sets perfectly, and gates something forever. No test

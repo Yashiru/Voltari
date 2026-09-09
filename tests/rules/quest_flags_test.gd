@@ -32,6 +32,25 @@ func test_a_counter_nobody_set_is_zero() -> void:
 	assert_int(VltQuestFlags.new().count("never_written")).is_equal(0)
 
 
+func test_one_kind_alone_is_not_an_empty_set() -> void:
+	# Found by mutation. `is_empty` decides whether a new game's first save has
+	# anything to write, and an `or` in place of the `and` would report a world
+	# holding every switch it has as empty.
+	var switches: VltQuestFlags = VltQuestFlags.new()
+	switches.raise("met_the_elder")
+	assert_bool(switches.is_empty()).override_failure_message(
+		"a set holding a switch reported itself empty"
+	).is_false()
+
+	var counters: VltQuestFlags = VltQuestFlags.new()
+	counters.set_count("badges", 1)
+	assert_bool(counters.is_empty()).override_failure_message(
+		"a set holding a counter reported itself empty"
+	).is_false()
+
+	assert_bool(VltQuestFlags.new().is_empty()).is_true()
+
+
 func test_a_lowered_flag_reads_the_same_as_one_never_set() -> void:
 	# They must be indistinguishable to a reader, or a quest could depend on the
 	# difference between "not yet" and "no longer".

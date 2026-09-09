@@ -105,10 +105,20 @@ rather than a habit:
 
 ### Target
 
-A **ratchet**, measured rather than chosen: the recorded baseline is **85.2%**
-across **every mutation site in the purity-enforced layers** — 254 of 298, not a
+A **ratchet**, measured rather than chosen: the recorded baseline is **80.3%**
+across **every mutation site in the purity-enforced layers** — 368 of 458, not a
 sample — and it may not go down. See decision 0021 for why the target is a
 measurement rather than a number.
+
+> Measured at 366 of 458 on 2026-09-09, plus two mutants killed immediately
+> afterwards and each re-verified by an exhaustive pass over its own file. The
+> population did not change between the two: only tests were added.
+>
+> **The previous baseline was 85.2% across 298 sites and had gone stale.** Three
+> blocks of work — capture, the battle AI and the save format — landed without it
+> being re-measured, so the drop from 85.2% to 80.3% is mostly a comparison that
+> was never valid rather than coverage that was lost. This is the failure mode
+> the paragraph below describes, met in practice.
 
 **It ratchets across like populations.** Adding code adds sites, and a module
 whose survivors are structurally unkillable lowers the percentage while losing
@@ -123,18 +133,33 @@ Run it exhaustively — `--limit 9999`, no `--file`. It takes about fifteen
 minutes and it replaces sampling entirely, so there is little reason to sample
 the whole core any more. Narrow with `--file` only to iterate on one module.
 
-**Do not read the remaining percentage as work left.** All 44 survivors are ones
-no passing test can kill, and they account for exactly three kinds:
+**Most of the remaining percentage is not work left.** Of 90 survivors, 85 are
+ones no passing test can kill, in three kinds:
 
 | Kind | Count | Why it cannot be killed |
 |------|-------|-------------------------|
-| Asserts | 27 | Abstract base methods and preconditions. The original aborts on the very input that would tell the mutant apart, so chasing these means testing that an abstract method is abstract. |
-| Guarded comparisons | 13 | A `>` or `<` immediately under an `if a != b`. The operands are never equal there, so the two forms cannot differ. |
-| Field defaults | 4 | Every constructor overwrites them before anything reads. |
+| Asserts, and the `return` behind them | 60 | Abstract base methods and preconditions. The original aborts on the very input that would tell the mutant apart, so chasing these means testing that an abstract method is abstract. |
+| Guarded or unreachable comparisons | 16 | A `>` or `<` immediately under an `if a != b`, where the operands are never equal; a `?:` fallback for a null nothing produces; the tail after an `assert(false)`. |
+| Field defaults | 9 | Every constructor overwrites them before anything reads. |
 
-So the figure is a **ceiling, not a milestone toward 100%**. A pass at the
-ceiling and a pass that found nothing look identical: read the survivor list,
+So the figure is close to a **ceiling, not a milestone toward 100%**. A pass at
+the ceiling and a pass that found nothing look identical: read the survivor list,
 not the percentage.
+
+**The five that are real**, named so they are worked on rather than rediscovered:
+
+| Site | What no test pins |
+|------|-------------------|
+| `capture.gd:77` | `_floor_sqrt` at 2 — the Newton loop's own boundary |
+| `capture.gd:81` | the Newton step itself; may be an equivalent mutant |
+| `post_battle.gd:244` | a participant marked as fainted |
+| `turn_engine.gd:344` | a `return true` nothing distinguishes |
+| `battle_view.gd:26` | that `UNKNOWN` is a value health can never legitimately take |
+
+The last is the one worth reading twice. A sentinel of `-1` is safe and a sentinel
+of `+1` collides with a real health proportion, and **no test comparing against
+the constant can tell the difference** — only a test asserting the sentinel is
+outside the legitimate range can.
 
 **Sampling misjudges unpredictably, which is why exhaustive is the default.** A
 hundred-mutant sample badly understated `effect_dispatch.gd` — the exhaustive

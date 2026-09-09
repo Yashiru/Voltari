@@ -31,5 +31,7 @@ static func is_known(value: int) -> bool:
 	return value >= 0 and value < DELTAS.size()
 
 
-static func or_north(value: int) -> Direction:
-	return value as Direction if is_known(value) else Direction.NORTH
+## A facing that arrived as a plain integer, or `fallback` when it names no
+## direction. Used where a save, or a value somebody typed, reaches the world.
+static func known_or(value: int, fallback: Direction) -> Direction:
+	return value as Direction if is_known(value) else fallback

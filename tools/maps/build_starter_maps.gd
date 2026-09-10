@@ -19,6 +19,7 @@ const CAVE: String = "res://game/maps/starter_cave.tscn"
 
 const GROUND: int = 0
 const WALL: int = 1
+const ORNAMENT: int = 2
 
 
 func _init() -> void:
@@ -32,9 +33,9 @@ func _init() -> void:
 	quit()
 
 
-## Two items: what you stand on and what stops you. Plain boxes — nothing here is
-## art, and they exist at all because a GridMap will not hold a cell without a
-## mesh library.
+## Three items, one per layer: what you stand on, what stops you, and what is
+## merely there. Plain boxes — nothing here is art, and they exist at all because
+## a GridMap will not hold a cell without a mesh library.
 func _write_tiles() -> void:
 	var library: MeshLibrary = MeshLibrary.new()
 
@@ -50,6 +51,15 @@ func _write_tiles() -> void:
 	library.set_item_name(WALL, "wall")
 	library.set_item_mesh(WALL, wall)
 
+	# Small, and standing on the ground rather than replacing it: decoration that
+	# filled a cell would be indistinguishable from a wall at a glance, which is
+	# the mistake decision 0054 cannot detect.
+	var ornament: BoxMesh = BoxMesh.new()
+	ornament.size = Vector3(0.4, 0.4, 0.4)
+	library.create_item(ORNAMENT)
+	library.set_item_name(ORNAMENT, "ornament")
+	library.set_item_mesh(ORNAMENT, ornament)
+
 	ResourceSaver.save(library, TILES)
 
 
@@ -62,7 +72,11 @@ func _write_field() -> void:
 	var walls: Array[Vector2i] = [
 		Vector2i(4, 0), Vector2i(4, 1), Vector2i(4, 2), Vector2i(2, 2),
 	]
-	var map: VltWorldMap = _map("starter_field", Vector2i(8, 6), walls)
+	# Two ornaments, both on cells you can walk over — including the one you start
+	# on, which is the cheapest way for a real map to say that decoration is not
+	# a rule.
+	var ornaments: Array[Vector2i] = [Vector2i(1, 1), Vector2i(5, 5)]
+	var map: VltWorldMap = _map("starter_field", Vector2i(8, 6), walls, ornaments)
 
 	var zone: VltEncounterZone = VltEncounterZone.new()
 	zone.name = "Meadow"
@@ -152,15 +166,21 @@ func _sign(map: VltWorldMap, node_name: String, at: Vector2i, line: String) -> v
 	_own(map, event, flag)
 
 
-func _map(id: String, size: Vector2i, walls: Array[Vector2i]) -> VltWorldMap:
+func _map(
+	id: String, size: Vector2i, walls: Array[Vector2i], ornaments: Array[Vector2i] = []
+) -> VltWorldMap:
 	var map: VltWorldMap = VltWorldMap.new()
 	map.name = id
 	map.map_id = id
 
 	map.terrain = _grid("Terrain", _filled(size), GROUND)
 	map.blocking = _grid("Blocking", walls, WALL)
+	# Present even when empty, so opening either map in the editor shows the
+	# layer to paint into rather than a field somebody has to fill in first.
+	map.decor = _grid("Decor", ornaments, ORNAMENT)
 	_own(map, map, map.terrain)
 	_own(map, map, map.blocking)
+	_own(map, map, map.decor)
 	return map
 
 

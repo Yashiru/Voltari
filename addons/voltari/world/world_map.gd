@@ -7,10 +7,14 @@ extends Node3D
 ## is exported to a payload — a grid rebuilt from JSON on load would be the same
 ## information in two places with nothing keeping them equal.
 ##
-## **Two layers, not one.** `terrain` says which cells exist; `blocking` says
-## which of them stop you. Walkability is painted rather than inferred from the
-## model standing on the cell, so replacing a rock with a bush is a change of art
-## and not a change of rule.
+## **Three layers, and only two of them are rules.** `terrain` says which cells
+## exist; `blocking` says which of them stop you. Walkability is painted rather
+## than inferred from the model standing on the cell, so replacing a rock with a
+## bush is a change of art and not a change of rule.
+##
+## `decor` says nothing at all. Nothing reads it (decision 0054) — it is there so
+## that a flower can be painted without claiming a cell exists and without
+## stopping anybody.
 ##
 ## A cell with no terrain is off the map, and off the map blocks exactly the way
 ## a wall does. That falls out rather than being special-cased, which is why the
@@ -25,6 +29,10 @@ extends Node3D
 
 ## What stops you. A cell present here is blocked.
 @export var blocking: GridMap
+
+## What is merely there. Read by nobody: this class offers no accessor for it on
+## purpose, so that a rule cannot come to depend on decoration by accident.
+@export var decor: GridMap
 
 ## Cells are (x, z); the overworld is one storey and y is fixed.
 const GROUND: int = 0

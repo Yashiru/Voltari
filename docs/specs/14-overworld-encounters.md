@@ -66,9 +66,24 @@ sees, and what spec 15 will interact with all read it.
 
 ## 3. Maps are painted, not written
 
-A map is a Godot scene, and it carries **two painted layers**. One says which
-cells exist; the other says which of them stop you. Warps and encounter zones are
-nodes placed on top.
+A map is a Godot scene, and it carries **three painted layers**, of which only
+two are rules. One says which cells exist; the second says which of them stop
+you. Warps, encounter zones, events and rest points are nodes placed on top.
+
+The third is **decoration, and nothing reads it** (decision 0054). A flower, a
+crack in the ground, a border: things that must not claim a cell exists and must
+not stop anybody. Without it, every decoration would have to be baked into a
+terrain tile, and the tile library would carry one item per combination of ground
+and ornament.
+
+It is deliberately not exposed by the map's interface. A layer no accessor
+returns is a layer no rule can come to depend on by accident — which is the only
+thing keeping "merely there" from drifting into meaning something.
+
+Nothing validates it either. Decoration painted off the edge of the map is a
+mistake, and it is a *visual* one: the reviewer who would catch it is the person
+looking at the map, which is section 7's whole criterion for what gets checked
+mechanically and what does not.
 
 Walkability is authored rather than inferred from the model standing on a cell,
 which keeps art and rule apart: replacing a rock with a bush becomes a change of

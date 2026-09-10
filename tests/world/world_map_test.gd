@@ -2,9 +2,10 @@ extends GdUnitTestSuite
 
 ## What a map knows about itself (spec 14, section 3).
 ##
-## Two painted layers: terrain says which cells exist, blocking says which of
-## them stop you. Keeping them apart is what makes replacing a rock with a bush
-## a change of art rather than a change of rule, so it is what these tests pin.
+## Three painted layers, of which two are rules: terrain says which cells exist,
+## blocking says which of them stop you, and decoration says nothing. Keeping
+## them apart is what makes replacing a rock with a bush a change of art rather
+## than a change of rule, so it is what these tests pin.
 
 const GRASS: String = "meadow"
 
@@ -112,3 +113,38 @@ func test_a_warp_with_no_destination_is_incomplete() -> void:
 	)
 	assert_bool(warp.is_complete()).is_false()
 	warp.free()
+
+
+# --- decoration --------------------------------------------------------------
+
+
+func test_decoration_neither_creates_a_cell_nor_blocks_one() -> void:
+	# The whole content of decision 0054, and the only thing there is to assert
+	# about a layer nothing reads.
+	var decorated: VltWorldMap = auto_free(
+		VltFixtureMap.map(
+			"garden",
+			VltFixtureMap.filled(Vector2i(3, 3)),
+			[] as Array[Vector2i],
+			[Vector2i(1, 1), Vector2i(9, 9)] as Array[Vector2i]
+		)
+	)
+
+	assert_bool(decorated.is_walkable(Vector2i(1, 1))).override_failure_message(
+		"a flower stopped somebody"
+	).is_true()
+	assert_bool(decorated.is_walkable(Vector2i(9, 9))).override_failure_message(
+		"decoration painted off the map made a cell exist"
+	).is_false()
+
+
+func test_a_map_offers_no_way_to_ask_about_decoration() -> void:
+	# The guard on the decision rather than on the behaviour. An accessor is how
+	# "merely there" becomes something a rule reads, and it cannot appear by
+	# accident if its absence is asserted.
+	var map: VltWorldMap = _map()
+
+	for method: String in ["decor_at", "has_decoration", "decorations", "decor_cells"]:
+		assert_bool(map.has_method(method)).override_failure_message(
+			"VltWorldMap grew %s(), which lets a rule read decoration" % method
+		).is_false()

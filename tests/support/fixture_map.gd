@@ -42,15 +42,23 @@ static func filled(size: Vector2i) -> Array[Vector2i]:
 
 
 static func map(
-	id: String, walkable: Array[Vector2i], blocked: Array[Vector2i] = []
+	id: String,
+	walkable: Array[Vector2i],
+	blocked: Array[Vector2i] = [],
+	decorated: Array[Vector2i] = []
 ) -> VltWorldMap:
 	var built: VltWorldMap = VltWorldMap.new()
 	built.map_id = id
 
 	built.terrain = grid(walkable)
 	built.blocking = grid(blocked)
+	# Always present, usually empty. A layer that only appears in the tests that
+	# are about it would leave every other test proving nothing about a map that
+	# has one (decision 0054).
+	built.decor = grid(decorated)
 	built.add_child(built.terrain)
 	built.add_child(built.blocking)
+	built.add_child(built.decor)
 	return built
 
 

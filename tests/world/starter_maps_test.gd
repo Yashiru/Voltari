@@ -52,6 +52,10 @@ func test_they_survived_being_packed() -> void:
 		assert_object(map.terrain).override_failure_message(
 			"map \"%s\" lost its terrain layer" % map.map_id
 		).is_not_null()
+		assert_object(map.decor).override_failure_message(
+			"map \"%s\" lost its decoration layer, so there is nowhere to paint one"
+			% map.map_id
+		).is_not_null()
 		assert_bool(map.is_walkable(Vector2i(1, 1))).override_failure_message(
 			"map \"%s\" has no cells at all" % map.map_id
 		).is_true()

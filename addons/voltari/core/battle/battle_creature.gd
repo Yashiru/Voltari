@@ -11,15 +11,6 @@ extends RefCounted
 ## level, IVs, EVs or nature, and stat stages are a separate multiplier applied
 ## at use, so a stored spread cannot go stale.
 
-enum Status {
-	NONE,
-	BURN,
-	FREEZE,
-	PARALYSIS,
-	POISON,
-	TOXIC,
-	SLEEP,
-}
 
 var species_id: String = ""
 var types: PackedStringArray = PackedStringArray()
@@ -38,7 +29,6 @@ var nature_lowered: int = VltStats.NO_STAT
 
 var stats: PackedInt32Array = PackedInt32Array()
 var current_hp: int = 0
-var status: Status = Status.NONE
 var moves: Array[VltMoveSlot] = []
 
 ## Creature-scoped effects. They follow the creature out of the field, and out
@@ -82,7 +72,6 @@ func clone() -> VltBattleCreature:
 	copy.nature_lowered = nature_lowered
 	copy.stats = stats.duplicate()
 	copy.current_hp = current_hp
-	copy.status = status
 
 	copy.moves = []
 	for slot: VltMoveSlot in moves:
@@ -115,7 +104,6 @@ func to_dict() -> Dictionary:
 		"nature_lowered": nature_lowered,
 		"stats": stats,
 		"current_hp": current_hp,
-		"status": status,
 		"moves": serialised_moves,
 		"effects": serialised_effects,
 	}
@@ -134,7 +122,6 @@ static func from_dict(data: Dictionary) -> VltBattleCreature:
 	creature.nature_lowered = data["nature_lowered"]
 	creature.stats = PackedInt32Array(data["stats"])
 	creature.current_hp = data["current_hp"]
-	creature.status = data["status"]
 
 	creature.moves = []
 	for entry: Variant in data["moves"]:

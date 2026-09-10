@@ -494,3 +494,70 @@ func _collection_order(state: VltBattleState) -> PackedStringArray:
 		var where: String = str(active.owner) if active.owner != null else "field"
 		order.append("%s@%s" % [active.instance.definition_id, where])
 	return order
+
+
+# --- one major status at a time ----------------------------------------------
+
+
+func _second_status() -> VltEffectDefinition:
+	# A stand-in for freeze or sleep. Defined here because the library has one
+	# status so far, and the rule is about the second.
+	return VltEffectDefinition.create(
+		"deep_freeze", VltEffectDefinition.Scope.CREATURE
+	).as_major_status()
+
+
+func test_a_second_major_status_is_refused() -> void:
+	# Gen 4 allows exactly one. Enforced in the dispatch rather than in each
+	# status effect, because a rule every effect has to remember is a rule one
+	# of them will forget.
+	var registry: VltEffectRegistry = _own_registry()
+	registry.register(_second_status())
+
+	var state: VltBattleState = _battle()
+	var at: VltSlotRef = VltSlotRef.at(0, 0)
+
+	assert_bool(VltEffectDispatch.apply(state, registry, VltBurn.ID, at, at)).is_true()
+	assert_bool(
+		VltEffectDispatch.apply(state, registry, "deep_freeze", at, at)
+	).override_failure_message("a second major status was applied over the first").is_false()
+
+	assert_str(VltEffectDispatch.major_status(state, registry, at)).is_equal(VltBurn.ID)
+
+
+func test_a_second_status_fails_rather_than_replacing() -> void:
+	# The distinction matters: replacing would silently cure the first, which
+	# reads as a bug to a player and to nothing else.
+	var registry: VltEffectRegistry = _own_registry()
+	registry.register(_second_status())
+
+	var state: VltBattleState = _battle()
+	var at: VltSlotRef = VltSlotRef.at(0, 0)
+	VltEffectDispatch.apply(state, registry, VltBurn.ID, at, at)
+	VltEffectDispatch.apply(state, registry, "deep_freeze", at, at)
+
+	assert_int(state.creature_at(at).effects.size()).override_failure_message(
+		"the refused status still landed somewhere"
+	).is_equal(1)
+
+
+func test_an_ordinary_effect_is_unaffected_by_the_rule() -> void:
+	# Reflect is not a status. A rule that caught everything would make a
+	# burned creature unable to hold anything else at all.
+	var registry: VltEffectRegistry = _own_registry()
+	var state: VltBattleState = _battle()
+	var at: VltSlotRef = VltSlotRef.at(0, 0)
+
+	VltEffectDispatch.apply(state, registry, VltBurn.ID, at, at)
+	assert_bool(
+		VltEffectDispatch.apply(state, registry, VltReflect.ID, at, at)
+	).is_true()
+
+
+func test_a_position_with_no_status_reports_none() -> void:
+	var registry: VltEffectRegistry = _own_registry()
+	var state: VltBattleState = _battle()
+
+	assert_str(
+		VltEffectDispatch.major_status(state, registry, VltSlotRef.at(0, 0))
+	).is_empty()

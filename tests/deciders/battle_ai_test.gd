@@ -73,6 +73,13 @@ func _creature(species: String, move_ids: Array[String]) -> VltBattleCreature:
 	return creature
 
 
+## The view needs one to tell a major status from any other effect.
+func _registry() -> VltEffectRegistry:
+	var registry: VltEffectRegistry = VltEffectRegistry.new()
+	registry.register(VltBurn.define())
+	return registry
+
+
 func _battle(mine: Array[String], defender: String = "defender") -> VltBattleState:
 	var state: VltBattleState = VltBattleState.create(1)
 	state.sides[OURS].party.append(_creature("attacker", mine))
@@ -89,7 +96,7 @@ func _choose(
 	decider: VltPolicyDecider = VltScriptedPolicyDecider.new()
 ) -> VltCommand:
 	return VltBattleAi.choose(
-		VltBattleView.of(state, OURS), 0, _moves, _species, _chart, difficulty, decider
+		VltBattleView.of(state, _registry(), OURS), 0, _moves, _species, _chart, difficulty, decider
 	)
 
 
@@ -273,7 +280,7 @@ func test_the_estimate_and_the_engine_never_forked() -> void:
 	var ids: Array[String] = [STRONG]
 	var state: VltBattleState = _battle(ids)
 
-	var view: VltBattleView = VltBattleView.of(state, OURS)
+	var view: VltBattleView = VltBattleView.of(state, _registry(), OURS)
 	var predicted: int = VltBattleAi._score(
 		view.mine[0], view.theirs[0], _moves[STRONG], _species, _chart,
 		VltBattleAi.expert()

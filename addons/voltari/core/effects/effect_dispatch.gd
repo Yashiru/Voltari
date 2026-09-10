@@ -200,6 +200,23 @@ static func run_triggers(
 		trigger.run(_context(state, active, null, null, null, decider, log))
 
 
+## The major status a position carries, or empty. The one place that answers
+## "is this creature burned" — the creature itself no longer holds a field for
+## it, because two sources for one fact is one too many.
+static func major_status(
+	state: VltBattleState, registry: VltEffectRegistry, at: VltSlotRef
+) -> String:
+	for scope: VltEffectDefinition.Scope in [
+		VltEffectDefinition.Scope.SLOT, VltEffectDefinition.Scope.CREATURE
+	]:
+		if not can_hold(state, scope, at):
+			continue
+		for instance: VltEffectInstance in container_for(state, scope, at):
+			if registry.definition(instance.definition_id).is_major_status:
+				return instance.definition_id
+	return ""
+
+
 ## Applies an effect, honouring its stacking rule. Returns whether anything
 ## changed — a UNIQUE effect reapplied is a no-op, not an error.
 ##
@@ -226,6 +243,14 @@ static func apply(
 		if instance.definition_id == id:
 			existing = instance
 			break
+
+	# Gen 4 allows one major status at a time, and a second one simply fails —
+	# it does not replace the first. Checked here rather than in each status
+	# effect, because a rule every effect has to remember is a rule one of them
+	# will forget.
+	if existing == null and definition.is_major_status:
+		if major_status(state, registry, at) != "":
+			return false
 
 	if existing != null:
 		match definition.stacking:

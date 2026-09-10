@@ -75,14 +75,18 @@ func test_leaving_a_slot_clears_slot_scoped_state_but_not_creature_scoped() -> v
 	var reference: VltSlotRef = VltSlotRef.at(0, 0)
 	var slot: VltSlot = state.slot_at(reference)
 	var creature: VltBattleCreature = state.creature_at(reference)
+	var registry: VltEffectRegistry = VltEffectRegistry.new()
+	registry.register(VltBurn.define())
 
 	slot.set_stage(VltStats.Stat.ATK, 4)
-	creature.status = VltBattleCreature.Status.BURN
+	VltEffectDispatch.apply(state, registry, VltBurn.ID, reference, reference)
 
 	slot.occupy(1)
 
+	# The stages belong to the position and are cleared; the burn is
+	# creature-scoped and leaves with the creature it is on.
 	assert_int(slot.stat_stages[VltStats.Stat.ATK]).is_equal(0)
-	assert_int(state.sides[0].party[0].status).is_equal(VltBattleCreature.Status.BURN)
+	assert_int(state.sides[0].party[0].effects.size()).is_equal(1)
 
 
 func test_stat_stages_are_bounded() -> void:

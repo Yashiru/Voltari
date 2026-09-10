@@ -1,9 +1,14 @@
 #!/usr/bin/env node
-// Purity lint for the Voltari simulation core.
+// Purity lint for the Voltari simulation core, and one rule beyond it.
 //
 // The core runs inside Godot but must use only the language, never the engine.
 // See docs/architecture/layers.md, "Purity rule". A rule that is not enforced by
 // CI decays, so this fails the build instead of relying on review.
+//
+// The same reasoning covers a second, unrelated rule: the battle UI may not
+// reference the battle state (decision 0049). Different directory, different
+// list, one mechanism — because both are claims about what a file may mention,
+// and that is precisely what review is worst at.
 //
 // Usage: node tools/purity-lint/purity-lint.mjs [rootDir]
 
@@ -50,12 +55,41 @@ const FORBIDDEN = [
   { pattern: /\bpreload\s*\(/, reason: "file I/O; data is injected by a loader" },
 ];
 
-function lintFile(root, path) {
+// A second rule, over a different directory and for a different reason.
+//
+// Decision 0049: everything the player sees of a battle comes from the log. The
+// state is fully typed and sitting right there, and a health bar is two lines
+// from it — but reading it walks around the per-side filter without anybody
+// deciding to. It would work perfectly in single player and be wrong the day a
+// second player connected.
+//
+// The rule names the *state* and not the creatures in it, and the difference is
+// the whole point: a state is reach — from one you can read the opponent — while
+// a creature handed in is your own party, which the log correctly withholds
+// because it was never a battle event. Forbidding both caught the reader on its
+// first run, and the rule was wrong rather than the code.
+//
+// So the rule is about what may be *referenced*, not about behaviour, which is
+// exactly the kind of thing a lint can hold and a review cannot.
+const SEALED = [
+  {
+    dir: "game/presentation/battle",
+    rules: [
+      {
+        pattern: /\bVltBattleState\b/,
+        reason: "the battle UI reads the log, never the state (decision 0049)",
+      },
+    ],
+    why: "docs/decisions/0049-the-ui-reads-the-log-and-nothing-else.md",
+  },
+];
+
+function lintFile(root, path, rules) {
   const violations = [];
   const lines = stripCommentsAndStrings(readFileSync(path, "utf8")).split("\n");
 
   lines.forEach((line, index) => {
-    for (const rule of FORBIDDEN) {
+    for (const rule of rules) {
       const match = rule.pattern.exec(line);
       if (match !== null) {
         violations.push({
@@ -81,7 +115,16 @@ function main() {
     if (!existsSync(absolute)) continue;
     for (const path of collectScripts(absolute, readdirSync, statSync, join)) {
       scanned++;
-      violations.push(...lintFile(root, path));
+      violations.push(...lintFile(root, path, FORBIDDEN));
+    }
+  }
+
+  for (const sealed of SEALED) {
+    const absolute = join(root, sealed.dir);
+    if (!existsSync(absolute)) continue;
+    for (const path of collectScripts(absolute, readdirSync, statSync, join)) {
+      scanned++;
+      violations.push(...lintFile(root, path, sealed.rules));
     }
   }
 
@@ -90,7 +133,8 @@ function main() {
     for (const v of violations) {
       console.error(`  ${v.file}:${v.line}  ${v.symbol}  — ${v.reason}`);
     }
-    console.error("\nSee docs/architecture/layers.md, \"Purity rule\".");
+    console.error("\nSee docs/architecture/layers.md, \"Purity rule\",");
+    console.error("and docs/decisions/0049-the-ui-reads-the-log-and-nothing-else.md.");
     process.exit(1);
   }
 

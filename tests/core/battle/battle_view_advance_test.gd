@@ -303,3 +303,125 @@ func test_the_same_holds_from_the_other_seat() -> void:
 	assert_str(_describe(replayed)).is_equal(
 		_describe(VltBattleView.of(state, registry, THEIRS))
 	)
+
+
+# --- events the view should not trust ----------------------------------------
+#
+# A view is advanced by whatever arrives. A filtered log is built by the engine
+# and can be trusted; a saved one, a replayed one, or one from a build that
+# knew more cannot. Every guard here was a mutation survivor: the code was
+# right and nothing said so.
+
+
+func _advance(event: VltLogEvent) -> VltBattleView:
+	var view: VltBattleView = _view(_battle())
+	view.advance(event, _registry())
+	return view
+
+
+func test_a_stat_change_for_a_slot_that_does_not_exist_is_ignored() -> void:
+	# Doubles events reaching a singles view. Without the null check this reads
+	# a combatant off the end of the row.
+	var view: VltBattleView = _advance(
+		VltLogStatChange.create(VltSlotRef.at(THEIRS, 3), VltStats.Stat.ATK, 2, 2)
+	)
+	assert_int(view.theirs[0].stat_stages[VltStats.Stat.ATK]).is_equal(0)
+
+
+func test_a_stat_index_past_the_stats_is_ignored() -> void:
+	# One past the end is the index a stat enum grows into, and writing there
+	# would corrupt whatever the array is next to.
+	var view: VltBattleView = _advance(
+		VltLogStatChange.create(VltSlotRef.at(THEIRS, 0), VltStats.STAT_COUNT, 2, 2)
+	)
+	assert_int(view.theirs[0].stat_stages.size()).is_equal(VltStats.STAT_COUNT)
+
+
+func test_a_switch_naming_a_party_member_nobody_has_is_ignored() -> void:
+	# The event says which party member arrived; a view built beside a shorter
+	# party would read past its end.
+	var state: VltBattleState = _battle()
+	var view: VltBattleView = _view(state)
+
+	# Exactly one past the last, not far past it: `<` and `<=` only disagree at
+	# the boundary, so a wild index would pass either way and prove nothing.
+	view.advance(
+		VltLogSwitchIn.create(
+			VltSlotRef.at(OURS, 0), state.sides[OURS].party.size(), "species_0_b", 5, 100, 100
+		),
+		_registry(),
+		{},
+		state.sides[OURS].party
+	)
+
+	assert_str(view.mine[0].species_id).is_equal("species_0_b")
+	assert_bool(view.mine[0].moves.is_empty()).override_failure_message(
+		"a party index nobody has produced moves from somewhere"
+	).is_true()
+
+
+func test_a_heal_to_nothing_does_not_bring_anyone_back() -> void:
+	# Health of zero is not health. Reviving on a heal that healed nothing is
+	# the kind of thing that reads as a flicker and is really a wrong rule.
+	var view: VltBattleView = _view(_battle())
+	var at: VltSlotRef = VltSlotRef.at(THEIRS, 0)
+
+	view.advance(VltLogFaint.create(at), _registry())
+	view.advance(VltLogHeal.create(at, 0, 0, 175), _registry())
+
+	assert_bool(view.theirs[0].fainted).override_failure_message(
+		"a heal of nothing stood a fainted creature back up"
+	).is_true()
+
+
+func test_an_effect_nobody_registered_is_ignored() -> void:
+	# A save from a build with a mechanic this one has not got. Asking the
+	# registry about it would abort rather than shrug.
+	var state: VltBattleState = _battle()
+	var view: VltBattleView = _view(state)
+	var at: VltSlotRef = VltSlotRef.at(THEIRS, 0)
+
+	view.advance(
+		VltLogEffectChanged.removal("a_mechanic_from_later", VltEffectDefinition.Scope.CREATURE, at),
+		_registry()
+	)
+
+	assert_str(view.theirs[0].status_id).is_empty()
+
+
+func test_a_move_index_past_the_moveset_is_ignored() -> void:
+	# Your own side reports PP by slot. An index nobody has would write past the
+	# end of a creature's four.
+	var view: VltBattleView = _view(_battle())
+	var at: VltSlotRef = VltSlotRef.at(OURS, 0)
+
+	# The first index the creature has not got, for the same reason.
+	view.advance(
+		VltLogMoveUsed.create(
+			at, MOVE, view.mine[0].moves.size(), 3, VltSlotRef.at(THEIRS, 0)
+		),
+		_registry()
+	)
+
+	assert_int(view.mine[0].moves.size()).is_equal(1)
+	assert_int(view.mine[0].moves[0].pp).override_failure_message(
+		"an index nobody has spent somebody's PP"
+	).is_equal(10)
+
+
+func test_the_unknown_sentinel_is_not_a_value_health_can_take() -> void:
+	# Named in spec 05's survivor list and left there. A sentinel of -1 is safe
+	# and one of +1 collides with a real health proportion — and no test that
+	# compares against the constant can tell the two apart, because it moves too.
+	assert_int(VltBattleView.Combatant.UNKNOWN).override_failure_message(
+		"the sentinel is inside the range it is supposed to be outside"
+	).is_less(0)
+
+	var seat: VltBattleView.Combatant = VltBattleView.Combatant.new()
+	seat.current_hp = VltBattleView.Combatant.UNKNOWN
+	assert_bool(seat.knows_exact_health()).is_false()
+
+	seat.current_hp = 0
+	assert_bool(seat.knows_exact_health()).override_failure_message(
+		"a creature on nothing was reported as not knowing its own health"
+	).is_true()

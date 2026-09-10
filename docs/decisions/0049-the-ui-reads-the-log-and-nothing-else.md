@@ -16,8 +16,18 @@ health bar is two lines from it and a dozen from the log.
 ## Decision
 
 **Everything the player sees of a battle is derived from the log.** Nothing under
-the reader may reference the battle state classes at all, and that is enforced by
-a lint over its directory rather than by intent.
+the reader may reference `VltBattleState`, and that is enforced by a lint over
+its directory rather than by intent.
+
+> **Narrowed on 2026-09-10, while building it.** This first said "the battle
+> state classes at all", and the lint caught the reader on its first run — it
+> holds the viewpoint's own party, because the log does not announce your own
+> creature's moves and correctly does not: they were never a battle event.
+>
+> The rule names the state and not the creatures in it, and the difference is the
+> whole point. **A state is reach**: from one you can read the opponent. A
+> creature handed in is your own, and passing it bypasses no filter. The wording
+> over-reached; the purpose is unchanged.
 
 ## Why the easy path is the wrong one
 

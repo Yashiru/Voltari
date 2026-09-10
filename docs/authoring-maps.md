@@ -50,6 +50,19 @@ Renaming a model file makes a new item and leaves the old one behind. Delete the
 stale item by hand if it bothers you — but understand that its id then falls out
 of use permanently, which is the intended outcome.
 
+### Switching a layer to a different library repaints it
+
+Ids are stable *within* one library, and they mean nothing across two. A
+`GridMap` stores an id per cell, so pointing an already-painted layer at another
+library keeps every cell exactly where it is and changes what each one **is** —
+item 0 of the old palette becomes item 0 of the new one, everywhere at once.
+
+There is no warning and nothing to undo afterwards. Either start from an empty
+layer, or clear it before you change `mesh_library`.
+
+The starter maps are painted from `game/maps/tiles.meshlib` — the three grey
+boxes — so this applies to them the moment you reach for a real palette.
+
 ### What a clone sees
 
 The library is quarantined and the maps are committed, so a fresh clone opens a

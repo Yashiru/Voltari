@@ -69,6 +69,12 @@ var _awards: Array[VltPostBattle.Award] = []
 var _offers: Array[Array] = []
 var _won: bool = false
 
+## Slots the engine is waiting on. A turn suspends when somebody falls and a
+## replacement has to be chosen (decision 0012), and the caller drives it — so
+## this is what "the caller" means.
+var _awaiting: Array[VltSlotRef] = []
+var _replacements: Array[VltCommand] = []
+
 var _message: Label
 var _menu: VBoxContainer
 var _busy: bool = false
@@ -191,18 +197,118 @@ func _take_turn_with(mine: VltCommand) -> void:
 
 	var commands: Array[VltCommand] = [mine, _foe_command()]
 
+	await _resolve(commands)
+
+
+## Runs a turn and whatever it asks for afterwards.
+##
+## A turn does not always finish: when somebody falls, resolution suspends and
+## says which slots need a replacement (decision 0012). The caller supplies them
+## and calls again — so this loop is the caller, and it exists here rather than
+## anywhere lower because choosing is the player's, not the engine's.
+func _resolve(commands: Array[VltCommand]) -> void:
 	var outcome: VltTurnOutcome = _engine.resolve(_state, commands, _decider)
+
+	if outcome.status == VltTurnOutcome.Status.REJECTED:
+		# The engine refused the command rather than playing it. Reported rather
+		# than swallowed: it means the screen offered something impossible.
+		push_warning("the engine refused a turn: %s" % outcome.rejection)
+		_busy = false
+		_offer_moves()
+		return
+
 	_state = outcome.state
 	for event: VltLogEvent in outcome.log.events:
 		_history.append(event)
-
 	await _reader.play(outcome.log.for_viewer(PLAYER).events)
+
+	if outcome.status == VltTurnOutcome.Status.NEEDS_INPUT:
+		_awaiting = outcome.request_slots.duplicate()
+		_replacements = []
+		_ask_replacement()
+		return
 
 	_busy = false
 	if _finished():
 		_settle()
 		return
 	_offer_moves()
+
+
+## Puts the replacement question, or answers the turn once every slot has one.
+##
+## The other side answers itself. A player waiting for an opponent to choose is
+## a player waiting for nothing.
+func _ask_replacement() -> void:
+	while not _awaiting.is_empty() and _awaiting[0].side != PLAYER:
+		var theirs: VltSlotRef = _awaiting.pop_front()
+		_replacements.append(VltCommand.switch_to(theirs, _first_ready(theirs.side)))
+
+	if _awaiting.is_empty():
+		await _resolve(_replacements)
+		return
+
+	var mine: VltSlotRef = _awaiting[0]
+	_message.text = "Who takes over?"
+	_show_party(mine, true)
+
+
+## Chooses a replacement, or switches voluntarily when nothing was asked for.
+func choose_creature(party_index: int) -> void:
+	if not _awaiting.is_empty():
+		var mine: VltSlotRef = _awaiting.pop_front()
+		_replacements.append(VltCommand.switch_to(mine, party_index))
+		_ask_replacement()
+		return
+
+	await _take_turn_with(VltCommand.switch_to(VltSlotRef.at(PLAYER, 0), party_index))
+
+
+## The party indices this side could send out: not fainted, not already on the
+## field. Public because a menu is not the only thing that will ask.
+func ready_creatures(side: int = PLAYER) -> PackedInt32Array:
+	var ready: PackedInt32Array = PackedInt32Array()
+	var out: int = _state.slot_at(VltSlotRef.at(side, 0)).occupant
+
+	for index: int in range(_state.sides[side].party.size()):
+		var creature: VltBattleCreature = _state.sides[side].party[index]
+		if index != out and not creature.is_fainted():
+			ready.append(index)
+	return ready
+
+
+func _first_ready(side: int) -> int:
+	var ready: PackedInt32Array = ready_creatures(side)
+	return 0 if ready.is_empty() else ready[0]
+
+
+## Slots waiting on this side. Empty when nothing was asked for.
+func awaiting_replacement() -> bool:
+	return not _awaiting.is_empty()
+
+
+func _show_party(_at: VltSlotRef, forced: bool) -> void:
+	for child: Node in _menu.get_children():
+		child.queue_free()
+
+	for index: int in ready_creatures(PLAYER):
+		var creature: VltBattleCreature = _state.sides[PLAYER].party[index]
+		var button: Button = Button.new()
+		button.text = "%s   %d/%d" % [
+			tr(BattleLines.species_key(creature.species_id)),
+			creature.current_hp,
+			creature.max_hp(),
+		]
+		button.pressed.connect(choose_creature.bind(index))
+		_menu.add_child(button)
+
+	if not forced:
+		var back: Button = Button.new()
+		back.text = "back"
+		back.pressed.connect(_offer_moves)
+		_menu.add_child(back)
+
+	_menu.show()
 
 
 ## The AI plays the other side, against the same filtered view a player would
@@ -242,7 +348,7 @@ func _take_captured() -> void:
 			continue
 
 		var side: int = result.target.side
-		if result.party_index < _state.sides[side].party.size():
+		if side != PLAYER and result.party_index < _state.sides[side].party.size():
 			_state.sides[PLAYER].party.append(
 				_state.sides[side].party[result.party_index]
 			)
@@ -395,13 +501,31 @@ func awards() -> Array[VltPostBattle.Award]:
 	return _awards
 
 
+## Two different endings, and collapsing them is a mistake worth naming.
+##
+## A side **runs out**: nobody in its party is still standing. With one creature
+## each that is the same sentence as "the active slot is empty", which is why
+## reading the slot was right by accident until a party had two.
+##
+## Or somebody is **caught**, which ends the battle where it stands (spec 11,
+## section 7) with the other side's party perfectly intact.
 func _finished() -> bool:
-	return not _standing(PLAYER) or not _standing(FOE)
+	return _capture_landed() or not _standing(PLAYER) or not _standing(FOE)
+
+
+func _capture_landed() -> bool:
+	for event: VltLogEvent in _history.events:
+		var result: VltLogCaptureResult = event as VltLogCaptureResult
+		if result != null and result.captured:
+			return true
+	return false
 
 
 func _standing(side: int) -> bool:
-	var creature: VltBattleCreature = _state.creature_at(VltSlotRef.at(side, 0))
-	return creature != null and not creature.is_fainted()
+	for creature: VltBattleCreature in _state.sides[side].party:
+		if not creature.is_fainted():
+			return true
+	return false
 
 
 # --- what it looks like ------------------------------------------------------
@@ -462,6 +586,12 @@ func _offer_moves() -> void:
 		button.disabled = slot.pp <= 0
 		button.pressed.connect(_take_turn.bind(index))
 		_menu.add_child(button)
+
+	if not ready_creatures(PLAYER).is_empty():
+		var swap: Button = Button.new()
+		swap.text = "switch"
+		swap.pressed.connect(_show_party.bind(VltSlotRef.at(PLAYER, 0), false))
+		_menu.add_child(swap)
 
 	for ball_id: String in _bag_order():
 		var throw: Button = Button.new()

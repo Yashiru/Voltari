@@ -363,3 +363,80 @@ func test_a_caught_creature_joins_the_party_that_threw() -> void:
 	assert_int(party.size()).override_failure_message(
 		"the creature was caught and went nowhere"
 	).is_equal(2)
+
+
+# --- switching ---------------------------------------------------------------
+
+
+func _two_against_one() -> BattleScreen:
+	var library: ContentLibrary = ContentLibrary.load_all()
+	var species: VltSpecies = library.species["placeholder_base"]
+	var curve: PackedInt32Array = library.curves[species.growth_rate]
+
+	var party: Array[VltBattleCreature] = []
+	for level: int in [16, 14]:
+		party.append(
+			VltBirth.at_level(
+				species, level, library.natures, library.moves, curve,
+				VltSeededGenerationDecider.new(level)
+			)
+		)
+
+	var packed: PackedScene = load(SCREEN)
+	var screen: BattleScreen = auto_free(packed.instantiate() as BattleScreen)
+	screen.incoming_player = party
+	screen.incoming_foe = [
+		VltBirth.at_level(
+			species, 5, library.natures, library.moves, curve,
+			VltSeededGenerationDecider.new(5)
+		)
+	] as Array[VltBattleCreature]
+	add_child(screen)
+	screen.skip(true)
+	return screen
+
+
+func test_a_benched_creature_can_be_sent_out() -> void:
+	var screen: BattleScreen = _two_against_one()
+	assert_array(screen.ready_creatures()).is_equal([1])
+
+	await screen.choose_creature(1)
+
+	assert_array(screen.ready_creatures()).override_failure_message(
+		"the two never traded places"
+	).is_equal([0])
+
+
+func test_a_switch_costs_the_turn() -> void:
+	# It is a command like any other, so the opponent acts while you swap.
+	var screen: BattleScreen = _two_against_one()
+	var before: int = screen.view().turn
+
+	await screen.choose_creature(1)
+
+	assert_int(screen.view().turn).is_greater(before)
+
+
+func test_a_fainted_creature_is_not_offered() -> void:
+	var screen: BattleScreen = _two_against_one()
+	screen._state.sides[0].party[1].current_hp = 0
+
+	assert_array(screen.ready_creatures()).override_failure_message(
+		"a fainted creature was offered as a replacement"
+	).is_empty()
+
+
+func test_a_battle_ends_when_a_side_has_nobody_left() -> void:
+	# With one creature each this was right by accident: an empty active slot
+	# and an empty party are the same sentence until a party has two.
+	var screen: BattleScreen = _two_against_one()
+	var ended: Array[bool] = []
+	screen.ended.connect(func(won: bool) -> void: ended.append(won))
+
+	screen._state.sides[0].party[0].current_hp = 0
+	assert_bool(screen._finished()).override_failure_message(
+		"one creature fell and the battle called itself over"
+	).is_false()
+
+	screen._state.sides[0].party[1].current_hp = 0
+	assert_bool(screen._finished()).is_true()

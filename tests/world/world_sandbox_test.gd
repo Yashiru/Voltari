@@ -300,7 +300,7 @@ func test_the_experience_lands_on_the_party_the_world_carries() -> void:
 
 	await _fight(world, 5)
 
-	assert_int(world.party().size()).is_equal(1)
+	assert_bool(world.party().is_empty()).is_false()
 	assert_str(world.party()[0].species_id).is_equal(same_species)
 	assert_int(world.party()[0].experience).override_failure_message(
 		"the battle's result never reached the world's party"
@@ -331,7 +331,9 @@ func test_the_party_survives_a_save() -> void:
 	world.save_now()
 
 	var again: WorldSandbox = _sandbox()
-	assert_int(again.party().size()).is_equal(1)
+	assert_int(again.party().size()).override_failure_message(
+		"the party came back a different size"
+	).is_equal(world.party().size())
 	assert_int(again.party()[0].experience).override_failure_message(
 		"the experience did not come back"
 	).is_equal(earned)

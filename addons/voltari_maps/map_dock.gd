@@ -18,6 +18,15 @@ extends VBoxContainer
 const MAPS: String = "res://game/maps"
 const ENCOUNTERS: String = "res://content/generated/encounters"
 
+## Where models are read from, and where the palette built from them is written.
+##
+## Both default inside the quarantine (decision 0027) because that is where
+## third-party models live and a library built from them is derived from them. A
+## clone gets the maps and not the palette — a `GridMap` keeps its cells with no
+## library at all, so the world stays walkable and turns invisible.
+const MODELS: String = "res://game/assets/placeholders/brawl_arena"
+const LIBRARY: String = "res://game/assets/placeholders/brawl_arena.meshlib"
+
 ## Where a new game begins. Reachability is the one check that needs a fact no
 ## map carries, and it is skipped rather than guessed at when this is empty
 ## (spec 14, section 7).
@@ -25,6 +34,8 @@ const ENTRY: String = "starter_field"
 
 var _folder: LineEdit = null
 var _entry: LineEdit = null
+var _models: LineEdit = null
+var _library: LineEdit = null
 var _report: RichTextLabel = null
 
 
@@ -39,6 +50,16 @@ func _init() -> void:
 	check.text = "Validate maps"
 	check.pressed.connect(_on_validate_pressed)
 	add_child(check)
+
+	add_child(HSeparator.new())
+
+	_models = _field("Models folder", MODELS)
+	_library = _field("Tile library", LIBRARY)
+
+	var build: Button = Button.new()
+	build.text = "Build tile library"
+	build.pressed.connect(_on_build_pressed)
+	add_child(build)
 
 	_report = RichTextLabel.new()
 	_report.bbcode_enabled = true
@@ -57,6 +78,14 @@ func folder_field() -> LineEdit:
 
 func entry_field() -> LineEdit:
 	return _entry
+
+
+func models_field() -> LineEdit:
+	return _models
+
+
+func library_field() -> LineEdit:
+	return _library
 
 
 func _field(label: String, value: String) -> LineEdit:
@@ -152,6 +181,50 @@ func _show(
 
 	for path: String in unreadable:
 		lines.append("[color=gray]not a map, skipped: %s[/color]" % path)
+
+	_say("\n".join(lines))
+
+
+func _on_build_pressed() -> void:
+	build_library()
+
+
+## Reads the models folder into the palette a GridMap paints from.
+##
+## Safe to run again, which is the point: item ids never move, so re-exporting a
+## model or adding one to the folder cannot rewrite a map that was painted with
+## the old library.
+func build_library() -> VltTileLibrary.Report:
+	var report: VltTileLibrary.Report = VltTileLibrary.build(_models.text, _library.text)
+	_show_build(report)
+	return report
+
+
+func _show_build(report: VltTileLibrary.Report) -> void:
+	var lines: PackedStringArray = PackedStringArray()
+
+	if not report.worked():
+		lines.append("[color=orange]The library was not written:[/color]")
+		for problem: String in report.problems:
+			lines.append("  • %s" % problem)
+		_say("\n".join(lines))
+		return
+
+	lines.append("[color=lightgreen]%d tile(s) in %s[/color]" % [
+		report.total(), report.output
+	])
+	lines.append("  %d new, %d already there" % [report.added.size(), report.kept.size()])
+
+	if not report.orphaned.is_empty():
+		# Kept rather than removed, and said out loud so the palette growing a
+		# tail is understood rather than discovered.
+		lines.append(
+			"[color=gray]  %d item(s) no file produces any more, kept so their ids stay taken: %s[/color]"
+			% [report.orphaned.size(), ", ".join(report.orphaned)]
+		)
+
+	for path: String in report.skipped:
+		lines.append("[color=gray]  no mesh in %s[/color]" % path)
 
 	_say("\n".join(lines))
 

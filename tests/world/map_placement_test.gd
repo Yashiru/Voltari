@@ -6,6 +6,7 @@ extends GdUnitTestSuite
 ## half that can, and it is the half worth it: a marker drawn half a cell off is
 ## an error small enough to look like art, and nobody would find it by eye.
 
+
 func _map() -> VltWorldMap:
 	return auto_free(VltFixtureMap.map("field", VltFixtureMap.filled(Vector2i(6, 6))))
 
@@ -180,15 +181,16 @@ func test_a_node_outside_any_map_has_none() -> void:
 
 
 func test_the_editor_plugin_loads() -> void:
-	# The rest of this suite covers the arithmetic; nothing covers the two files
-	# that use it, because they need an editor to do anything. This is the one
-	# thing that can be asserted about them from here — and it is the failure
-	# that actually happens, since the strict warnings are errors and a plugin
-	# is only compiled when somebody opens the editor.
+	# The rest of this suite covers the arithmetic; nothing covers the files that
+	# use it, because they need an editor to do anything. This is the one thing
+	# that can be asserted about them from here — and it is the failure that
+	# actually happens, since the strict warnings are errors and a plugin is only
+	# compiled when somebody opens the editor.
 	for path: String in [
 		"res://addons/voltari_maps/plugin.gd",
 		"res://addons/voltari_maps/map_gizmos.gd",
 		"res://addons/voltari_maps/map_dock.gd",
+		"res://addons/voltari_maps/tile_library.gd",
 	]:
 		assert_object(load(path)).override_failure_message(
 			"%s does not compile — the map editor is broken" % path

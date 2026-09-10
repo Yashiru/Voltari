@@ -345,6 +345,12 @@ static func _worth(awards: Array[VltPostBattle.Award]) -> String:
 	return "You won.  " + "  ".join(parts)
 
 
+## Everything the world draws, on or off.
+##
+## **Everything**, and the list is exhaustive on purpose: a battle draws its own
+## message in the same corner, so anything left behind here is not hidden, it is
+## overlapping. That is how the map menu and the encounter line ended up printed
+## through the battle's own text.
 func _show_world(visible_now: bool) -> void:
 	if _map != null:
 		_map.visible = visible_now
@@ -352,6 +358,8 @@ func _show_world(visible_now: bool) -> void:
 	_camera.current = visible_now
 	_stick.visible = visible_now
 	_hint.visible = visible_now
+	_message.visible = visible_now
+	_menu.visible = visible_now and _menu.get_child_count() > 0
 
 
 func _born(species_id: String, level: int) -> VltBattleCreature:

@@ -27,8 +27,33 @@ The cost is real and small: the reader rebuilds what it displays — health,
 status, who is out — by replaying events. Spec 07 made that a read rather than
 arithmetic, because **events carry resulting values, not deltas**. Replay assigns.
 
-The rule has a mechanical form worth keeping: nothing under the reader may
-reference the battle state classes at all.
+### It starts from a view, it does not conjure one
+
+Invariant 8 says replaying a log **onto the initial state** reproduces the final
+state. This is the same sentence about a view: the reader is handed the opening
+position and advances it.
+
+A view built from a log alone could not exist, because a log never announces what
+was already on the field when it started. The differential that proves this
+works — a view read from the state against a view advanced by the filtered log —
+is the test that makes decision 0049 cost nothing in fidelity.
+
+### Two things the log does not say, and one it should not
+
+Writing that differential found both.
+
+**A switch announced no health**, so a HUD would have drawn a full bar and then
+seen it jump. The event now carries it, transformed: exact for its owner,
+hundredths for everyone else. **A switch announced no level** either, and a
+player decides on that number.
+
+**Your own creature's moves are not in the log, and must not be.** They were
+never a battle event; your party is simply yours. The reader is handed it.
+
+That last one is why the mechanical form of this rule names the *state* and not
+the creatures in it: a state is reach — from one you can read the opponent —
+while a creature handed in bypasses no filter. Nothing under the reader may
+reference `VltBattleState`, and a lint holds it.
 
 ## 2. The reader is a queue drained with `await`
 
@@ -77,8 +102,14 @@ The core emits identifiers and nothing else (spec 07, section 6). **The reader i
 the single place an identifier becomes a sentence**: it turns an event into a key
 plus arguments.
 
-The build validates that every key the game can ask for exists — which is also
-what spec 15 needs in order to check a line of dialogue.
+**Every key the reader can ask for is checked to exist**, in both directions: a
+key nothing translates would print as its own name, and a key nothing asks for
+reads as a translated game long after its event was renamed.
+
+That check is engine-side rather than in the content build, for the reason the
+map validation is (spec 14, section 7): **the keys live in GDScript**, and only
+GDScript knows which ones something can produce. The build reasons about YAML.
+Spec 15's dialogue lines need the same check and will get it the same way.
 
 ## 6. Asking a creature to move
 
@@ -120,8 +151,13 @@ changes.
   by the test.
 - **The reader never touches battle state** — a lint over its directory, in the
   spirit of the purity lint, because this is a rule about what may be referenced
-  rather than about behaviour.
-- **Every text key the reader can produce exists** in the translation table.
+  rather than about behaviour. It names `VltBattleState` and not the creatures
+  in it; section 1 says why.
+- **Every text key the reader can produce exists** in the translation table, and
+  the table declares nothing nobody asks for.
+- **The view advanced by the filtered log agrees with the view read from the
+  state**, from either seat. Replaying the *unfiltered* log would hand a side
+  figures it has no right to and the test would pass by cheating.
 - **Every event-to-clip mapping names a slot in the vocabulary** (spec 16,
   section 4), checked rather than trusted.
 - **A filtered log drives a complete HUD.** Given only what one side may see, the

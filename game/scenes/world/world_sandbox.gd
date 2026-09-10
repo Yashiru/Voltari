@@ -227,12 +227,18 @@ func _meet(outcome: VltEncounter.Outcome) -> void:
 
 
 func _battle_ended(player_won: bool) -> void:
+	# Read before the screen goes: it holds what the battle was worth, and the
+	# creatures it changed are the ones the world is still carrying.
+	var summary: String = "Your creature fainted."
+	if _battle != null and player_won:
+		summary = _worth(_battle.awards())
+
 	if _battle != null:
 		_battle.queue_free()
 		_battle = null
 
 	_show_world(true)
-	_message.text = "You won." if player_won else "Your creature fainted."
+	_message.text = summary
 
 	# Losing is not handled — there is no centre to wake up in and no spec that
 	# says what one is. Standing back up is the placeholder, and it is named
@@ -240,6 +246,26 @@ func _battle_ended(player_won: bool) -> void:
 	if not player_won:
 		for creature: VltBattleCreature in _party:
 			creature.current_hp = creature.max_hp()
+
+
+## What just happened to the party, in one line. The awards carry more than
+## this — offered moves in particular — and nothing here asks the question,
+## because the screen that would put it to the player does not exist
+## (spec 10, section 7).
+static func _worth(awards: Array[VltPostBattle.Award]) -> String:
+	if awards.is_empty():
+		return "You won."
+
+	var parts: Array[String] = []
+	for award: VltPostBattle.Award in awards:
+		var line: String = "+%d XP" % award.experience
+		if award.level_after > award.level_before:
+			line += " → level %d" % award.level_after
+		if not award.evolved_into.is_empty():
+			line += " → evolved"
+		parts.append(line)
+
+	return "You won.  " + "  ".join(parts)
 
 
 func _show_world(visible_now: bool) -> void:
@@ -330,8 +356,9 @@ func _place_body() -> void:
 func _sections() -> Array[VltSaveSection]:
 	var where: VltWorldSaveSection = VltWorldSaveSection.new(_walker)
 	var quest: VltQuestFlagsSection = VltQuestFlagsSection.new(_flags)
-	var both: Array[VltSaveSection] = [where, quest]
-	return both
+	var creatures: VltPartySaveSection = VltPartySaveSection.new(_party)
+	var all: Array[VltSaveSection] = [where, quest, creatures]
+	return all
 
 
 func _save() -> void:
@@ -345,7 +372,10 @@ func _load_if_present() -> void:
 
 	var where: VltWorldSaveSection = VltWorldSaveSection.new()
 	var quest: VltQuestFlagsSection = VltQuestFlagsSection.new(_flags)
-	var sections: Array[VltSaveSection] = [where, quest]
+	# Read in place, so the party the world walks around with is the one that
+	# comes back — nothing has to be assigned afterwards and forgotten.
+	var creatures: VltPartySaveSection = VltPartySaveSection.new(_party)
+	var sections: Array[VltSaveSection] = [where, quest, creatures]
 	var report: VltSaveCodec.Report = VltSaveCodec.read(
 		VltSaveStore.read(SAVE_PATH), sections
 	)

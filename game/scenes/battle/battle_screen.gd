@@ -41,6 +41,15 @@ var _state: VltBattleState
 var _reader: BattleLogReader
 var _stage: BattleScreenStage
 
+## The position the battle opened from, and everything that has happened since.
+## Both are what the post-battle pipeline needs: experience is earned by whoever
+## faced what fell, and only the log knows who that was (spec 10, section 4).
+var _initial: VltBattleState
+var _history: VltBattleLog = VltBattleLog.new()
+
+## What the battle was worth, once it is over. Empty until then.
+var _awards: Array[VltPostBattle.Award] = []
+
 var _message: Label
 var _menu: VBoxContainer
 var _busy: bool = false
@@ -105,6 +114,7 @@ func _start() -> void:
 			_state.sides[side].party.append(creature as VltBattleCreature)
 		_state.sides[side].slots[0].occupy(0)
 
+	_initial = _state.clone()
 	var opening: VltBattleView = VltBattleView.of(_state, _registry, PLAYER)
 	_reader = BattleLogReader.new(
 		opening, _stage, _registry, _library.moves, _library.species,
@@ -155,13 +165,14 @@ func _take_turn(move_index: int) -> void:
 
 	var outcome: VltTurnOutcome = _engine.resolve(_state, commands, _decider)
 	_state = outcome.state
+	for event: VltLogEvent in outcome.log.events:
+		_history.append(event)
 
 	await _reader.play(outcome.log.for_viewer(PLAYER).events)
 
 	_busy = false
 	if _finished():
-		_message.text = "The battle is over."
-		ended.emit(_standing(PLAYER))
+		_settle()
 		return
 	_offer_moves()
 
@@ -181,6 +192,79 @@ func _foe_command() -> VltCommand:
 		VltBattleAi.plain(),
 		VltScriptedPolicyDecider.new(true, 0)
 	)
+
+
+## What the battle was worth. Run once, when it is over, over the whole log
+## rather than one turn's — experience is earned by whoever was facing the
+## creature that fell, and a single turn does not know.
+##
+## The creatures are the caller's own objects, so what this changes is changed
+## for good the moment it returns. That is what makes progress stick without
+## anything being copied back.
+func _settle() -> void:
+	var won: bool = _standing(PLAYER)
+
+	if won:
+		_awards = VltPostBattle.resolve(
+			_initial,
+			_history,
+			_state,
+			PLAYER,
+			_library.species,
+			_library.curves,
+			_library.moves,
+			false
+		)
+
+	_hand_back()
+	_message.text = _summary(won)
+	ended.emit(won)
+
+
+## Puts the party that came out of the battle back into the array that went in.
+##
+## Decision 0011 makes a turn deep-copy its state on entry, so the caller's
+## creatures are never touched — which is exactly right for the engine and
+## exactly wrong for a party that is supposed to have learned something. The
+## seam reconciles it, and this is the seam.
+##
+## The array is the shared thing, not the creatures in it. Replacing an element
+## reaches the caller because they hold the same array.
+func _hand_back() -> void:
+	if incoming_player.is_empty():
+		return
+
+	var final: Array[VltBattleCreature] = _state.sides[PLAYER].party
+	for index: int in range(mini(incoming_player.size(), final.size())):
+		incoming_player[index] = final[index]
+
+
+func _summary(won: bool) -> String:
+	if not won:
+		return "Your creature fainted."
+	if _awards.is_empty():
+		return "You won."
+
+	var parts: Array[String] = []
+	for award: VltPostBattle.Award in _awards:
+		var line: String = "%d XP" % award.experience
+		if award.level_after > award.level_before:
+			line += ", level %d" % award.level_after
+		if not award.evolved_into.is_empty():
+			line += ", became %s" % tr(BattleLines.species_key(award.evolved_into))
+		if not award.offered.is_empty():
+			# Nothing here asks the question: the choice is the player's and no
+			# screen exists to put it to them (spec 10, section 7).
+			line += ", could learn %s" % ", ".join(award.offered)
+		parts.append(line)
+
+	return "You won — " + "  ·  ".join(parts)
+
+
+## What the battle was worth, for whoever handed it a party. Empty until it is
+## over, and empty when it was lost.
+func awards() -> Array[VltPostBattle.Award]:
+	return _awards
 
 
 func _finished() -> bool:

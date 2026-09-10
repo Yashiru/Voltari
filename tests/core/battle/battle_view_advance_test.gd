@@ -261,7 +261,11 @@ func _describe(view: VltBattleView) -> String:
 					("-" if seat.moves.is_empty() else str(seat.moves[0].pp)),
 				]
 			)
-	return "turn %d | %s" % [view.turn, " || ".join(rows)]
+	var benched: Array[String] = []
+	for seat: VltBattleView.Combatant in view.bench:
+		benched.append("%d:%s hp=%d" % [seat.party_index, seat.species_id, seat.current_hp])
+
+	return "turn %d | %s | bench %s" % [view.turn, " || ".join(rows), " ".join(benched)]
 
 
 func test_advancing_the_log_agrees_with_reading_the_state() -> void:

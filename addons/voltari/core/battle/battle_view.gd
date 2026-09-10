@@ -28,6 +28,11 @@ class Combatant:
 	var reference: VltSlotRef = null
 	var present: bool = false
 
+	## Which party member this is. Meaningful for the viewer's own side, where a
+	## switch has to name one; the opposing side's numbering is not knowable and
+	## is not offered.
+	var party_index: int = UNKNOWN
+
 	## Public whichever side it is on. A species is announced when it enters.
 	var species_id: String = ""
 	var types: PackedStringArray = PackedStringArray()
@@ -68,6 +73,15 @@ var turn: int = 0
 var mine: Array[Combatant] = []
 var theirs: Array[Combatant] = []
 
+## The viewer's own party members who are not on the field, in party order.
+##
+## Spec 12 left this open, and the answer is symmetry: the view already shows
+## your own active creature exactly, and hiding your own bench from its owner
+## would hide something no rule hides — a player opens their party menu. The
+## opposing bench stays absent, because that is a different question and the
+## answer to it is no.
+var bench: Array[Combatant] = []
+
 
 ## The battle as `side` perceives it.
 ##
@@ -90,15 +104,44 @@ static func of(
 	view.viewpoint = side
 	view.turn = state.turn
 
+	var out: PackedInt32Array = PackedInt32Array()
 	for slot: int in range(state.slots_per_side()):
-		view.mine.append(
-			_combatant(state, registry, VltSlotRef.at(side, slot), true, revealed)
-		)
+		var at: VltSlotRef = VltSlotRef.at(side, slot)
+		var mine: Combatant = _combatant(state, registry, at, true, revealed)
+		mine.party_index = state.slot_at(at).occupant
+		out.append(mine.party_index)
+
+		view.mine.append(mine)
 		view.theirs.append(
 			_combatant(state, registry, VltSlotRef.at(1 - side, slot), false, revealed)
 		)
 
+	for index: int in range(state.sides[side].party.size()):
+		if out.has(index):
+			continue
+		view.bench.append(_benched(state, state.sides[side].party[index], index))
+
 	return view
+
+
+## A party member who is not on the field. Exact, like everything on your own
+## side — and without a position, because it has not got one.
+static func _benched(
+	_state: VltBattleState, creature: VltBattleCreature, index: int
+) -> Combatant:
+	var seat: Combatant = Combatant.new()
+	seat.party_index = index
+	seat.species_id = creature.species_id
+	seat.types = creature.types.duplicate()
+	seat.level = creature.level
+	seat.fainted = creature.is_fainted()
+	seat.health = VltLogEvent.scaled_health(creature.current_hp, creature.max_hp())
+	seat.current_hp = creature.current_hp
+	seat.max_hp = creature.max_hp()
+	seat.stats = creature.stats.duplicate()
+	for slot: VltMoveSlot in creature.moves:
+		seat.moves.append(slot.clone())
+	return seat
 
 
 static func _combatant(
@@ -171,7 +214,9 @@ func advance(
 	elif event is VltLogSwitchIn:
 		_arrive(event as VltLogSwitchIn, species, own_party)
 	elif event is VltLogSwitchOut:
-		_leave((event as VltLogSwitchOut).target)
+		var left: VltLogSwitchOut = event as VltLogSwitchOut
+		_to_bench(left)
+		_leave(left.target)
 	elif event is VltLogDamage:
 		var hurt: VltLogDamage = event as VltLogDamage
 		_set_health(hurt.target, hurt.current_hp, hurt.max_hp)
@@ -232,6 +277,10 @@ func _arrive(
 		arriving.types = species[event.species_id].types.duplicate()
 
 	var own: bool = event.target.side == viewpoint
+	if own:
+		_off_bench(event.party_index)
+	arriving.party_index = event.party_index
+
 	if own and event.party_index < own_party.size():
 		var entering: VltBattleCreature = own_party[event.party_index]
 		arriving.types = entering.types.duplicate()
@@ -298,6 +347,31 @@ func _reveal(event: VltLogMoveUsed) -> void:
 		return
 	if event.move_index < seat.moves.size():
 		seat.moves[event.move_index].pp = event.pp_after
+
+
+## A departing creature joins the bench it came from. Only our own: the
+## opposing bench is not in the view and putting it there through a side door
+## would be the widening spec 12 warns about.
+func _to_bench(event: VltLogSwitchOut) -> void:
+	if event.target.side != viewpoint:
+		return
+
+	var leaving: Combatant = _at(event.target)
+	if leaving == null or not leaving.present:
+		return
+
+	var seated: Combatant = leaving
+	seated.party_index = event.party_index
+	seated.reference = null
+	seated.present = false
+	bench.append(seated)
+
+
+func _off_bench(party_index: int) -> void:
+	for index: int in range(bench.size()):
+		if bench[index].party_index == party_index:
+			bench.remove_at(index)
+			return
 
 
 static func _no_stages() -> PackedInt32Array:

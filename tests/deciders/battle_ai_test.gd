@@ -303,3 +303,128 @@ func test_the_estimate_and_the_engine_never_forked() -> void:
 	assert_int(dealt).override_failure_message(
 		"the AI predicted %d and the engine dealt %d" % [predicted, dealt]
 	).is_equal(predicted)
+
+
+# --- withdrawing -------------------------------------------------------------
+#
+# Spec 12 left "what an AI knows about its own side" open. The answer is
+# symmetry — a player opens their party menu — so the bench is in the view, and
+# only nearly-fainting moves the AI off it.
+
+
+## A party with somebody behind the one that is out. The suite's own helper
+## builds a single creature, and an AI with an empty bench cannot withdraw —
+## which would make every test below pass for the wrong reason.
+func _with_bench() -> VltBattleView:
+	var state: VltBattleState = _battle([STRONG])
+	state.sides[OURS].party.append(_creature("attacker", [STRONG] as Array[String]))
+	state.sides[OURS].party.append(_creature("attacker", [STRONG] as Array[String]))
+	return VltBattleView.of(state, _registry(), OURS)
+
+
+func _hurt(view: VltBattleView, to: int) -> void:
+	view.mine[0].health = to
+
+
+func test_a_healthy_creature_stays_and_acts() -> void:
+	var view: VltBattleView = _with_bench()
+
+	var chosen: VltCommand = VltBattleAi.choose(
+		view, 0, _moves, _species, _chart, VltBattleAi.expert(),
+		VltScriptedPolicyDecider.new(true, 0)
+	)
+
+	assert_int(chosen.kind).override_failure_message(
+		"it withdrew at full health"
+	).is_equal(VltCommand.Kind.MOVE)
+
+
+func test_a_nearly_fainting_creature_withdraws() -> void:
+	var view: VltBattleView = _with_bench()
+	assert_bool(view.bench.is_empty()).override_failure_message(
+		"there is nobody to withdraw to, so this proves nothing"
+	).is_false()
+
+	_hurt(view, 5)
+
+	var chosen: VltCommand = VltBattleAi.choose(
+		view, 0, _moves, _species, _chart, VltBattleAi.expert(),
+		VltScriptedPolicyDecider.new(true, 0)
+	)
+
+	assert_int(chosen.kind).is_equal(VltCommand.Kind.SWITCH)
+
+
+func test_it_withdraws_to_the_healthiest() -> void:
+	var view: VltBattleView = _with_bench()
+	_hurt(view, 5)
+
+	for seat: VltBattleView.Combatant in view.bench:
+		seat.health = 40
+	view.bench[view.bench.size() - 1].health = 90
+
+	var chosen: VltCommand = VltBattleAi.choose(
+		view, 0, _moves, _species, _chart, VltBattleAi.expert(),
+		VltScriptedPolicyDecider.new(true, 0)
+	)
+
+	assert_int(chosen.party_index).is_equal(view.bench[view.bench.size() - 1].party_index)
+
+
+func test_it_stays_when_the_bench_is_no_better() -> void:
+	# Withdrawing to somebody worse off is a wasted turn and a second creature
+	# in trouble.
+	var view: VltBattleView = _with_bench()
+	_hurt(view, 5)
+	for seat: VltBattleView.Combatant in view.bench:
+		seat.health = 3
+
+	var chosen: VltCommand = VltBattleAi.choose(
+		view, 0, _moves, _species, _chart, VltBattleAi.expert(),
+		VltScriptedPolicyDecider.new(true, 0)
+	)
+
+	assert_int(chosen.kind).is_equal(VltCommand.Kind.MOVE)
+
+
+func test_it_does_not_withdraw_to_a_fainted_creature() -> void:
+	var view: VltBattleView = _with_bench()
+	_hurt(view, 5)
+	for seat: VltBattleView.Combatant in view.bench:
+		seat.health = 100
+		seat.fainted = true
+
+	var chosen: VltCommand = VltBattleAi.choose(
+		view, 0, _moves, _species, _chart, VltBattleAi.expert(),
+		VltScriptedPolicyDecider.new(true, 0)
+	)
+
+	assert_int(chosen.kind).is_equal(VltCommand.Kind.MOVE)
+
+
+func test_a_reckless_one_never_withdraws() -> void:
+	# The difficulty carries it like everything else the AI does.
+	var view: VltBattleView = _with_bench()
+	_hurt(view, 1)
+
+	var chosen: VltCommand = VltBattleAi.choose(
+		view, 0, _moves, _species, _chart, VltBattleAi.reckless(),
+		VltScriptedPolicyDecider.new(true, 0)
+	)
+
+	assert_int(chosen.kind).is_equal(VltCommand.Kind.MOVE)
+
+
+func test_a_type_disadvantage_alone_does_not_move_it() -> void:
+	# Deliberately narrow. Switching on type is the stronger play and it would
+	# make an AI that reads the chart better than most players, before anybody
+	# had asked for one.
+	var view: VltBattleView = _with_bench()
+	view.theirs[0].types = PackedStringArray(["grass"])
+
+	var chosen: VltCommand = VltBattleAi.choose(
+		view, 0, _moves, _species, _chart, VltBattleAi.expert(),
+		VltScriptedPolicyDecider.new(true, 0)
+	)
+
+	assert_int(chosen.kind).is_equal(VltCommand.Kind.MOVE)

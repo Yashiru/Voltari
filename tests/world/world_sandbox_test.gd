@@ -153,3 +153,109 @@ func test_a_fresh_world_starts_at_the_start() -> void:
 	world.load_now()
 
 	assert_vector(world.cell()).is_equal(WorldSandbox.START_CELL + Vector2i(1, 0))
+
+
+# --- meeting something -------------------------------------------------------
+
+
+func _first_species() -> String:
+	return VltContentPayloads.ids_in("res://content/generated/species")[0]
+
+
+func test_an_encounter_puts_a_battle_on_top_of_the_world() -> void:
+	# The handoff. The world produces a species and a level and stops there
+	# (spec 14, section 5); this is the first thing that takes it further.
+	var world: WorldSandbox = _sandbox()
+	assert_bool(world.in_battle()).is_false()
+
+	world.meet(_first_species(), 5)
+	assert_bool(world.in_battle()).override_failure_message(
+		"an encounter did not start a battle"
+	).is_true()
+
+
+func test_the_world_keeps_everything_while_a_battle_runs() -> void:
+	# The world stays in the tree holding position, flags and party. Nothing is
+	# saved and reloaded to cross the seam, so nothing can be lost crossing it.
+	var world: WorldSandbox = _sandbox()
+
+	world.walk(VltFacing.Direction.EAST)
+	world.face(VltFacing.Direction.SOUTH)
+	world.interact()
+	_finish(world)
+
+	var where: Vector2i = world.cell()
+	world.meet(_first_species(), 5)
+
+	assert_vector(world.cell()).is_equal(where)
+	assert_bool(world.flags().is_set("read_the_sign")).is_true()
+
+
+func test_the_party_is_the_same_creatures_that_went_in() -> void:
+	# Held by the world rather than made when a battle starts, which is what
+	# lets a wound carry from one battle to the next.
+	var world: WorldSandbox = _sandbox()
+	assert_int(world.party().size()).is_greater(0)
+
+	var before: VltBattleCreature = world.party()[0]
+	world.meet(_first_species(), 5)
+
+	assert_bool(world.party()[0] == before).override_failure_message(
+		"the battle was given a copy, so nothing that happens in it will stick"
+	).is_true()
+
+
+func test_walking_is_refused_while_a_battle_is_up() -> void:
+	var world: WorldSandbox = _sandbox()
+	var where: Vector2i = world.cell()
+
+	world.meet(_first_species(), 5)
+	world._process(0.016)
+
+	assert_vector(world.cell()).is_equal(where)
+
+
+func _battle_of(world: WorldSandbox) -> BattleScreen:
+	for child: Node in world.get_children():
+		if child is BattleScreen:
+			return child as BattleScreen
+	return null
+
+
+func test_the_battle_hands_the_world_back() -> void:
+	# The return leg. A handoff that only went one way would look like it worked
+	# for exactly as long as the first battle lasted.
+	var world: WorldSandbox = _sandbox()
+	world.meet(_first_species(), 3)
+
+	var battle: BattleScreen = _battle_of(world)
+	assert_object(battle).override_failure_message("no battle was put up").is_not_null()
+	battle.skip(true)
+
+	# A level 3 opponent against a level 12 starter: this ends, and quickly.
+	var guard: int = 0
+	while world.in_battle() and guard < 30:
+		await battle.take_turn(0)
+		guard += 1
+
+	assert_bool(world.in_battle()).override_failure_message(
+		"the battle never handed back after %d turns" % guard
+	).is_false()
+
+
+func test_walking_works_again_afterwards() -> void:
+	var world: WorldSandbox = _sandbox()
+	var where: Vector2i = world.cell()
+	world.meet(_first_species(), 3)
+
+	var battle: BattleScreen = _battle_of(world)
+	battle.skip(true)
+	var guard: int = 0
+	while world.in_battle() and guard < 30:
+		await battle.take_turn(0)
+		guard += 1
+
+	world.walk(VltFacing.Direction.EAST)
+	assert_vector(world.cell()).override_failure_message(
+		"the world did not take input back"
+	).is_equal(where + Vector2i(1, 0))

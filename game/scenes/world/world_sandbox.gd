@@ -23,7 +23,10 @@ const SAVE_PATH: String = "user://sandbox.json"
 ## stage — nothing below has an opinion about it.
 const STEP_SECONDS: float = 0.16
 const CELL: float = 2.0
+const BATTLE_SCENE: String = "res://game/scenes/battle/battle_screen.tscn"
+const STARTER_LEVEL: int = 12
 
+var _library: ContentLibrary
 var _tables: Dictionary[String, VltEncounterTable] = {}
 var _species: Dictionary[String, VltSpecies] = {}
 var _flags: VltQuestFlags = VltQuestFlags.new()
@@ -35,6 +38,11 @@ var _held: VltStepIntent.Held = VltStepIntent.Held.new()
 var _cooldown: float = 0.0
 
 var _run: VltEventRun = null
+var _battle: BattleScreen = null
+
+## The player's own creatures. They carry their wounds between battles, which is
+## the whole reason they are held here rather than made when one starts.
+var _party: Array[VltBattleCreature] = []
 var _message: Label
 var _hint: Label
 var _stick: TouchStick
@@ -49,6 +57,15 @@ func _ready() -> void:
 		VltContentPayloads.read_indexed("res://content/generated/encounters")
 	)
 	_encounters = VltSeededEncounterDecider.new(int(Time.get_unix_time_from_system()))
+
+	_library = library
+	# Sorted, so a new game always starts with the same creature. A starter that
+	# depended on dictionary order would differ between runs for no reason.
+	var roster: Array[String] = []
+	for id: String in library.species.keys():
+		roster.append(id)
+	roster.sort()
+	_party = [_born(roster[0], STARTER_LEVEL)]
 
 	_build_interface()
 	_enter(START_MAP, START_CELL, VltFacing.Direction.SOUTH)
@@ -90,6 +107,24 @@ func interact() -> void:
 	_interact()
 
 
+## True while a battle is on top of the world. The world keeps everything it
+## had; nothing is saved and reloaded to cross the seam.
+func in_battle() -> bool:
+	return _battle != null
+
+
+## The player's own creatures, carrying their wounds between battles.
+func party() -> Array[VltBattleCreature]:
+	return _party
+
+
+## Starts a battle against a given species, bypassing the grass. Public because
+## the handoff is the interesting part and waiting for a random encounter is a
+## poor way to exercise it.
+func meet(species_id: String, level: int) -> void:
+	_meet(VltEncounter.Outcome.new(species_id, level))
+
+
 func save_now() -> void:
 	_save()
 
@@ -104,6 +139,8 @@ func load_now() -> void:
 func _process(delta: float) -> void:
 	_cooldown = maxf(0.0, _cooldown - delta)
 
+	if _battle != null:
+		return
 	if _run != null:
 		_advance_event()
 		return
@@ -140,9 +177,7 @@ func _step(direction: VltFacing.Direction) -> void:
 		_begin(step.event)
 		return
 	if step.encounter != null:
-		_message.text = "A wild %s appeared! (level %d)" % [
-			tr(BattleLines.species_key(step.encounter.species_id)), step.encounter.level
-		]
+		_meet(step.encounter)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -165,6 +200,67 @@ func _interact() -> void:
 		_message.text = "Nothing there."
 		return
 	_begin(event)
+
+
+# --- meeting something -------------------------------------------------------
+
+
+## The handoff. The world produces a species and a level and stops there
+## (spec 14, section 5); this is the first thing that takes it further.
+func _meet(outcome: VltEncounter.Outcome) -> void:
+	_message.text = "A wild %s appeared!" % tr(
+		BattleLines.species_key(outcome.species_id)
+	)
+
+	var wild: VltBattleCreature = _born(outcome.species_id, outcome.level)
+
+	var packed: PackedScene = load(BATTLE_SCENE)
+	_battle = packed.instantiate() as BattleScreen
+	_battle.incoming_player = _party
+	_battle.incoming_foe = [wild] as Array[VltBattleCreature]
+	_battle.ended.connect(_battle_ended)
+
+	# The world stays in the tree, holding everything: position, flags, the party
+	# and its wounds. Nothing is saved and reloaded to cross this seam.
+	_show_world(false)
+	add_child(_battle)
+
+
+func _battle_ended(player_won: bool) -> void:
+	if _battle != null:
+		_battle.queue_free()
+		_battle = null
+
+	_show_world(true)
+	_message.text = "You won." if player_won else "Your creature fainted."
+
+	# Losing is not handled — there is no centre to wake up in and no spec that
+	# says what one is. Standing back up is the placeholder, and it is named
+	# rather than left to look deliberate.
+	if not player_won:
+		for creature: VltBattleCreature in _party:
+			creature.current_hp = creature.max_hp()
+
+
+func _show_world(visible_now: bool) -> void:
+	if _map != null:
+		_map.visible = visible_now
+	_body.visible = visible_now
+	_camera.current = visible_now
+	_stick.visible = visible_now
+	_hint.visible = visible_now
+
+
+func _born(species_id: String, level: int) -> VltBattleCreature:
+	var species: VltSpecies = _library.species[species_id]
+	return VltBirth.at_level(
+		species,
+		level,
+		_library.natures,
+		_library.moves,
+		_library.curves[species.growth_rate],
+		VltSeededGenerationDecider.new(_encounters.encounter_level(1, 1 << 20))
+	)
 
 
 # --- events ------------------------------------------------------------------

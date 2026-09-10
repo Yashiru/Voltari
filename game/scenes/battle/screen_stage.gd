@@ -14,6 +14,11 @@ const STEP: float = 0.45
 const LINE_HOLD: float = 0.8
 const BAR_SPEED: float = 60.0
 
+## How long everything takes, scaled. One is the pace the numbers above were
+## tuned at; the player's setting moves all of them together rather than any of
+## them individually, which is what a single slider can honestly promise.
+var pace: float = 1.0
+
 var _tree: SceneTree
 var _message: Label
 var _bars: Dictionary[String, ProgressBar] = {}
@@ -122,9 +127,9 @@ static func _animate(body: Node3D, slot: String) -> void:
 ## The one place time passes. Skipping returns instantly, which is why the
 ## reader has no branch of its own.
 func _pause(seconds: float) -> void:
-	if skip:
+	if skip or pace <= 0.0:
 		return
-	await _tree.create_timer(seconds).timeout
+	await _tree.create_timer(seconds / pace).timeout
 
 
 static func _key(at: VltSlotRef) -> String:

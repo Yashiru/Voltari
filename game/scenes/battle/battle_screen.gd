@@ -56,6 +56,7 @@ var _stage: BattleScreenStage
 ## The position the battle opened from, and everything that has happened since.
 ## Both are what the post-battle pipeline needs: experience is earned by whoever
 ## faced what fell, and only the log knows who that was (spec 10, section 4).
+var _settings: VltSettings
 var _balls: Dictionary[String, float] = {}
 var _initial: VltBattleState
 var _history: VltBattleLog = VltBattleLog.new()
@@ -87,6 +88,7 @@ var _busy: bool = false
 
 func _ready() -> void:
 	Translations.install()
+	_settings = AppliedSettings.install()
 	_library = ContentLibrary.load_all()
 	_balls = VltItemLoader.ball_multipliers(
 		VltContentPayloads.read_indexed("res://content/generated/items")
@@ -610,6 +612,7 @@ func _build_interface() -> void:
 	layer.add_child(_menu)
 
 	_stage = BattleScreenStage.new(get_tree(), _message)
+	_stage.pace = _settings.text_speed
 	for side: int in range(VltBattleState.SIDE_COUNT):
 		var at: VltSlotRef = VltSlotRef.at(side, 0)
 		var top: float = 90.0 + float(side) * 70.0

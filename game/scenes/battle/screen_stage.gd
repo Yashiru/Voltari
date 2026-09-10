@@ -14,6 +14,11 @@ const STEP: float = 0.45
 const LINE_HOLD: float = 0.8
 const BAR_SPEED: float = 60.0
 
+## How long everything takes, scaled. One is the pace the numbers above were
+## tuned at; the player's setting moves all of them together rather than any of
+## them individually, which is what a single slider can honestly promise.
+var pace: float = 1.0
+
 var _tree: SceneTree
 var _message: Label
 var _bars: Dictionary[String, ProgressBar] = {}
@@ -50,7 +55,7 @@ func play(at: VltSlotRef, slot: String) -> void:
 
 
 func say(line: BattleLines.Line) -> void:
-	_message.text = _sentence(line)
+	_message.text = sentence(line)
 	await _pause(LINE_HOLD)
 
 
@@ -63,8 +68,11 @@ func refresh(view: VltBattleView) -> void:
 
 ## The sentence a line becomes. Arguments are named, so a translation may put
 ## them in any order — which is the whole reason they are not positional.
-func _sentence(line: BattleLines.Line) -> String:
-	var text: String = tr(line.key)
+## Static, so anything can turn a line into words without owning a stage.
+## `tr()` belongs to a node; the translation server is the same lookup without
+## one.
+static func sentence(line: BattleLines.Line) -> String:
+	var text: String = TranslationServer.translate(line.key)
 	for name: String in line.arguments:
 		text = text.replace("{%s}" % name, line.arguments[name])
 	return text
@@ -119,9 +127,9 @@ static func _animate(body: Node3D, slot: String) -> void:
 ## The one place time passes. Skipping returns instantly, which is why the
 ## reader has no branch of its own.
 func _pause(seconds: float) -> void:
-	if skip:
+	if skip or pace <= 0.0:
 		return
-	await _tree.create_timer(seconds).timeout
+	await _tree.create_timer(seconds / pace).timeout
 
 
 static func _key(at: VltSlotRef) -> String:

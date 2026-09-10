@@ -47,6 +47,22 @@ jobs:
       - name: Fail if the committed payload is stale
         run: git diff --exit-code content/
 
+  budget:
+    name: Asset budget reads
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # It measures the committed model fixture, not the roster: the placeholder
+      # models never leave one machine (decision 0027), so there is nothing else
+      # here to weigh. What this catches is the reporter breaking — it exits
+      # non-zero when it reads no triangles at all, which is the one way a
+      # budget tool can be actively harmful (decision 0048).
+      - name: The budget report still reads a model
+        run: node tools/budget/report-budget.mjs tests/fixtures/models
+
   tests:
     name: Tests
     runs-on: ubuntu-latest

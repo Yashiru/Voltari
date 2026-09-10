@@ -440,3 +440,78 @@ func test_a_battle_ends_when_a_side_has_nobody_left() -> void:
 
 	screen._state.sides[0].party[1].current_hp = 0
 	assert_bool(screen._finished()).is_true()
+
+
+# --- evolving ----------------------------------------------------------------
+
+
+func _evolving(screen: BattleScreen, was: String, became: String) -> void:
+	screen._won = true
+	screen._evolutions = [[was, became]]
+	screen._ask_next()
+
+
+func test_an_evolution_is_a_moment_rather_than_a_line_in_a_summary() -> void:
+	# It is the thing a player will remember from the battle, and a summary is
+	# where things go to be missed.
+	var screen: BattleScreen = _screen()
+	var ended: Array[bool] = []
+	screen.ended.connect(func(won: bool) -> void: ended.append(won))
+
+	_evolving(screen, "placeholder_base", "placeholder_evolved")
+
+	assert_str(screen.evolution_shown()).is_equal("placeholder_evolved")
+	assert_array(ended).override_failure_message(
+		"the battle ended before anybody saw the evolution"
+	).is_empty()
+
+	screen.acknowledge_evolution()
+	assert_array(ended).is_equal([true])
+
+
+func test_the_sentence_names_both_species() -> void:
+	Translations.install()
+	# "It evolved into Y" is a sentence about two species, and the creature only
+	# remembers one of them afterwards — which is why the award carries both.
+	var line: BattleLines.Line = BattleLines.Line.new()
+	line.key = "battle.evolved"
+	line.arguments = {"creature": "Before", "into": "After"}
+
+	var text: String = BattleScreenStage.sentence(line)
+	assert_str(text).contains("Before")
+	assert_str(text).contains("After")
+
+
+func test_an_evolution_is_shown_before_the_question_that_follows() -> void:
+	# The order matters: an evolution changes what a creature is called, and the
+	# move offer names it.
+	var screen: BattleScreen = _screen()
+	screen._won = true
+	screen._evolutions = [["placeholder_base", "placeholder_evolved"]]
+	screen._offers = [[0, "water_special"]]
+	screen._ask_next()
+
+	assert_str(screen.evolution_shown()).is_equal("placeholder_evolved")
+	assert_str(screen.offered_move()).override_failure_message(
+		"the question was put before the evolution it renames"
+	).is_empty()
+
+	screen.acknowledge_evolution()
+	assert_str(screen.offered_move()).is_equal("water_special")
+
+
+func test_it_brings_its_own_camera() -> void:
+	# On its own this scene's camera is current by being the only one. Put on top
+	# of a world it is not, and nothing was making it — a bug invisible to every
+	# headless test and the first thing anybody would have seen.
+	var screen: BattleScreen = _screen()
+
+	var found: Camera3D = null
+	for child: Node in screen.get_children():
+		if child is Camera3D:
+			found = child as Camera3D
+
+	assert_object(found).override_failure_message("the battle has no camera").is_not_null()
+	assert_bool(found.current).override_failure_message(
+		"the battle came up looking through somebody else's camera"
+	).is_true()

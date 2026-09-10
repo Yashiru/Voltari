@@ -522,3 +522,20 @@ func test_a_learned_move_arrives_on_full_pp() -> void:
 	VltPostBattle.learn(creature, "water_special", 0, _moves)
 
 	assert_int(creature.moves[0].pp).is_equal(_moves["water_special"].max_pp)
+
+
+func test_an_award_remembers_what_the_creature_was() -> void:
+	# "It evolved into Y" names two species and the creature keeps only one of
+	# them, so the award has to carry the other.
+	# The placeholder evolves at 16, so it has to be there for the trigger to
+	# fire — an award saying it reached 16 is not the same as a creature that has.
+	var creature: VltBattleCreature = _born("placeholder_base", 16)
+	var award: VltPostBattle.Award = VltPostBattle.Award.new(0, 0, 15, 16)
+
+	VltPostBattle._evolve(creature, _species, award)
+
+	assert_str(award.evolved_from).override_failure_message(
+		"the award forgot which species evolved"
+	).is_equal("placeholder_base")
+	assert_str(award.evolved_into).is_equal(creature.species_id)
+	assert_str(award.evolved_into).is_not_equal(award.evolved_from)

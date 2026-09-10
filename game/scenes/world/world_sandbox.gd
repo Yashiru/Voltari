@@ -26,6 +26,7 @@ const CELL: float = 2.0
 const BATTLE_SCENE: String = "res://game/scenes/battle/battle_screen.tscn"
 const STARTER_LEVEL: int = 12
 
+var _settings: VltSettings
 var _library: ContentLibrary
 var _tables: Dictionary[String, VltEncounterTable] = {}
 var _species: Dictionary[String, VltSpecies] = {}
@@ -55,6 +56,8 @@ var _body: Node3D
 
 
 func _ready() -> void:
+	Translations.install()
+	_settings = AppliedSettings.install()
 	var library: ContentLibrary = ContentLibrary.load_all()
 	_species = library.species
 	_tables = VltEncounterTableLoader.all_from_payload(

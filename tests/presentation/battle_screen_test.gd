@@ -177,3 +177,70 @@ func test_two_offers_are_asked_one_at_a_time() -> void:
 	assert_str(screen.offered_move()).is_equal("ghost_special")
 	screen.decline_offer()
 	assert_str(screen.offered_move()).is_empty()
+
+
+# --- an offer that came from a real battle -----------------------------------
+
+
+## A creature one experience point short of the level at which it learns
+## something, already holding four moves.
+##
+## Arranged rather than played into, because the alternative is a battle long
+## enough to cross a level by accident — but arranged out of real content, so
+## what reaches the queue is a real award and not a fixture.
+func _about_to_learn(library: ContentLibrary) -> VltBattleCreature:
+	var species: VltSpecies = library.species["placeholder_base"]
+	var curve: PackedInt32Array = library.curves[species.growth_rate]
+
+	var creature: VltBattleCreature = VltBirth.at_level(
+		species, 12, library.natures, library.moves, curve,
+		VltSeededGenerationDecider.new(11)
+	)
+
+	# It knows two at level 12 and learns a third at 13. Filling the last two
+	# slots is what turns that third one from a gift into a question.
+	for id: String in ["water_special", "ghost_special"]:
+		if creature.moves.size() < VltBirth.MOVE_LIMIT:
+			creature.moves.append(VltMoveSlot.create(id, library.moves[id].max_pp))
+
+	assert_int(creature.moves.size()).is_equal(VltBirth.MOVE_LIMIT)
+	creature.experience = curve[12] - 1
+	return creature
+
+
+func _weak_foe(library: ContentLibrary) -> VltBattleCreature:
+	var species: VltSpecies = library.species["placeholder_base"]
+	return VltBirth.at_level(
+		species, 2, library.natures, library.moves,
+		library.curves[species.growth_rate], VltSeededGenerationDecider.new(3)
+	)
+
+
+func test_a_real_battle_puts_a_real_offer_in_the_queue() -> void:
+	# The join between settling up and asking. Every other test here posts an
+	# offer by hand, so this is the only one that would notice an award whose
+	# offered moves never reached the question.
+	var library: ContentLibrary = ContentLibrary.load_all()
+
+	var packed: PackedScene = load(SCREEN)
+	var screen: BattleScreen = auto_free(packed.instantiate() as BattleScreen)
+	screen.incoming_player = [_about_to_learn(library)] as Array[VltBattleCreature]
+	screen.incoming_foe = [_weak_foe(library)] as Array[VltBattleCreature]
+	add_child(screen)
+	screen.skip(true)
+
+	var guard: int = 0
+	while screen.offered_move().is_empty() and guard < 30:
+		await screen.take_turn(0)
+		guard += 1
+
+	assert_str(screen.offered_move()).override_failure_message(
+		"a creature crossed the level it learns at and was never asked"
+	).is_equal("inert_status")
+
+	# And the award behind it says the same thing, which is what makes this the
+	# join rather than two facts that happen to agree.
+	var offered: PackedStringArray = PackedStringArray()
+	for award: VltPostBattle.Award in screen.awards():
+		offered.append_array(award.offered)
+	assert_array(offered).contains(["inert_status"])

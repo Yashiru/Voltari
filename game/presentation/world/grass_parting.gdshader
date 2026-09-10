@@ -1,74 +1,85 @@
 shader_type spatial;
 
-// Grass that moves a little, and jostles when somebody walks through it.
+// Grass moved by one wind.
 //
-// **It never deforms a tuft.** Every blade of a cell leans the same way by the
-// same amount, so the shape of the tuft is the shape the artist made — what
-// changes is which way it is leaning. An earlier version pushed blades apart
-// radially and it read as damage rather than as somebody passing.
+// **Everything here is global.** There is no per-tuft phase, no per-tuft
+// stiffness, no per-cell rotation and no per-cell size. A field of grass in wind
+// does not shiver at a hundred different rates: it is one moving air mass, and
+// two blades a metre apart are doing very nearly the same thing.
 //
-// Two things move it, and both are small:
+// An earlier version varied all four per cell and it read as elastic and random
+// — every tuft twitching to its own clock. What replaced it is two travelling
+// waves and nothing else:
 //
-// 1. **Wind.** A slow sway with a gust travelling across the field, and a small
-//    shiver on each tuft at its own phase. Deliberately weak: grass that waves
-//    is grass the eye watches instead of the game.
-// 2. **A jostle.** Stepping into a cell sets that cell swinging once, and it
-//    settles. One shot, no memory, no trail — the cell is either ringing or it
-//    is not.
+// - a **long** one, twelve metres and slow, which is the gust crossing the field
+// - a **shorter** one at a different speed, so the sum never repeats and the
+//   field never looks like a single sine
 //
-// The world says which cell and how long ago (`grass_field.gd`). This holds no
-// state at all.
+// Both are functions of world position and time alone. A blade's phase comes
+// from where it stands, so neighbours are in step and distant grass is not —
+// which is what makes a gust *travel* rather than the field pulse.
+//
+// On top of that, one local thing: stepping into a cell sets that cell swinging
+// once. It never changes the shape of a tuft — every blade of a cell leans the
+// same way by the same amount.
 
 render_mode cull_disabled, diffuse_burley, specular_schlick_ggx;
+
+group_uniforms wind;
+
+// Which way the wind blows. One direction for the whole world.
+uniform vec2 wind_direction = vec2(0.82, 0.57);
+
+// How far the tip leans, as a fraction of the blade's length, at full gust.
+uniform float wind_strength : hint_range(0.0, 0.6) = 0.16;
+
+// The long wave: the gust itself. Metres between crests, and how fast the crest
+// travels in metres a second.
+//
+// **Long and slow on purpose.** A short wavelength makes neighbouring tufts
+// disagree, which is the difference between wind and static.
+uniform float gust_length : hint_range(1.0, 40.0) = 13.0;
+uniform float gust_speed : hint_range(0.0, 6.0) = 1.6;
+
+// The second wave, which only exists so the sum is not a sine. Shorter, faster,
+// and a fraction of the amplitude.
+uniform float ripple_length : hint_range(0.5, 20.0) = 4.5;
+uniform float ripple_speed : hint_range(0.0, 6.0) = 0.9;
+uniform float ripple_amount : hint_range(0.0, 1.0) = 0.3;
+
+// The slow breath under both, so the wind rises and falls over several seconds
+// instead of running at one strength for ever. Global: the whole field lulls
+// together, because that is what a lull is.
+uniform float breath_seconds : hint_range(1.0, 60.0) = 11.0;
+uniform float breath_depth : hint_range(0.0, 1.0) = 0.45;
+
+// How much of the lean is a steady press downwind rather than a swing either
+// way. Wind pushes; it does not rock.
+uniform float wind_bias : hint_range(0.0, 1.0) = 0.6;
 
 group_uniforms jostle;
 
 // The two cells that may be ringing: the one being stood in, and the one just
-// left. Two, because a cell is crossed in about half a second and a jostle lasts
+// left. Two, because a cell is crossed in about half a second and a swing lasts
 // about as long — with one slot, leaving a cell would cut it off mid-swing.
 uniform vec3 jostle_a = vec3(0.0);
 uniform float jostle_a_age = 999.0;
 uniform vec3 jostle_b = vec3(0.0);
 uniform float jostle_b_age = 999.0;
 
-// How close a cell's own origin has to be to count as the one that was entered.
-// A little over half a cell, so the cell stepped into rings and its neighbours
-// do not.
+// How close a cell's own origin has to be to count as the one entered. Set from
+// the map's cell width by `grass_field.gd`, not guessed here.
 uniform float jostle_reach : hint_range(0.05, 3.0) = 0.62;
 
 // How long one swing lasts, how fast it swings, and how far.
 uniform float jostle_seconds : hint_range(0.05, 3.0) = 0.7;
-uniform float jostle_hz : hint_range(0.5, 12.0) = 4.5;
-uniform float jostle_strength : hint_range(0.0, 1.0) = 0.3;
+uniform float jostle_hz : hint_range(0.5, 12.0) = 3.2;
+uniform float jostle_strength : hint_range(0.0, 1.0) = 0.22;
 
 // Fades the jostle out without pretending nobody is there. A battle hides the
-// world, and grass swinging around somebody who is not on screen is worse than
-// grass standing still.
+// world, and grass swinging around somebody off screen is worse than grass
+// standing still.
 uniform float walker_strength : hint_range(0.0, 1.0) = 1.0;
-
-group_uniforms wind;
-
-// The direction gusts travel, and how long one wave is.
-uniform vec2 wind_direction = vec2(0.82, 0.57);
-uniform float gust_wavelength : hint_range(0.5, 20.0) = 6.5;
-uniform float gust_speed : hint_range(0.0, 8.0) = 0.9;
-
-// How far the wind leans a blade at its tip, as a fraction of the blade's
-// length. **Small on purpose**: 0.34 was the first attempt and the field read as
-// a storm.
-uniform float gust_strength : hint_range(0.0, 0.5) = 0.075;
-
-// The slow swell, so gusts arrive and pass rather than running at one strength.
-uniform float swell_hz : hint_range(0.0, 1.0) = 0.09;
-uniform float swell_depth : hint_range(0.0, 1.0) = 0.6;
-
-// The shiver on each tuft, at its own phase.
-uniform float flutter_hz : hint_range(0.0, 8.0) = 1.7;
-uniform float flutter_strength : hint_range(0.0, 0.2) = 0.022;
-
-// How much stiffness varies from tuft to tuft. Zero makes every tuft equally
-// springy, which is one of the two tells of instanced grass.
-uniform float stiffness_spread : hint_range(0.0, 1.0) = 0.4;
 
 group_uniforms blade;
 
@@ -80,15 +91,7 @@ uniform float blade_base = 0.0;
 
 // How far up the blade is anchored. Below this nothing moves, so grass stays
 // planted in the ground rather than sliding over it.
-uniform float root_hold : hint_range(0.0, 0.6) = 0.15;
-
-// How far each cell is turned. The other tell of instanced grass — a `GridMap`
-// draws the same mesh at every cell and the eye finds the repetition quickly.
-//
-// **Off by default**, because turning a tile changes a map that is already
-// painted, and that is a decision for whoever painted it rather than a side
-// effect of a shader.
-uniform float scatter_yaw : hint_range(0.0, 3.15) = 0.0;
+uniform float root_hold : hint_range(0.0, 0.6) = 0.18;
 
 group_uniforms colour;
 
@@ -97,11 +100,9 @@ uniform sampler2D albedo_texture : source_color, hint_default_white;
 uniform bool has_texture = false;
 
 // How much darker the base is than the tip. The cheapest thing that makes grass
-// sit *in* the ground rather than on top of it.
+// sit *in* the ground rather than on top of it, and the only shading variation
+// here — it follows the blade rather than a random number.
 uniform float root_shade : hint_range(0.0, 1.0) = 0.35;
-
-// Tuft-to-tuft variation in brightness, and the drift towards a warmer tip.
-uniform float shade_spread : hint_range(0.0, 0.5) = 0.08;
 uniform vec4 tip_tint : source_color = vec4(0.78, 0.82, 0.42, 1.0);
 uniform float tip_tint_amount : hint_range(0.0, 1.0) = 0.15;
 
@@ -109,25 +110,6 @@ uniform float tip_tint_amount : hint_range(0.0, 1.0) = 0.15;
 uniform float translucency : hint_range(0.0, 1.0) = 0.3;
 
 varying float blade_fraction;
-varying float blade_shade;
-
-
-// A cheap, stable hash. Stable is the word that matters: it is taken from the
-// cell's own origin, so a tuft keeps its phase and its shade while it moves
-// rather than shimmering through them.
-float hash21(vec2 p) {
-	vec2 q = fract(p * vec2(123.34, 456.21));
-	q += dot(q, q + 45.32);
-	return fract(q.x * q.y);
-}
-
-
-// Turns a point about the vertical axis.
-vec2 turned(vec2 p, float angle) {
-	float c = cos(angle);
-	float s = sin(angle);
-	return vec2(p.x * c - p.y * s, p.x * s + p.y * c);
-}
 
 
 // One swing of a cell that was stepped into, from nothing through a swing and
@@ -136,11 +118,11 @@ vec2 turned(vec2 p, float angle) {
 // Signed, so it goes both ways, and squared on the way out so it settles rather
 // than stopping. A cell that is not the one entered, or one whose swing is over,
 // returns nothing and costs two comparisons.
-float jostle_of(vec3 cell, vec3 entered, float age, float radius) {
+float jostle_of(vec3 cell, vec3 entered, float age) {
 	if (age < 0.0 || age > jostle_seconds) {
 		return 0.0;
 	}
-	if (distance(cell.xz, entered.xz) > radius) {
+	if (distance(cell.xz, entered.xz) > jostle_reach) {
 		return 0.0;
 	}
 	float left = 1.0 - age / jostle_seconds;
@@ -149,71 +131,61 @@ float jostle_of(vec3 cell, vec3 entered, float age, float radius) {
 
 
 void vertex() {
-	// Where this cell is, and everything it takes from being that cell: its
-	// phase, its stiffness, its shade, and how far it is turned.
 	vec3 cell = MODEL_MATRIX[3].xyz;
-	float seed = hash21(cell.xz);
-	blade_shade = seed;
-
-	float yaw = (seed * 2.0 - 1.0) * scatter_yaw;
-	vec3 shaped = VERTEX;
-	shaped.xz = turned(VERTEX.xz, yaw);
 
 	float up_the_blade = clamp(
-		(shaped.y - blade_base) / max(blade_height, 0.001), 0.0, 1.0
+		(VERTEX.y - blade_base) / max(blade_height, 0.001), 0.0, 1.0
 	);
 	blade_fraction = up_the_blade;
 
-	// Anchored at the bottom, and easing rather than ramping: a linear weight
-	// hinges the tuft at a point, a curved one bends it along its length.
+	// Anchored at the bottom and easing upwards: a linear weight hinges the tuft
+	// at a point, a curved one bends it along its length. This is the whole of
+	// what makes the motion look supple rather than tilted.
 	float leverage = smoothstep(root_hold, 1.0, up_the_blade);
 	leverage *= leverage;
 
-	// Stiff tufts take less of everything. Spread rather than scaled, so the
-	// average stays where it was tuned.
-	float give = mix(1.0 - stiffness_spread * 0.5, 1.0 + stiffness_spread * 0.5, seed);
-
-	// --- wind ---------------------------------------------------------------
+	// --- one wind -----------------------------------------------------------
 	vec2 blowing = normalize(wind_direction + vec2(0.0001, 0.0));
 	float along = dot(cell.xz, blowing);
 
-	float wave = sin(along * (TAU / max(gust_wavelength, 0.001)) - TIME * gust_speed);
-	float swell = mix(
-		1.0 - swell_depth, 1.0, 0.5 + 0.5 * sin(TIME * swell_hz * TAU + seed * 1.7)
+	// Both waves are functions of where the tuft stands and of time. Neighbours
+	// are therefore in step and distant grass is not, which is what makes a gust
+	// cross the field instead of the field pulsing.
+	float gust = sin(along * (TAU / max(gust_length, 0.001)) - TIME * gust_speed);
+	float ripple = sin(along * (TAU / max(ripple_length, 0.001)) - TIME * ripple_speed);
+	float wave = mix(gust, ripple, ripple_amount);
+
+	// Wind pushes downwind and eases; it does not rock evenly about upright.
+	float pressed = mix(wave, wave * 0.5 + 0.5, wind_bias);
+
+	float breath = mix(
+		1.0 - breath_depth, 1.0,
+		0.5 + 0.5 * sin(TIME * TAU / max(breath_seconds, 0.001))
 	);
-	// Half a wave of bias, so a gust pushes downwind and eases rather than
-	// swinging the tuft evenly both ways.
-	float gust = (wave * 0.5 + 0.5) * swell * gust_strength;
-	float flutter = sin(
-		TIME * flutter_hz * TAU * mix(0.85, 1.15, seed) + seed * TAU
-	) * flutter_strength;
 
-	vec2 lean = blowing * (gust + flutter) * give;
+	vec2 lean = blowing * pressed * breath * wind_strength;
 
-	// --- the jostle ---------------------------------------------------------
+	// --- one footfall -------------------------------------------------------
 	//
-	// Its own direction per cell, not the walker's. A cell brushed as somebody
-	// passes swings the way its own stems happen to give, and taking the
-	// walker's heading would make a field of tufts all swing in step.
-	float swing = jostle_of(cell, jostle_a, jostle_a_age, jostle_reach)
-		+ jostle_of(cell, jostle_b, jostle_b_age, jostle_reach);
-	vec2 shaken = turned(blowing, seed * TAU) * swing * jostle_strength * walker_strength;
+	// Across the wind rather than along it, so a step reads as something other
+	// than a gust arriving.
+	float swing = jostle_of(cell, jostle_a, jostle_a_age)
+		+ jostle_of(cell, jostle_b, jostle_b_age);
+	vec2 shaken = vec2(-blowing.y, blowing.x) * swing * jostle_strength * walker_strength;
 
 	// --- moving it ----------------------------------------------------------
 	//
-	// One direction and one amount for the whole tuft, so it leans as one piece.
-	// Nothing here changes the shape the artist made.
-	vec2 push = (lean + shaken) * leverage * give;
-	shaped.x += push.x * (shaped.y - blade_base);
-	shaped.z += push.y * (shaped.y - blade_base);
+	// One direction and one amount for every blade of the tuft, so it leans as
+	// one piece. Nothing here changes the shape the artist made.
+	vec2 push = (lean + shaken) * leverage;
+	float up = VERTEX.y - blade_base;
 
-	VERTEX = shaped;
+	VERTEX.x += push.x * up;
+	VERTEX.z += push.y * up;
 
 	// The normal turns with the lean. A leaning tuft lit by an upright normal
 	// reads as flat the moment the sun is anywhere but overhead.
-	vec3 spun = NORMAL;
-	spun.xz = turned(NORMAL.xz, yaw);
-	NORMAL = normalize(spun - vec3(push.x, 0.0, push.y) * leverage * 0.5);
+	NORMAL = normalize(NORMAL - vec3(push.x, 0.0, push.y) * 0.5);
 }
 
 
@@ -223,14 +195,12 @@ void fragment() {
 		colour *= texture(albedo_texture, UV);
 	}
 
-	// Darker in the thatch, warmer at the tip, and a little lighter or darker
-	// per tuft. Three lines, and between them most of the difference between a
-	// green mass and a field.
+	// Darker in the thatch, warmer at the tip. Both follow the blade rather than
+	// a random number, so two tufts side by side are the same colour.
 	colour.rgb *= mix(1.0 - root_shade, 1.0, blade_fraction);
 	colour.rgb = mix(
 		colour.rgb, tip_tint.rgb, tip_tint_amount * blade_fraction * blade_fraction
 	);
-	colour.rgb *= mix(1.0 - shade_spread, 1.0 + shade_spread, blade_shade);
 
 	ALBEDO = colour.rgb;
 	ROUGHNESS = 0.92;

@@ -364,15 +364,22 @@ shared resource on every load.
 
 The first thing in this project that is **judged by looking**. No assertion
 distinguishes grass that moves from grass that moves well, so the evidence is a
-contact sheet rather than a test (decisions 0057 and 0058).
+contact sheet rather than a test (decisions 0059, 0060 and 0061).
 
 `game/presentation/world/grass_parting.gdshader` does two small things and holds
 no state at all.
 
-**Wind.** A slow gust travelling across the field on a wavelength of metres, a
-swell so gusts arrive and pass, and a shiver on each tuft at its own phase. The
-tip moves about seven per cent of the blade's length. Deliberately weak: grass
-that waves is grass the eye watches instead of the game.
+**Wind.** **One wind for the whole world** (decision 0061). Two travelling waves
+summed — a long, slow one that is the gust crossing the field, and a shorter one
+at another speed so the sum is not a sine — under a slow global breath. Both are
+functions of world position and time alone, which is what makes a gust *travel*:
+a blade's phase comes from where it stands, so neighbours are in step and distant
+grass is not.
+
+**Nothing varies per tuft.** No phase of its own, no stiffness of its own, no
+rotation and no size. A hundred independent clocks cannot add up to one air mass
+however slowly each of them ticks — an earlier version gave every tuft all four
+and it read as elastic and random rather than as wind.
 
 **A jostle.** Stepping into a cell sets that cell swinging once, and it settles
 in about three quarters of a second. Two cells may ring at a time — the one being
@@ -381,7 +388,7 @@ and one slot would cut every swing off mid-air.
 
 **A tuft never changes shape.** Every blade of a cell leans the same way by the
 same amount. An earlier version pushed blades apart radially and it read as
-damage rather than as somebody passing (decision 0058).
+damage rather than as somebody passing (decision 0060).
 
 ### Where the state lives
 

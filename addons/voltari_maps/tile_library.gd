@@ -43,6 +43,14 @@ const SOURCES: Array[String] = [
 ## a second pass that undoes itself on the next rebuild.
 const PARTING_SHADER: String = "res://game/presentation/world/grass_parting.gdshader"
 
+## The only shader values this tool owns. Everything else on a grass material is
+## either art direction, which belongs to the shader's own defaults, or something
+## the runtime sets every frame.
+##
+## An `Array[String]`: the packed form is a call, and a call is not a constant
+## expression in GDScript.
+const OWNED: Array[String] = ["albedo", "albedo_texture", "has_texture", "blade_base", "blade_height"]
+
 
 ## What one run did. Returned rather than printed so a caller can show it, and
 ## so a test can read it.
@@ -376,10 +384,27 @@ static func _dress(mesh: Mesh, shader: Shader) -> bool:
 			continue
 		material.set_shader_parameter("blade_base", box.position.y)
 		material.set_shader_parameter("blade_height", maxf(box.size.y, 0.05))
+		_disown(material, shader)
 		mesh.surface_set_material(surface, material)
 		dressed = true
 
 	return dressed
+
+
+## Puts every value this tool does not own back to the shader's own default.
+##
+## **A stored value outlives the shader that set it.** A material remembers what
+## it was given, so tuning a number in the shader file changes nothing on a
+## library saved before the change — the old value is still there and still wins.
+## That cost an afternoon once: a wind tuned down to a fifth of its strength went
+## on blowing at the old one, and the shader on disk was innocent.
+static func _disown(material: ShaderMaterial, shader: Shader) -> void:
+	for entry: Dictionary in shader.get_shader_uniform_list(true):
+		var name: String = entry["name"]
+		if not OWNED.has(name):
+			# Null is how a `ShaderMaterial` is told to use the shader's default
+			# rather than a value of its own.
+			material.set_shader_parameter(name, null)
 
 
 ## Carries the imported material's look across to the shader.

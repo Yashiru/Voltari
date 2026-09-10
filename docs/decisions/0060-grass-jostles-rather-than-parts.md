@@ -1,14 +1,14 @@
-# 0058 — Grass jostles rather than parts
+# 0060 — Grass jostles rather than parts
 
 **Status:** Accepted
 **Date:** 2026-09-10
-**Supersedes in part:** decision 0057 — its harness and its method stand, its
+**Supersedes in part:** decision 0059 — its harness and its method stand, its
 deformation does not
 **Recorded in:** spec 16, section 12
 
 ## Context
 
-Decision 0057 built grass that opened around a walker: blades pushed radially
+Decision 0059 built grass that opened around a walker: blades pushed radially
 away, a wake behind, a spring back. It was checked against renders of one grass
 tile and it looked right on that one.
 

@@ -1,10 +1,12 @@
-# 0057 — The grass shader is looked at, not asserted
+# 0059 — The grass shader is looked at, not asserted
 
 **Status:** Accepted
 **Date:** 2026-09-10
 **Refines:** decision 0055 (a creature is never still)
-**Superseded in part by:** decision 0058 — the harness and the method stand; the
+**Superseded in part by:** decision 0060 — the harness and the method stand; the
 deformation this describes was reversed
+**Superseded in part by:** decision 0061 — the per-cell variation was reversed
+too, for the opposite reason: it was reasoning about a still field
 **Recorded in:** spec 16, section 12
 
 ## Context

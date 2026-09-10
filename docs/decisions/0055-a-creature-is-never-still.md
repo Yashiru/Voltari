@@ -3,7 +3,7 @@
 **Status:** Accepted
 **Date:** 2026-09-10
 **Settles:** an open point in spec 16, section 1
-**Recorded in:** spec 16, sections 1 and 10
+**Recorded in:** spec 16, sections 1 and 12
 
 ## Context
 

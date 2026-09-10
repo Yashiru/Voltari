@@ -19,15 +19,33 @@ const START_MAP: String = "starter_field"
 const START_CELL: Vector2i = Vector2i(1, 1)
 const SAVE_PATH: String = "user://sandbox.json"
 
-## How long one cell takes. The pace lives here, the way it lives in the battle
-## stage — nothing below has an opinion about it.
-const STEP_SECONDS: float = 0.16
-## Only a fallback now: the grid is asked where a cell is. Kept for a map whose
+## How fast the player crosses the ground, in metres a second.
+##
+## **The one number that sets the pace**, and it is not a matter of taste: it is
+## the speed the character's running animation was authored for, measured by
+## `tools/characters/measure_gaits.gd` and used by `WalkerGait`. Moving faster
+## than a gait was made for is what foot-sliding is, and moving at exactly its
+## speed costs nothing.
+##
+## How long a cell takes follows from it and from how wide a cell is, so a map
+## painted on a finer grid is crossed at the same speed rather than at the same
+## rate. The capsule this replaced crossed two metres in 0.16 s — 45 km/h, which
+## no animation of a person can be played fast enough to match.
+const GROUND_SPEED: float = 3.6
+
+## Only a fallback: the grid is asked how wide a cell is. Kept for a map whose
 ## terrain layer is missing, which is a map somebody is midway through building.
 const CELL: float = 2.0
 
-## Half the capsule, so it stands on the floor rather than in it.
-const BODY_LIFT: float = 0.8
+## The model stands with its feet at its own origin, and a cell's centre is where
+## the floor tile is drawn from — so the two meet with nothing added.
+const BODY_LIFT: float = 0.0
+
+## Where the camera sits above and behind, and how far up the character it looks.
+## Aimed at the chest rather than at the feet: a camera on somebody's shoes puts
+## them at the top of the frame and the ground everywhere else.
+const EYE: Vector3 = Vector3(0, 6.5, 6.0)
+const EYE_HEIGHT: float = 0.65
 const BATTLE_SCENE: String = "res://game/scenes/battle/battle_screen.tscn"
 const STARTER_LEVEL: int = 12
 
@@ -49,6 +67,10 @@ var _held: VltStepIntent.Held = VltStepIntent.Held.new()
 ## Where to draw somebody who is between two cells. It never moves them
 ## (spec 14, section 2) — the walker is already on the new cell.
 var _glide: CellGlide = CellGlide.new()
+
+## Tells the grass where the walker is. Purely a look — nothing it does reaches
+## a rule, and grass has never blocked anything.
+var _grass: GrassField = GrassField.new()
 var _cooldown: float = 0.0
 
 var _run: VltEventRun = null
@@ -66,7 +88,7 @@ var _hint: Label
 var _menu: VBoxContainer
 var _stick: TouchStick
 var _camera: Camera3D
-var _body: Node3D
+var _body: WalkerBody
 
 
 func _ready() -> void:
@@ -184,6 +206,15 @@ func _process(delta: float) -> void:
 	if _glide.is_moving():
 		_draw_body(_glide.advance(delta))
 
+	# Follows the drawing rather than the cell, so the grass opens with the walk
+	# instead of jumping a cell ahead of it.
+	_grass.follow(_body.position, delta)
+
+	# Every frame, moving or not: the character turns towards its facing and
+	# settles out of its run, and both of those are continuous even when the grid
+	# is not.
+	_body.advance(delta, GROUND_SPEED if _glide.is_moving() else 0.0, _walker.facing)
+
 	_cooldown = maxf(0.0, _cooldown - delta)
 
 	if _battle != null:
@@ -218,7 +249,7 @@ func _process(delta: float) -> void:
 
 func _step(direction: VltFacing.Direction) -> void:
 	var step: VltGridWalker.Step = _walker.step(direction)
-	_cooldown = STEP_SECONDS
+	_cooldown = _step_seconds()
 	_walk_body()
 
 	if step.warp != null:
@@ -375,6 +406,9 @@ func _show_world(visible_now: bool) -> void:
 	_hint.visible = visible_now
 	_message.visible = visible_now
 	_menu.visible = visible_now and _menu.get_child_count() > 0
+	# Grass bent around a player who is not on screen is worse than grass that
+	# stands up.
+	_grass.set_strength(1.0 if visible_now else 0.0)
 
 
 func _born(species_id: String, level: int) -> VltBattleCreature:
@@ -551,6 +585,11 @@ func _enter(into: String, at: Vector2i, facing: VltFacing.Direction) -> void:
 	_walker.place(at, facing)
 	_held.face(facing)
 	_place_body()
+
+	# A different map means different materials, and a centre that travelled
+	# there would draw a parting sweeping across the floor.
+	_grass.of_map(_map)
+	_grass.place(_body.position)
 	_message.text = into
 
 	# Arriving on a map is one of the three moments an event may fire
@@ -573,7 +612,7 @@ func _enter(into: String, at: Vector2i, facing: VltFacing.Direction) -> void:
 ## between steps, which is what makes holding a direction one continuous walk
 ## rather than a series of hops with pauses in them.
 func _walk_body() -> void:
-	_glide.to(_body.position, _standing_place(), STEP_SECONDS)
+	_glide.to(_body.position, _standing_place(), _step_seconds())
 
 
 ## Arrives at once. What a warp, a load and a defeat need: they move the player
@@ -582,6 +621,20 @@ func _walk_body() -> void:
 func _place_body() -> void:
 	_glide.snap(_standing_place())
 	_draw_body(_glide.position())
+	_body.face_at_once(_walker.facing)
+
+
+## How long one cell takes, at the one speed there is.
+##
+## Read from the grid rather than declared, so a map painted on a finer grid is
+## crossed at the same *speed* rather than at the same rate — which is what keeps
+## the legs matching the ground on every map rather than on the one the number
+## was tuned against.
+func _step_seconds() -> float:
+	var width: float = CELL
+	if _map != null and _map.terrain != null:
+		width = maxf(_map.terrain.cell_size.x, 0.001)
+	return width / maxf(GROUND_SPEED, 0.001)
 
 
 ## Where the walker's cell puts a body, in the map's own space.
@@ -598,8 +651,9 @@ func _standing_place() -> Vector3:
 ## than the cell, so it is as smooth as the walk is.
 func _draw_body(where: Vector3) -> void:
 	_body.position = where
-	_camera.position = where + Vector3(0, 9, 7)
-	_camera.look_at(where)
+	var looking_at: Vector3 = where + Vector3(0, _body.height() * EYE_HEIGHT, 0)
+	_camera.position = where + EYE
+	_camera.look_at(looking_at)
 
 
 ## Where the body is drawn, which between cells is not where the player is. The
@@ -692,11 +746,7 @@ func _build_interface() -> void:
 	_walker.encounter_decider = _encounters
 	add_child(_walker)
 
-	_body = MeshInstance3D.new()
-	var pill: CapsuleMesh = CapsuleMesh.new()
-	pill.radius = 0.4
-	pill.height = 1.6
-	(_body as MeshInstance3D).mesh = pill
+	_body = WalkerBody.new()
 	add_child(_body)
 
 	var layer: CanvasLayer = CanvasLayer.new()

@@ -305,7 +305,7 @@ silhouettes, which is a brief for the artist and not a runtime toggle. Named
 variations of it (`comic-noir` and the like) are sets of numbers for the same
 shader, not separate looks.
 
-## 9b. A creature is never still
+## 10. A creature is never still
 
 **Settled by decision 0055**, which closes the open point about how the runtime
 chooses among a slot's takes.
@@ -330,7 +330,37 @@ was loaded, documented and read by nobody, so creatures were drawn at whatever
 their exporter produced — half a metre against a metre and a half — which makes
 framing a battle impossible.
 
-## 10. Testing obligations
+## 11. Characters walk, and creatures do not
+
+**Settled by decision 0057**, which closes the open point about characters.
+
+A second runtime beside the creature one, not a shared base: what they have in
+common is "instance a model and play a clip", and everything else differs.
+
+- **A character turns** towards its grid facing rather than snapping to it.
+- **Its legs answer to the ground.** A creature's clip is a reaction to an event;
+  a character's is a function of a speed.
+- **It settles.** Two steps in a row are separated by a frame at zero speed, and
+  without a grace the legs flicker on every cell boundary.
+
+**The world moves at the speed the animation was authored for, and that speed is
+measured.** An in-place clip carries a compressed stride and an honest cadence,
+so the speed comes from the cadence and a step length proportional to height.
+`tools/characters/measure_gaits.gd` prints it; the runtime uses it; nobody has to
+believe a number.
+
+How long a cell takes is `cell width / ground speed`, with the width read from
+the map's own grid — so a map on a finer grid is crossed at the same speed rather
+than at the same rate.
+
+**A character is not scaled.** A creature's size is a design fact its manifest
+declares; a person's is not, and 1.7 m with feet at the origin is already a
+person on a two-metre grid.
+
+**Clips loop because the `.import` says so**, not because the runtime patches a
+shared resource on every load.
+
+## 12. Testing obligations
 
 - **Every manifest loads** into its typed form, and every path it names exists.
 - **Every clip a manifest declares is really in its model** — the engine-side
@@ -344,10 +374,15 @@ framing a battle impossible.
 - **A creature scene instances and reaches its rest state** without a script
   error, for every committed creature.
 - **A clip that ends hands back to the idle**, and the idle to itself, so a
-  creature is never left standing in its rest pose (section 9b).
+  creature is never left standing in its rest pose (section 10).
 - **The variant take is the exception and is reached at all** — the policy, not
   a frame, since decision 0055 makes a frame irreproducible on purpose.
 - **A model ends up the height its manifest declares**, whatever its own is.
+- **A character runs while the ground moves and settles to its idle when it
+  stops**, without dropping to the idle between two chained steps.
+- **A character turns rather than snapping**, arrives, and never overshoots.
+- **Every clip the gait vocabulary can ask for is in the model**, and every one
+  of them loops — checked against each other rather than by reading two lists.
 - **The budget report is produced**, and its totals are non-zero — a reporter
   that silently measures nothing looks exactly like a roster under budget.
 - **The report names a tier for every composition it measures.** A total with no
@@ -370,15 +405,14 @@ framing a battle impossible.
 
 ## Open points
 
-- **Characters, as opposed to creatures.** The player and NPCs need the same
-  contract and a different vocabulary — walking has facings, a creature has none.
-  Nothing here covers them.
+- **NPCs.** Section 11 covers the player. An NPC needs the same runtime and a way
+  to be placed and scripted, which is spec 15's business and not written.
 - **What plays a companion clip.** The set is in the vocabulary because three
   quarters of the library carries it and it is content already paid for. No
   system asks for it yet: friendship, a party menu, a creature following the
   player are all unspecified.
 - **Which take a *non-idle* slot plays**, for a creature that has several. The
-  idle is settled (section 9b) and nothing else has more than one take on any
+  idle is settled (section 10) and nothing else has more than one take on any
   model there is, so the rule is written where it is exercised and no further.
 - **Locomotion transitions** (`fi30`, `fi31`) are extras today. Using them needs
   a movement system that knows it is starting or stopping, which spec 14's

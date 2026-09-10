@@ -55,6 +55,7 @@ var _body: Node3D
 
 
 func _ready() -> void:
+	Translations.install()
 	var library: ContentLibrary = ContentLibrary.load_all()
 	_species = library.species
 	_tables = VltEncounterTableLoader.all_from_payload(

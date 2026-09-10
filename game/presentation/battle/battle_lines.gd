@@ -53,6 +53,7 @@ const KEYS: Array[String] = [
 	"battle.stat.fell_harshly",
 	"battle.stat.no_higher",
 	"battle.stat.no_lower",
+	"battle.evolved",
 	"battle.capture.shake",
 	"battle.capture.caught",
 	"battle.capture.broke_free",

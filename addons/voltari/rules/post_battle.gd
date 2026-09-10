@@ -30,7 +30,10 @@ class Award:
 	## layer's (spec 10, section 7), so they come back unanswered.
 	var offered: PackedStringArray = PackedStringArray()
 
-	## The species it became, or empty.
+	## The species it was, and the one it became. Both, because "it evolved into
+	## Y" is a sentence about two species and the creature only remembers one of
+	## them afterwards.
+	var evolved_from: String = ""
 	var evolved_into: String = ""
 
 	func _init(index: int, earned: int, before: int, after: int) -> void:
@@ -158,6 +161,7 @@ static func _evolve(
 			continue
 
 		var into: VltSpecies = species[evolution.into]
+		award.evolved_from = creature.species_id
 		creature.species_id = into.id
 		creature.types = into.types.duplicate()
 		creature.base = into.base_stats.duplicate()

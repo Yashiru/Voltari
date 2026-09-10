@@ -66,6 +66,11 @@ var _awards: Array[VltPostBattle.Award] = []
 ## Moves a creature earned and has no room for, waiting to be put to the player.
 ## Each is a party index and a move id; the pair is what a choice needs, and
 ## keeping them together is what stops the wrong creature learning something.
+## Evolutions to announce, each a species it was and one it became. They have
+## already happened — the pipeline applies one whose trigger is satisfied
+## (spec 10, section 8) — so this is a moment, not a question. Whether it could
+## be refused is a design question spec 10 names and leaves open.
+var _evolutions: Array[Array] = []
 var _offers: Array[Array] = []
 var _won: bool = false
 
@@ -81,6 +86,7 @@ var _busy: bool = false
 
 
 func _ready() -> void:
+	Translations.install()
 	_library = ContentLibrary.load_all()
 	_balls = VltItemLoader.ball_multipliers(
 		VltContentPayloads.read_indexed("res://content/generated/items")
@@ -372,6 +378,8 @@ func _settle() -> void:
 		)
 
 	for award: VltPostBattle.Award in _awards:
+		if not award.evolved_into.is_empty():
+			_evolutions.append([award.evolved_from, award.evolved_into])
 		for move_id: String in award.offered:
 			_offers.append([award.party_index, move_id])
 
@@ -379,10 +387,16 @@ func _settle() -> void:
 	_ask_next()
 
 
-## The move a creature earned and cannot fit, or empty when nothing is pending.
+## The move being asked about right now, or empty.
+##
+## Not "the head of the queue": while an evolution is on screen there is a move
+## waiting and nobody is being asked about it, and a caller that acted on the
+## difference would answer a question that had not been put.
 func offered_move() -> String:
+	if not _evolutions.is_empty() or _offers.is_empty():
+		return ""
 	@warning_ignore("unsafe_cast")
-	return "" if _offers.is_empty() else _offers[0][1] as String
+	return _offers[0][1] as String
 
 
 ## Takes the offered move in place of the one in `slot`.
@@ -417,6 +431,12 @@ func decline_offer() -> void:
 ## `ended` waits for this. A world that took itself back while a creature was
 ## still being asked what to forget would answer for the player.
 func _ask_next() -> void:
+	# Evolutions first, because they change what a creature is called and the
+	# question that follows names it.
+	if not _evolutions.is_empty():
+		_announce_evolution()
+		return
+
 	if _offers.is_empty():
 		_menu.hide()
 		_hand_back()
@@ -448,6 +468,45 @@ func _ask_next() -> void:
 	_menu.add_child(keep)
 
 	_menu.show()
+
+
+## Shows one evolution and waits to be acknowledged. A moment rather than a
+## line in a summary: it is the thing a player will remember from the battle.
+func _announce_evolution() -> void:
+	@warning_ignore("unsafe_cast")
+	var was: String = _evolutions[0][0] as String
+	@warning_ignore("unsafe_cast")
+	var became: String = _evolutions[0][1] as String
+
+	var line: BattleLines.Line = BattleLines.Line.new()
+	line.key = "battle.evolved"
+	line.arguments = {
+		"creature": tr(BattleLines.species_key(was)),
+		"into": tr(BattleLines.species_key(became)),
+	}
+	_message.text = BattleScreenStage.sentence(line)
+
+	for child: Node in _menu.get_children():
+		child.queue_free()
+
+	var onward: Button = Button.new()
+	onward.text = "continue"
+	onward.pressed.connect(acknowledge_evolution)
+	_menu.add_child(onward)
+	_menu.show()
+
+
+## The species a creature just became, or empty when nothing is being shown.
+func evolution_shown() -> String:
+	@warning_ignore("unsafe_cast")
+	return "" if _evolutions.is_empty() else _evolutions[0][1] as String
+
+
+func acknowledge_evolution() -> void:
+	if _evolutions.is_empty():
+		return
+	_evolutions.pop_front()
+	_ask_next()
 
 
 ## Puts the party that came out of the battle back into the array that went in.

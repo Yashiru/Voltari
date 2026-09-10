@@ -180,9 +180,58 @@ func test_a_second_idle_take_is_reached_sometimes_and_not_always() -> void:
 	assert_int(seen.get("ba10_waitB01", 0)).override_failure_message(
 		"the second take never played, so a creature with two idles has one"
 	).is_greater(0)
-	assert_bool(seen.get("ba10_waitA01", 0) > seen.get("ba10_waitB01", 0)).override_failure_message(
+	assert_bool(
+		seen.get("ba10_waitA01", 0) > seen.get("ba10_waitB01", 0) * 4
+	).override_failure_message(
 		"the variant was not the exception: %s" % seen
 	).is_true()
+
+
+func test_the_variant_never_runs_twice_in_a_row() -> void:
+	# The whole of the complaint, and the reason a coin flip was not enough. A
+	# one-in-four variant comes up twice in a row six times in a hundred, and
+	# twice in a row is not "occasionally" — it is what a viewer reads as the
+	# loop having changed.
+	var body: CreatureBody = _body()
+	body.show_creature(
+		_entry(FIXTURE, {"idle": ["ba10_waitA01", "ba10_waitB01"]})
+	)
+
+	var previous: String = ""
+	for repeat: int in range(600):
+		body.finished_playing()
+		var take: String = body.playing()
+		assert_bool(take == "ba10_waitB01" and previous == "ba10_waitB01").override_failure_message(
+			"the variant played twice running, at repeat %d" % repeat
+		).is_false()
+		previous = take
+
+
+func test_plain_repeats_separate_two_variants() -> void:
+	# Not merely "not adjacent": a floor of plain repeats is what makes the first
+	# take the idle by construction rather than on average.
+	var body: CreatureBody = _body()
+	body.show_creature(
+		_entry(FIXTURE, {"idle": ["ba10_waitA01", "ba10_waitB01"]})
+	)
+
+	var gap: int = 0
+	var shortest: int = 1 << 20
+	var variants: int = 0
+	for repeat: int in range(1200):
+		body.finished_playing()
+		if body.playing() == "ba10_waitB01":
+			if variants > 0:
+				shortest = mini(shortest, gap)
+			variants += 1
+			gap = 0
+			continue
+		gap += 1
+
+	assert_int(variants).override_failure_message("the variant never played").is_greater(1)
+	assert_int(shortest).override_failure_message(
+		"two variants were only %d plain repeats apart" % shortest
+	).is_greater_equal(CreatureBody.PLAIN_BETWEEN_VARIANTS)
 
 
 func test_a_creature_with_one_idle_take_never_varies() -> void:

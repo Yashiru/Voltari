@@ -27,10 +27,17 @@ const STAND_IN_HEIGHT: float = 1.6
 ## The slot that plays when nothing else is.
 const IDLE: String = "idle"
 
-## How often the idle reaches past its first take, when a creature has more than
-## one. Every repeat would make a creature twitchy; never would make the extra
-## takes decoration nobody sees (decision 0055).
-const VARIANT_IN: int = 4
+## How often the idle reaches past its first take, once it is allowed to at all.
+const VARIANT_IN: int = 3
+
+## How many plain repeats have to pass between two variants.
+##
+## **This is the part that matters, not the chance.** A coin flip per repeat has
+## no memory: a one-in-four variant comes up twice in a row six times out of a
+## hundred, and twice in a row is not "occasionally" — it is what a viewer reads
+## as the loop having changed. A floor of plain repeats makes the first take the
+## idle by construction rather than on average (decision 0055).
+const PLAIN_BETWEEN_VARIANTS: int = 5
 
 var _entry: PresentationEntry = null
 var _player: AnimationPlayer = null
@@ -42,6 +49,12 @@ var _shown: Node3D = null
 ## battle does.
 var _flourish: RandomNumberGenerator = RandomNumberGenerator.new()
 
+## Plain repeats since the last flourish. Starts high so the very first idle is
+## eligible rather than the sixth — a creature that could not vary until it had
+## breathed five times would look identical to one that never varied at all in
+## any battle short enough to watch.
+var _plain_runs: int = PLAIN_BETWEEN_VARIANTS
+
 
 func _init() -> void:
 	_flourish.randomize()
@@ -52,6 +65,7 @@ func _init() -> void:
 func show_creature(entry: PresentationEntry) -> bool:
 	_clear()
 	_entry = entry
+	_plain_runs = PLAIN_BETWEEN_VARIANTS
 
 	var found: bool = false
 	if entry != null and ResourceLoader.exists(entry.scene_path):
@@ -149,12 +163,15 @@ func _on_finished(_which: StringName) -> void:
 
 ## Which take of a slot to play.
 ##
-## The first one, mostly. A creature with several takes for a slot reaches past
-## the first now and then, which is what stops an idle reading as a loop
-## (decision 0055). Everything else in the vocabulary has one take in practice,
-## so this only ever varies the breathing.
+## **The first take is the animation.** The others are flourishes, and one only
+## ever runs after a run of plain repeats — never twice in a row, and never often
+## enough to be mistaken for the idle itself (decision 0055).
+##
+## Only the idle varies in practice: every other slot has one take on every model
+## there is. The counter is shared anyway, because a slot with two attacks should
+## behave the same way and should not need this to be revisited.
 func _take_for(slot: String) -> String:
-	if _entry == null:
+	if _entry == null or _player == null:
 		return ""
 
 	var takes: PackedStringArray = _entry.takes_for(slot)
@@ -162,10 +179,27 @@ func _take_for(slot: String) -> String:
 		return ""
 
 	var chosen: String = takes[0]
-	if takes.size() > 1 and _flourish.randi_range(0, VARIANT_IN - 1) == 0:
+	if _variant_due(takes.size()):
 		chosen = takes[_flourish.randi_range(1, takes.size() - 1)]
+		_plain_runs = 0
+	else:
+		_plain_runs += 1
 
-	return chosen if _player.has_animation(chosen) else ""
+	# A manifest may name a clip the model has not got. Falling back to the first
+	# take rather than to silence keeps a creature moving; falling back to
+	# silence only when even that is missing keeps it honest.
+	if _player.has_animation(chosen):
+		return chosen
+	return takes[0] if _player.has_animation(takes[0]) else ""
+
+
+## Whether this repeat is the one that reaches past the first take.
+func _variant_due(take_count: int) -> bool:
+	if take_count < 2:
+		return false
+	if _plain_runs < PLAIN_BETWEEN_VARIANTS:
+		return false
+	return _flourish.randi_range(0, VARIANT_IN - 1) == 0
 
 
 ## Scales the model to the height the manifest declares.

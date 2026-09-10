@@ -22,6 +22,25 @@ const SEED: int = 20260910
 ## name is a contract; a private variable is not.
 const MENU_NAME: String = "MoveMenu"
 
+## Where each side stands, indexed by side.
+##
+## Not symmetric, and that is the staging: yours is near the camera and to the
+## left, the other is further away and to the right. Two creatures the same
+## distance away read as a diagram; the depth is what makes one of them *yours*.
+const SEATS: Array[Vector3] = [
+	Vector3(-1.0, 0.0, 1.2),
+	Vector3(1.2, 0.0, -1.1),
+]
+
+## Where the camera sits, relative to your own creature, and what it looks at.
+##
+## Over your shoulder rather than side-on: it is what puts your creature in the
+## foreground and the other one across from it, and it is why the two seats are
+## not mirror images. The target is biased towards the far side so the near
+## creature sits low in frame instead of filling it.
+const EYE: Vector3 = Vector3(0.7, 1.2, 1.3)
+const LOOKING_AT: Vector3 = Vector3(0.5, 0.55, -0.2)
+
 ## Emitted once, when nobody on one side is still standing. The argument says
 ## which side won, because a caller that had to work that out from the state
 ## would be reaching past the seam this whole screen defends.
@@ -623,7 +642,12 @@ func _build_interface() -> void:
 	# invisible to every headless test and the first thing anybody would see.
 	for child: Node in get_children():
 		if child is Camera3D:
-			(child as Camera3D).make_current()
+			var camera: Camera3D = child as Camera3D
+			camera.make_current()
+			# Framed here rather than in the scene, because it is framed *from*
+			# the seats and a transform typed into a `.tscn` cannot follow them.
+			camera.position = SEATS[PLAYER] + EYE
+			camera.look_at(LOOKING_AT)
 
 	var layer: CanvasLayer = CanvasLayer.new()
 	add_child(layer)
@@ -650,10 +674,12 @@ func _build_interface() -> void:
 		layer.add_child(bar)
 
 		var body: CreatureBody = CreatureBody.new()
-		body.position = Vector3(float(side) * 3.0 - 1.5, 0, float(side) * -1.5)
-		# The far side faces us, which is the one thing about a battle's staging
-		# that is not a matter of taste.
-		body.rotation_degrees = Vector3(0, 180 if side == FOE else 0, 0)
+		body.position = SEATS[side]
+		# Your own creature turns its back on you and the other one faces you.
+		# A model's forward is +Z, towards the camera, so it is the near side that
+		# turns — which is the opposite of what this said before, and why both
+		# creatures were looking at the player.
+		body.rotation_degrees = Vector3(0, 180 if side == PLAYER else 0, 0)
 		add_child(body)
 		_stage.seat(at, title, bar, body)
 

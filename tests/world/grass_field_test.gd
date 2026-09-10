@@ -161,3 +161,131 @@ func test_no_map_at_all_is_harmless() -> void:
 	field.follow(THERE, FRAME)
 
 	assert_int(field.material_count()).is_equal(0)
+
+
+# --- the wake ------------------------------------------------------------------
+
+
+## Walks the way the world walks: a position that moves every frame.
+##
+## Handing the same point over and over is a teleport followed by standing still,
+## and a field told that correctly reports nobody going anywhere. Getting this
+## wrong is what three of these tests did first time round.
+func _walk(field: GrassField, direction: Vector3, pace: float, frames: int) -> Vector3:
+	var at: Vector3 = field.centre()
+	for frame: int in range(frames):
+		at += direction.normalized() * pace * FRAME
+		field.follow(at, FRAME)
+	return at
+
+
+func test_the_wake_trails_behind_the_centre() -> void:
+	# The whole of the trail. Grass the trailing centre still covers but the
+	# leading one has left is grass just stepped off — and the shader has no
+	# other way to know it.
+	var field: GrassField = _following()
+	var at: Vector3 = _walk(field, Vector3(1, 0, 0), 2.0, 30)
+
+	assert_float(field.wake().distance_to(at)).override_failure_message(
+		"the wake kept up with the walker, so there is nothing behind them"
+	).is_greater(field.centre().distance_to(at) + 0.05)
+
+
+func test_the_wake_catches_up_when_the_walker_stops() -> void:
+	# Otherwise the trail never closes and the field stays dented for good.
+	var field: GrassField = _following()
+	var at: Vector3 = _walk(field, Vector3(1, 0, 0), 2.0, 30)
+	for frame: int in range(240):
+		field.follow(at, FRAME)
+
+	assert_vector(field.wake()).is_equal_approx(at, Vector3.ONE * 0.02)
+
+
+func test_placing_collapses_the_wake_onto_the_walker() -> void:
+	# A warp leaves no trail: the player was never between the two maps.
+	var field: GrassField = _following()
+	_walk(field, Vector3(1, 0, 0), 2.0, 20)
+	field.place(Vector3(9, 0, 9))
+
+	assert_vector(field.wake()).is_equal_approx(field.centre(), Vector3.ONE * 0.001)
+
+
+# --- which way, and how fast ---------------------------------------------------
+
+
+func test_the_heading_points_where_the_walker_is_going() -> void:
+	# Grass splays along the path rather than opening in a circle, and a circle
+	# is a force field.
+	var field: GrassField = _following()
+	_walk(field, Vector3(1, 0, 0), 2.0, 40)
+
+	assert_float(field.heading().dot(Vector3(1, 0, 0))).override_failure_message(
+		"heading is %s for a walk due east" % field.heading()
+	).is_greater(0.9)
+
+
+func test_the_heading_is_always_a_direction() -> void:
+	# A zero heading is not a direction, and handing one to the shader would
+	# collapse the splay to whatever the arithmetic happened to produce.
+	var field: GrassField = _following()
+	assert_float(field.heading().length()).is_equal_approx(1.0, 0.001)
+
+	for frame: int in range(60):
+		field.follow(field.centre(), FRAME)
+	assert_float(field.heading().length()).override_failure_message(
+		"standing still flattened the heading to nothing"
+	).is_equal_approx(1.0, 0.001)
+
+
+func test_the_heading_does_not_snap_round_a_corner() -> void:
+	# A heading that turned in one frame would flick the splay through ninety
+	# degrees the frame a player turned.
+	var field: GrassField = _following()
+	var at: Vector3 = _walk(field, Vector3(1, 0, 0), 2.0, 40)
+
+	var before: Vector3 = field.heading()
+	field.follow(at + Vector3(0, 0, 0.2), FRAME)
+
+	assert_float(field.heading().angle_to(before)).override_failure_message(
+		"the heading turned %f radians in one frame" % field.heading().angle_to(before)
+	).is_less(0.5)
+
+
+func test_speed_rises_with_walking_and_falls_with_standing() -> void:
+	var field: GrassField = _following()
+	var at: Vector3 = _walk(field, Vector3(1, 0, 0), 3.0, 30)
+	var walking: float = field.speed()
+
+	for frame: int in range(60):
+		field.follow(at, FRAME)
+
+	assert_float(walking).override_failure_message("walking read as still").is_greater(0.4)
+	assert_float(field.speed()).override_failure_message(
+		"standing still read as walking"
+	).is_less(0.05)
+
+
+func test_speed_never_leaves_its_range() -> void:
+	# It scales the splay, and a splay beyond one would push grass further than
+	# the shader was tuned for.
+	var field: GrassField = _following()
+	_walk(field, Vector3(1, 0, 0), 40.0, 20)
+
+	assert_float(field.speed()).is_between(0.0, 1.0)
+
+
+func test_a_frame_of_no_time_does_not_erase_the_travel() -> void:
+	# A zero-delta frame that moved the mark would make the next frame measure
+	# no motion at all, and the walker would read as standing still while
+	# walking.
+	var field: GrassField = _following()
+	var at: Vector3 = _walk(field, Vector3(1, 0, 0), 3.0, 30)
+	var walking: float = field.speed()
+
+	at += Vector3(0.05, 0, 0)
+	field.follow(at, 0.0)
+	field.follow(at, FRAME)
+
+	assert_float(field.speed()).override_failure_message(
+		"a frame of no time dropped the speed from %f to %f" % [walking, field.speed()]
+	).is_greater(0.2)

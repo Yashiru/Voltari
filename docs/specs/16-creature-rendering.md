@@ -360,7 +360,51 @@ person on a two-metre grid.
 **Clips loop because the `.import` says so**, not because the runtime patches a
 shared resource on every load.
 
-## 12. Testing obligations
+## 12. The world's grass
+
+The first thing in this project that is **judged by looking**. No assertion
+distinguishes grass that moves from grass that moves well, so the evidence is a
+contact sheet rather than a test (decision 0057).
+
+`game/presentation/world/grass_parting.gdshader` does three things at once, and
+holds no state at all:
+
+- **Wind.** Gusts travelling across the field on a wavelength of a few metres,
+  swelling and passing, with a small shiver on each blade at its own phase.
+- **Variation.** Phase, stiffness and shade from a hash of the blade's root;
+  turn and size from a hash of the cell's origin. A `GridMap` draws the same mesh
+  at every cell, and without this the field breathes as one animal.
+- **A walker.** Grass leans away, splaying along the path rather than opening in
+  a circle, and grass just stepped off is still down and rings as it rises.
+
+**Every blade rotates about its root and keeps its length**, and its normal turns
+by the same rotation. A tip displaced without either is a stretched blade lit as
+though it were straight, and both show the moment a bend is worth noticing.
+
+### Where the state lives
+
+The shader is a function of the moment. Everything with a past is in
+`grass_field.gd`: two lagged centres, a heading and a speed, each smoothed as
+`1 - e^(-rate * delta)` so that the same walk looks the same at thirty frames a
+second and at two hundred and forty.
+
+The gap between the two centres **is** the wake. Nothing records where anybody
+has been, and no trail is claimed beyond the third of a second it takes the
+trailing centre to arrive.
+
+### What is measured, and what is not
+
+Tested: the smoothing, the lag, the heading, the speed, and that a warp and a
+defeat place the walker without dragging a parting across the floor.
+
+Looked at: everything else.
+
+**Not measured at all: the cost on a phone.** 323,200 vertices cost 5.9 ms a
+frame on the desktop GPU this was written on, and the walker costs nothing
+measurable on top — but the project targets the Mobile renderer and this has
+never run on one. `tools/budget/` covers assets and not shaders.
+
+## 13. Testing obligations
 
 - **Every manifest loads** into its typed form, and every path it names exists.
 - **Every clip a manifest declares is really in its model** — the engine-side
@@ -421,6 +465,13 @@ shared resource on every load.
   and the runtime still carries several looks. Keeping the switcher costs a menu
   nobody outside the team needs; removing it costs the ability to compare. Which
   one ships is undecided.
+- **The grass shader on a phone.** Section 12's numbers are a desktop
+  measurement. Whether the per-vertex matrix inverse is affordable on the Mobile
+  renderer is unknown, and `tools/budget/` does not cover shaders.
+- **Whether the world gets one art shader.** The grass shader is deliberately
+  isolated: the comic-manga direction of section 9 is settled for creatures and
+  nothing is settled for the world. Folding this into a world shader, or leaving
+  it beside one, is undecided.
 - **Type colours** are provisional in the runtime and are a first reading rather
   than an art direction.
 - **Level of detail and culling.** Untouched, and section 7 is what would tell us

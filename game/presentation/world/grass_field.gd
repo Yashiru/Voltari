@@ -1,50 +1,81 @@
 class_name GrassField
 extends RefCounted
 
-## Tells the grass where the walker is.
+## Tells the grass what the walker is doing.
 ##
-## The shader is a pure function of one point: grass within reach of it leans
-## away, and grass anywhere else stands up. **All of the softness is here.** The
-## point handed to the shader lags behind the player, so a blade the player has
-## just left is still inside the reach of a centre that has not caught up — and
-## it rises over the fraction of a second the centre takes to arrive rather than
-## snapping upright the instant a foot leaves it.
+## The shader holds no memory at all — it is a function of the moment. Everything
+## with a past lives here, and there is more of it than a position:
 ##
-## That is a lag, not a memory. Nothing records where anybody has been, so there
-## is no trail behind the player and none is claimed.
+## - **Two centres.** One tight to the player, one trailing. Grass the trailing
+##   centre still covers but the leading one has left is grass just stepped off,
+##   and the shader uses the gap between them to hold it down and ring it back
+##   up. That is a wake without a memory: nothing records where anybody has been.
+## - **A heading**, so grass splays along the path rather than opening in a
+##   circle. A circle is a force field; a path is somebody walking.
+## - **A speed**, so a player who stops stops pushing grass aside and simply
+##   stands in it.
 ##
-## It finds its materials once, from the map's own tile library: a `GridMap`
-## draws every cell of an item with that item's material, so one material covers
-## every patch of grass on a map and there is nothing to do per cell.
+## Every one of them is smoothed the same way, and none of them by a fixed
+## fraction per frame: `1 - e^(-rate * delta)` gives the same motion at thirty
+## frames a second and at two hundred and forty, and the alternative is grass
+## that recovers faster on a better machine.
 
 const POSITION: String = "walker_position"
+const WAKE: String = "walker_wake"
+const HEADING: String = "walker_heading"
+const SPEED: String = "walker_speed"
 const STRENGTH: String = "walker_strength"
 
-## How fast the centre catches up, per second.
-##
-## Read as: after one second it has closed all but `e^-6` of the gap, so about a
-## quarter of a second to arrive. Slower and the grass opens behind the player;
-## faster and there is no recovery to see.
-const FOLLOW_PER_SECOND: float = 6.0
+## How fast the leading centre catches up, per second. Tight: this one is
+## supposed to be under the player's feet.
+const FOLLOW_PER_SECOND: float = 14.0
 
-## How close is close enough to stop moving. Below this the centre is parked
-## rather than crawling, which keeps a still player from writing a uniform every
-## frame forever.
-const ARRIVED: float = 0.001
+## How fast the trailing centre catches up. The gap between the two is the wake,
+## so this number is how long grass stays down behind somebody — about a third of
+## a second, which is long enough to read as a footprint and short enough not to
+## look like damage.
+const WAKE_PER_SECOND: float = 3.2
+
+## How fast the heading and the speed settle. Slower than the centre on purpose:
+## a heading that snapped would flick the splay through ninety degrees the frame
+## a player turned a corner.
+const HEADING_PER_SECOND: float = 8.0
+const SPEED_PER_SECOND: float = 6.0
+
+## How fast anybody walks, in metres a second, for the purpose of deciding
+## whether they are moving. Not a rule about movement — the world owns that — but
+## the scale this converts a velocity into "pushing" on.
+const BRISK: float = 3.0
+
+## Close enough to have arrived. Below this a still player stops writing uniforms
+## that cannot change anything.
+const ARRIVED: float = 0.0005
 
 var _materials: Array[ShaderMaterial] = []
 var _centre: Vector3 = Vector3.ZERO
+var _wake: Vector3 = Vector3.ZERO
+var _heading: Vector3 = Vector3(0.0, 0.0, 1.0)
+var _speed: float = 0.0
 var _strength: float = 1.0
+var _previous: Vector3 = Vector3.ZERO
+var _started: bool = false
 
 
 ## Collects the grass materials a map draws with. Safe to call again — a warp
 ## changes the map, and the materials with it.
 func of_map(map: VltWorldMap) -> void:
-	_materials = []
 	if map == null:
+		_materials = []
 		return
+	of_layers([map.terrain, map.blocking, map.decor])
 
-	for layer: GridMap in [map.terrain, map.blocking, map.decor]:
+
+## The same, from any set of layers. The preview harness builds its own grid and
+## has no map to hand, and giving it a second way in would give it a second thing
+## to be wrong about.
+func of_layers(layers: Array[GridMap]) -> void:
+	_materials = []
+	for layer: GridMap in layers:
 		_collect(layer)
 
 
@@ -65,50 +96,118 @@ func _collect(layer: GridMap) -> void:
 				_materials.append(material)
 
 
-## Moves the centre towards where the player is drawn, and tells the grass.
-##
-## The smoothing is `1 - e^(-rate * delta)` rather than a fixed fraction per
-## frame. A fixed fraction makes the grass recover faster on a fast machine,
-## which is the sort of difference nobody attributes to the frame rate.
+## Moves everything towards what the walker is doing, and tells the grass.
 func follow(where: Vector3, delta: float) -> void:
 	if not where.is_finite() or delta < 0.0:
 		return
+	if not _started:
+		place(where)
+		return
 
-	if _centre.distance_to(where) <= ARRIVED:
-		_centre = where
-	else:
-		_centre = _centre.lerp(where, 1.0 - exp(-FOLLOW_PER_SECOND * delta))
+	_track_motion(where, delta)
 
+	_centre = _towards(_centre, where, FOLLOW_PER_SECOND, delta)
+	_wake = _towards(_wake, where, WAKE_PER_SECOND, delta)
+	# Only when time passed. A frame of no time that moved the mark would erase
+	# the travel the next frame is about to measure against it.
+	if delta > 0.0:
+		_previous = where
 	_push()
 
 
-## Puts the walker somewhere at once, with no lag. What a warp and a defeat need:
-## letting the centre travel would draw a parting sweeping across the map.
+## Reads the velocity before the centres move, because the centres are what the
+## velocity is being measured against.
+##
+## A player who is barely moving keeps the heading they had. A zero heading is
+## not a direction, and handing one to the shader would collapse the splay to
+## whatever the arithmetic happened to produce.
+func _track_motion(where: Vector3, delta: float) -> void:
+	if delta <= 0.0:
+		return
+
+	var travelled: Vector3 = where - _previous
+	travelled.y = 0.0
+
+	var pace: float = travelled.length() / delta
+	_speed = _eased(_speed, clampf(pace / BRISK, 0.0, 1.0), SPEED_PER_SECOND, delta)
+
+	if travelled.length_squared() > 0.0:
+		var going: Vector3 = travelled.normalized()
+		_heading = _towards(_heading, going, HEADING_PER_SECOND, delta)
+		if _heading.length_squared() > 0.0:
+			_heading = _heading.normalized()
+
+
+## Puts the walker somewhere at once, with no lag and no wake.
+##
+## What a warp and a defeat need: letting the centres travel would draw a parting
+## sweeping across the map, and letting the wake lag would leave a trail from
+## somewhere the player never was.
 func place(where: Vector3) -> void:
 	if not where.is_finite():
 		return
 	_centre = where
+	_wake = where
+	_previous = where
+	_speed = 0.0
+	_started = true
 	_push()
 
 
-## Fades the effect out without moving the centre somewhere untrue. A battle
-## hides the world; grass bent around a player who is not there is worse than
-## grass that stands up.
+## Fades the effect out without moving anything somewhere untrue. A battle hides
+## the world; grass bent around a player who is not there is worse than grass
+## that stands up.
 func set_strength(strength: float) -> void:
 	_strength = clampf(strength, 0.0, 1.0)
 	_push()
 
 
-## Where the grass currently thinks the walker is.
 func centre() -> Vector3:
 	return _centre
+
+
+func wake() -> Vector3:
+	return _wake
+
+
+func heading() -> Vector3:
+	return _heading
+
+
+func speed() -> float:
+	return _speed
 
 
 func material_count() -> int:
 	return _materials.size()
 
 
+## Sets one shader value on every grass material.
+##
+## For the preview harness, which exists so that a change can be judged by
+## looking rather than by argument — and judging means rendering twice with one
+## number different.
+func tune(name: String, value: float) -> void:
+	for material: ShaderMaterial in _materials:
+		material.set_shader_parameter(name, value)
+
+
+## Exponential smoothing, frame-rate independent. `rate` is how much of the gap
+## is closed per second, read through `1 - e^(-rate * t)`.
+static func _towards(from: Vector3, to: Vector3, rate: float, delta: float) -> Vector3:
+	if from.distance_to(to) <= ARRIVED:
+		return to
+	return from.lerp(to, 1.0 - exp(-rate * delta))
+
+
+static func _eased(from: float, to: float, rate: float, delta: float) -> float:
+	return lerpf(from, to, 1.0 - exp(-rate * delta))
+
+
 func _push() -> void:
 	for material: ShaderMaterial in _materials:
 		material.set_shader_parameter(POSITION, _centre)
+		material.set_shader_parameter(WAKE, _wake)
+		material.set_shader_parameter(HEADING, _heading)
+		material.set_shader_parameter(SPEED, _speed)
 		material.set_shader_parameter(STRENGTH, _strength)

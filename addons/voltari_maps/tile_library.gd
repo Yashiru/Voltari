@@ -361,6 +361,12 @@ static func _dress(mesh: Mesh, shader: Shader) -> bool:
 	if mesh == null:
 		return false
 
+	# The mesh's own extent, so the hinge is at this model's root and the tip
+	# weight reaches one at this model's tip. One number guessed for every model
+	# would put the bend in the wrong place on all but one of them — and the
+	# grass here runs from 0.55 m to 3.4 m tall.
+	var box: AABB = mesh.get_aabb()
+
 	var dressed: bool = false
 	for surface: int in range(mesh.get_surface_count()):
 		var material: ShaderMaterial = _parting(
@@ -368,6 +374,8 @@ static func _dress(mesh: Mesh, shader: Shader) -> bool:
 		)
 		if material == null:
 			continue
+		material.set_shader_parameter("blade_base", box.position.y)
+		material.set_shader_parameter("blade_height", maxf(box.size.y, 0.05))
 		mesh.surface_set_material(surface, material)
 		dressed = true
 

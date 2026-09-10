@@ -44,7 +44,7 @@ describe.
 | 15 | [Event scripting](15-event-scripting.md) — *draft* |
 | 16 | [Creature and character rendering](16-creature-rendering.md) — *draft* |
 | 17 | [UI and battle log consumption](17-ui-and-log.md) — *draft* |
-| 18 | Input and platforms |
+| 18 | [Input and platforms](18-input-and-platforms.md) — *draft* |
 
 ## Deferred
 

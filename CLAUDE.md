@@ -140,8 +140,9 @@ Conversation with the maintainer: **French**.
 
 ## Current state
 
-Specs 01 to 17 are written, 18 onwards are not — see `docs/specs/README.md`.
-Decisions 0001 to 0050 are recorded in `docs/decisions/`.
+**Every spec in the plan is written**: 01 to 18. Spec 19, networking and PvP,
+is deferred by design — see `docs/specs/README.md`.
+Decisions 0001 to 0052 are recorded in `docs/decisions/`.
 
 **The simulation core is implemented and oracle-backed**: battle state, the
 semantic decision interface, the battle log, the turn state machine, the effect

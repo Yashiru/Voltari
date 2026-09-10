@@ -62,6 +62,18 @@ class Held:
 	var facing_for: float = 0.0
 	var active: bool = false
 
+	## Tells the quantiser which way the walker was turned by something other
+	## than the stick — a warp arriving, a flick, a script.
+	##
+	## Without it there are two records of one fact and they drift: the walker
+	## faces east because a door said so, the quantiser still believes north, and
+	## the next tap east turns instead of walking. One writer per fact, and this
+	## is the door for the other writers.
+	func face(turned: VltFacing.Direction) -> void:
+		direction = turned
+		facing_for = 0.0
+		active = false
+
 
 ## `stick` is the raw vector: x to the east, y to the south, the screen's own
 ## axes. `elapsed` is the time since the last call.
@@ -73,15 +85,22 @@ static func of(stick: Vector2, held: Held, elapsed: float) -> Step:
 
 	var wanted: VltFacing.Direction = _quantise(stick, held)
 
-	if not held.active or wanted != held.direction:
+	if wanted != held.direction:
 		# A new direction restarts the clock, which is what makes a flick a
 		# flick: it is short *in this direction*, not short since the stick moved.
 		held.direction = wanted
 		held.facing_for = 0.0
-		held.active = true
+	elif not held.active:
+		# Pushed again in the direction it was already facing. **This walks at
+		# once.** A flick is how you turn to face something beside you, so it has
+		# nothing to say about a direction you are already facing — and restarting
+		# the clock here made every tap a turn to where you already looked, which
+		# is a tap that does nothing at all.
+		held.facing_for = FLICK_SECONDS
 	else:
 		held.facing_for += elapsed
 
+	held.active = true
 	return Step.new(true, wanted, held.facing_for >= FLICK_SECONDS)
 
 

@@ -31,9 +31,11 @@ func test_a_resting_thumb_is_not_a_direction() -> void:
 	assert_bool(step.walk).is_false()
 
 
-func test_letting_go_forgets_the_push() -> void:
-	# Otherwise a player who walked north, let go, and flicked north again would
-	# walk immediately instead of turning.
+func test_a_tap_in_the_way_you_already_face_walks_at_once() -> void:
+	# A flick is how you turn to face something beside you, so it has nothing to
+	# say about a direction you are already facing. Applying it there made every
+	# tap a turn to where the walker already looked — which is a tap that does
+	# nothing at all, however many times it is repeated.
 	var held: VltStepIntent.Held = _held()
 	_walking(Vector2(0, -1), held)
 
@@ -41,8 +43,58 @@ func test_letting_go_forgets_the_push() -> void:
 	var again: VltStepIntent.Step = VltStepIntent.of(Vector2(0, -1), held, FRAME)
 
 	assert_bool(again.walk).override_failure_message(
-		"a fresh push walked without turning first"
+		"a tap in the direction already faced did not walk"
+	).is_true()
+
+
+func test_a_tap_in_a_new_direction_still_only_turns() -> void:
+	# The other half, and the reason the flick exists at all.
+	var held: VltStepIntent.Held = _held()
+	_walking(Vector2(0, -1), held)
+
+	VltStepIntent.of(Vector2.ZERO, held, FRAME)
+	var sideways: VltStepIntent.Step = VltStepIntent.of(Vector2(1, 0), held, FRAME)
+
+	assert_int(sideways.direction).is_equal(VltFacing.Direction.EAST)
+	assert_bool(sideways.walk).override_failure_message(
+		"a flick into a new direction walked instead of turning"
 	).is_false()
+
+
+func test_repeated_taps_in_one_direction_all_walk() -> void:
+	# What a player actually does, and the shape of the bug: every tap after the
+	# first was a turn to a direction already held, so tapping never moved
+	# anybody however long they kept at it.
+	var held: VltStepIntent.Held = _held()
+	held.face(VltFacing.Direction.EAST)
+
+	for tap: int in range(5):
+		var pushed: VltStepIntent.Step = VltStepIntent.of(Vector2(1, 0), held, FRAME)
+		assert_bool(pushed.walk).override_failure_message(
+			"tap %d did not walk" % tap
+		).is_true()
+		VltStepIntent.of(Vector2.ZERO, held, FRAME)
+
+
+func test_being_turned_by_something_else_is_remembered() -> void:
+	# A door sets the walker's facing, and the quantiser has to hear about it or
+	# the two records drift: the walker faces east, this still believes north,
+	# and the first tap east turns instead of walking.
+	var held: VltStepIntent.Held = _held()
+	held.face(VltFacing.Direction.WEST)
+
+	assert_bool(VltStepIntent.of(Vector2(-1, 0), held, FRAME).walk).override_failure_message(
+		"the walker was turned west and a push west still had to turn first"
+	).is_true()
+	assert_bool(VltStepIntent.of(Vector2(1, 0), _turned_west(), FRAME).walk).override_failure_message(
+		"a push opposite the facing walked without turning"
+	).is_false()
+
+
+func _turned_west() -> VltStepIntent.Held:
+	var held: VltStepIntent.Held = _held()
+	held.face(VltFacing.Direction.WEST)
+	return held
 
 
 # --- the dominant axis -------------------------------------------------------

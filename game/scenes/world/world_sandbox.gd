@@ -136,6 +136,7 @@ func walk(direction: VltFacing.Direction) -> void:
 ## sign you cannot walk into.
 func face(direction: VltFacing.Direction) -> void:
 	_walker.facing = direction
+	_held.face(direction)
 
 
 func interact() -> void:
@@ -544,6 +545,7 @@ func _enter(into: String, at: Vector2i, facing: VltFacing.Direction) -> void:
 
 	_walker.map = _map
 	_walker.place(at, facing)
+	_held.face(facing)
 	_place_body()
 	_message.text = into
 

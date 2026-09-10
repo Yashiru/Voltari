@@ -1,0 +1,28 @@
+# Indentation, so an editor cannot quietly break a file it was only opened in.
+#
+# YAML forbids a tab as indentation, and an editor set to tabs rewrites content
+# files on save into something the build cannot read. That happened, twice, to
+# files nobody had edited.
+#
+# Godot's own script editor does not read this file. If you edit content there,
+# turn off Editor Settings > Text Editor > Behavior > Files > Convert Indent On
+# Save, or edit YAML somewhere else.
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{yaml,yml,json,md}]
+indent_style = space
+indent_size = 2
+
+[*.{gd,gdshader}]
+indent_style = tab
+
+[*.{mjs,js}]
+indent_style = space
+indent_size = 2

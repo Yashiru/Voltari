@@ -11,7 +11,31 @@
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync, existsSync } from "node:fs";
 import { dirname, join, basename } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parse } from "yaml";
+import { parse as parseYaml } from "yaml";
+
+/**
+ * Reads one YAML file, and says which one when it will not parse.
+ *
+ * The library's own error names a line and a column and not a file, which for a
+ * build that reads forty of them is a stack trace and a search. The tab case is
+ * called out by name because it is the one that arrives on its own: an editor
+ * set to indent with tabs rewrites a file on save, and YAML forbids a tab as
+ * indentation, so a file nobody edited stops parsing.
+ */
+function readYaml(path) {
+  try {
+    return parseYaml(readFileSync(path, "utf8"));
+  } catch (error) {
+    const where = error.linePos?.[0] ? ` line ${error.linePos[0].line}` : "";
+    if (error.code === "TAB_AS_INDENT") {
+      throw new Error(
+        `${path}${where}: indented with a tab. YAML allows only spaces — ` +
+          `check your editor's "convert indent on save".`,
+      );
+    }
+    throw new Error(`${path}${where}: ${error.message}`);
+  }
+}
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, "..", "..");
@@ -30,15 +54,15 @@ const OUT_DIR = join(REPO, "content", "generated");
 const SCHEMA_VERSION = 1;
 
 export function loadChart() {
-  return parse(readFileSync(CHART_YAML, "utf8"));
+  return readYaml(CHART_YAML);
 }
 
 export function loadNatures() {
-  return parse(readFileSync(NATURES_YAML, "utf8"));
+  return readYaml(NATURES_YAML);
 }
 
 export function loadCurves() {
-  return parse(readFileSync(CURVES_YAML, "utf8"));
+  return readYaml(CURVES_YAML);
 }
 
 /// Reads a directory of one-file-per-entity YAML.
@@ -55,7 +79,7 @@ export function loadEntities(directory) {
 
   for (const file of readdirSync(directory).sort()) {
     if (!file.endsWith(".yaml")) continue;
-    const parsed = parse(readFileSync(join(directory, file), "utf8")) ?? {};
+    const parsed = readYaml(join(directory, file)) ?? {};
     entities.push({ id: basename(file, ".yaml"), ...parsed });
   }
 

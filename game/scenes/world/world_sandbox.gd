@@ -406,16 +406,27 @@ func _load_if_present() -> void:
 	_message.text = "Loaded." if report.complete() else "Loaded what could be read."
 
 
-## On a phone this is the ordinary way a session ends. Writing is refused while
-## an event is running, which is decision 0044 arriving where it matters: a
-## half-run event has set no flags, and saving now would record a world it
-## cannot resume.
 func _notification(what: int) -> void:
-	if what != NOTIFICATION_APPLICATION_PAUSED and what != NOTIFICATION_WM_GO_BACK_REQUEST:
-		return
-	if _run != null or _walker == null:
-		return
-	VltSaveStore.write(SAVE_PATH, VltSaveCodec.write(_sections()))
+	if what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_WM_GO_BACK_REQUEST:
+		save_on_background()
+
+
+## On a phone this is the ordinary way a session ends: the application is put
+## away and later killed. Returns whether it wrote, because "it refused" and "it
+## failed" are different things and only one of them is fine.
+##
+## **Two refusals, and both are older than this function.** Not mid-event: a
+## half-run event has set no flags and a save now records a world nothing can
+## resume (decision 0044). Not mid-battle: a save never holds battle state
+## (spec 13, section 6), and the battle would be lost on reload anyway — which
+## is accepted, but losing the walk that led to it is not.
+##
+## The second guard was missing and nothing noticed, because the only way to
+## meet it is to be interrupted at exactly the wrong moment.
+func save_on_background() -> bool:
+	if _walker == null or _run != null or _battle != null:
+		return false
+	return VltSaveStore.write(SAVE_PATH, VltSaveCodec.write(_sections()))
 
 
 # --- what it looks like ------------------------------------------------------

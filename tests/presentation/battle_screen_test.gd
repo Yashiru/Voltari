@@ -498,3 +498,20 @@ func test_an_evolution_is_shown_before_the_question_that_follows() -> void:
 
 	screen.acknowledge_evolution()
 	assert_str(screen.offered_move()).is_equal("water_special")
+
+
+func test_it_brings_its_own_camera() -> void:
+	# On its own this scene's camera is current by being the only one. Put on top
+	# of a world it is not, and nothing was making it — a bug invisible to every
+	# headless test and the first thing anybody would have seen.
+	var screen: BattleScreen = _screen()
+
+	var found: Camera3D = null
+	for child: Node in screen.get_children():
+		if child is Camera3D:
+			found = child as Camera3D
+
+	assert_object(found).override_failure_message("the battle has no camera").is_not_null()
+	assert_bool(found.current).override_failure_message(
+		"the battle came up looking through somebody else's camera"
+	).is_true()

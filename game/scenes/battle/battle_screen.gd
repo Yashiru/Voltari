@@ -591,6 +591,13 @@ func _standing(side: int) -> bool:
 
 
 func _build_interface() -> void:
+	# On its own this scene's camera becomes current by being the only one. As a
+	# child of the world it is not, and nothing was making it — which is
+	# invisible to every headless test and the first thing anybody would see.
+	for child: Node in get_children():
+		if child is Camera3D:
+			(child as Camera3D).make_current()
+
 	var layer: CanvasLayer = CanvasLayer.new()
 	add_child(layer)
 
@@ -614,8 +621,14 @@ func _build_interface() -> void:
 		bar.show_percentage = false
 		layer.add_child(bar)
 
-		var body: Node3D = Node3D.new()
-		body.position = Vector3(float(side) * 3.0 - 1.5, 0, 0)
+		# Something to look at until a creature scene is instanced here. Spec 16
+		# says what will replace it; nothing authored exists to put in yet.
+		var body: MeshInstance3D = MeshInstance3D.new()
+		var shape: CapsuleMesh = CapsuleMesh.new()
+		shape.radius = 0.45
+		shape.height = 1.6
+		body.mesh = shape
+		body.position = Vector3(float(side) * 3.0 - 1.5, 0.9, float(side) * -1.5)
 		add_child(body)
 		_stage.seat(at, title, bar, body)
 

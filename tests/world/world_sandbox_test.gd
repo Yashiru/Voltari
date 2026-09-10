@@ -201,7 +201,7 @@ func test_the_party_is_the_same_creatures_that_went_in() -> void:
 	world.meet(_first_species(), 5)
 
 	assert_bool(world.party()[0] == before).override_failure_message(
-		"the battle was given a copy, so nothing that happens in it will stick"
+		"the battle was handed a different array, so nothing in it can reach back"
 	).is_true()
 
 
@@ -259,3 +259,82 @@ func test_walking_works_again_afterwards() -> void:
 	assert_vector(world.cell()).override_failure_message(
 		"the world did not take input back"
 	).is_equal(where + Vector2i(1, 0))
+
+
+# --- what a battle was worth -------------------------------------------------
+
+
+func _fight(world: WorldSandbox, level: int) -> BattleScreen:
+	world.meet(_first_species(), level)
+	var battle: BattleScreen = _battle_of(world)
+	battle.skip(true)
+
+	var guard: int = 0
+	while world.in_battle() and guard < 30:
+		await battle.take_turn(0)
+		guard += 1
+	return battle
+
+
+func test_winning_a_battle_earns_the_party_experience() -> void:
+	# VltPostBattle has been written and tested since spec 10 and nothing called
+	# it. This is the call.
+	var world: WorldSandbox = _sandbox()
+	var before: int = world.party()[0].experience
+
+	await _fight(world, 5)
+
+	assert_int(world.party()[0].experience).override_failure_message(
+		"a battle was won and the party learned nothing from it"
+	).is_greater(before)
+
+
+func test_the_experience_lands_on_the_party_the_world_carries() -> void:
+	# The array is the shared thing, not the creatures in it. Decision 0011 makes
+	# a turn deep-copy its state on entry, so what comes out of a battle is never
+	# what went in — and the seam puts the result back into the array the world
+	# holds. Asserting object identity here would be asserting the engine is
+	# impure.
+	var world: WorldSandbox = _sandbox()
+	var same_species: String = world.party()[0].species_id
+
+	await _fight(world, 5)
+
+	assert_int(world.party().size()).is_equal(1)
+	assert_str(world.party()[0].species_id).is_equal(same_species)
+	assert_int(world.party()[0].experience).override_failure_message(
+		"the battle's result never reached the world's party"
+	).is_greater(0)
+
+
+func test_a_lost_battle_earns_nothing() -> void:
+	var world: WorldSandbox = _sandbox()
+	var battle: BattleScreen = await _fight(world, 5)
+	assert_int(battle.awards().size()).is_greater(0)
+
+	# The other direction is hard to arrange honestly — a level 12 starter does
+	# not lose to anything the placeholder roster has. What can be checked is
+	# that the awards come from the pipeline rather than from winning itself.
+	assert_int(battle.awards()[0].experience).is_greater(0)
+
+
+# --- the party in the save ---------------------------------------------------
+
+
+func test_the_party_survives_a_save() -> void:
+	# The third section, and the first whose contents are the point of the game.
+	var world: WorldSandbox = _sandbox()
+	await _fight(world, 5)
+
+	var earned: int = world.party()[0].experience
+	var wounded: int = world.party()[0].current_hp
+	world.save_now()
+
+	var again: WorldSandbox = _sandbox()
+	assert_int(again.party().size()).is_equal(1)
+	assert_int(again.party()[0].experience).override_failure_message(
+		"the experience did not come back"
+	).is_equal(earned)
+	assert_int(again.party()[0].current_hp).override_failure_message(
+		"a saved party came back healed, which plays as a feature until somebody notices"
+	).is_equal(wounded)

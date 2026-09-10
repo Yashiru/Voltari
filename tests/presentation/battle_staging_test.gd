@@ -165,13 +165,75 @@ func test_a_bigger_pair_pushes_the_camera_back() -> void:
 	)
 
 
-func test_the_camera_is_behind_and_above() -> void:
+func test_the_camera_is_behind_your_creature_along_the_fight() -> void:
+	# Behind *yours*, not behind the world. A camera on +Z watches a fight that
+	# runs diagonally from the side, and the pair reads as a line-up however
+	# carefully they are turned towards each other.
+	var seats: Array[Vector3] = _seats()
 	var eye: Vector3 = BattleStaging.eye(HEIGHT, FOV)
 
-	assert_float(eye.z).override_failure_message("the camera is not behind the pair").is_greater(0.0)
-	assert_float(eye.y).override_failure_message(
+	var forward: Vector3 = (seats[FOE] - seats[PLAYER]).normalized()
+	var along: float = (eye - seats[PLAYER]).dot(forward)
+
+	assert_float(along).override_failure_message(
+		"the camera is level with or past your creature rather than behind it"
+	).is_less(0.0)
+
+
+func test_the_camera_is_off_the_axis_rather_than_on_it() -> void:
+	# Exactly behind is exactly where your creature hides the other one.
+	var seats: Array[Vector3] = _seats()
+	var eye: Vector3 = BattleStaging.eye(HEIGHT, FOV)
+
+	var forward: Vector3 = (seats[FOE] - seats[PLAYER]).normalized()
+	var sideways: Vector3 = forward.cross(Vector3.UP).normalized()
+
+	assert_float((eye - seats[PLAYER]).dot(sideways)).override_failure_message(
+		"the camera sits on the line of the fight"
+	).is_greater(0.3)
+
+
+func test_the_camera_is_above() -> void:
+	assert_float(BattleStaging.eye(HEIGHT, FOV).y).override_failure_message(
 		"the camera is at ground level, so the far creature is hidden by the near one"
 	).is_greater(HEIGHT)
+
+
+func test_neither_creature_hides_the_other() -> void:
+	# The failure a distance check cannot see: both in frame, one in front of the
+	# other. Measured as the angle between them from the camera, which is what
+	# overlapping actually means.
+	var seats: Array[Vector3] = _seats()
+	var eye: Vector3 = BattleStaging.eye(HEIGHT, FOV)
+
+	var apart: float = rad_to_deg(
+		(seats[PLAYER] - eye).normalized().angle_to((seats[FOE] - eye).normalized())
+	)
+	assert_float(apart).override_failure_message(
+		"only %.1f degrees apart on screen" % apart
+	).is_greater(12.0)
+
+
+func test_the_shoulder_holds_whichever_way_the_fight_leans() -> void:
+	# Composed from the axis rather than rotated by a signed yaw, so a negative
+	# slant cannot put the camera on the wrong shoulder.
+	for slant: float in [-60.0, -38.0, 0.0, 38.0, 60.0]:
+		var near: Vector3 = BattleStaging.seat(PLAYER, BattleStaging.SEPARATION, slant)
+		var far: Vector3 = BattleStaging.seat(FOE, BattleStaging.SEPARATION, slant)
+		var eye: Vector3 = BattleStaging.eye(
+			HEIGHT, FOV, BattleStaging.SEPARATION, BattleStaging.PITCH_DEGREES,
+			BattleStaging.MARGIN, BattleStaging.SHOULDER_DEGREES, slant
+		)
+
+		var forward: Vector3 = (far - near).normalized()
+		var sideways: Vector3 = forward.cross(Vector3.UP).normalized()
+
+		assert_float((eye - near).dot(forward)).override_failure_message(
+			"at %.0f degrees of slant the camera is not behind your creature" % slant
+		).is_less(0.0)
+		assert_float((eye - near).dot(sideways)).override_failure_message(
+			"at %.0f degrees of slant the camera is on the wrong shoulder" % slant
+		).is_greater(0.0)
 
 
 func test_yours_is_the_nearer_to_the_camera() -> void:

@@ -28,7 +28,15 @@ const SEPARATION: float = 2.4
 const SLANT_DEGREES: float = 38.0
 
 ## How far above the horizontal the camera looks down.
-const PITCH_DEGREES: float = 17.0
+const PITCH_DEGREES: float = 20.0
+
+## How far off your creature's shoulder the camera stands.
+##
+## Zero puts it exactly behind you, where you hide the other one. Ninety puts it
+## side-on to the fight, which is where it was and why the two of you read as a
+## line-up rather than as facing each other. In between is over the shoulder:
+## your creature low and left, the other across the frame from it.
+const SHOULDER_DEGREES: float = 24.0
 
 ## How much wider than the strict fit to frame. One would put the creatures
 ## exactly on the edges of the screen.
@@ -105,19 +113,58 @@ static func distance_for(
 	return maxf(radius, 0.0) / half * maxf(margin, 1.0)
 
 
-## Where the camera sits: behind the pair, raised by the pitch, far enough back
-## that both fit.
+## Where the camera sits: over your creature's shoulder, raised by the pitch, far
+## enough back that both fit.
+##
+## **Placed along the fight's own axis, not the world's.** A camera on +Z watches
+## a fight that runs diagonally *from the side*, and the two creatures read as a
+## line-up however carefully they are turned towards each other. Built from the
+## seats, it is behind yours by construction whatever the slant is.
 static func eye(
 	height: float,
 	fov_degrees: float,
 	separation: float = SEPARATION,
 	pitch_degrees: float = PITCH_DEGREES,
-	margin: float = MARGIN
+	margin: float = MARGIN,
+	shoulder_degrees: float = SHOULDER_DEGREES,
+	slant_degrees: float = SLANT_DEGREES
 ) -> Vector3:
-	var pitch: float = deg_to_rad(pitch_degrees)
-	var back: Vector3 = Vector3(0.0, sin(pitch), cos(pitch))
 	var away: float = distance_for(framing_radius(height, separation), fov_degrees, margin)
-	return centre(height) + back * away
+	var direction: Vector3 = shoulder(pitch_degrees, shoulder_degrees, separation, slant_degrees)
+	return centre(height) + direction * away
+
+
+## The unit direction from the middle of the fight to the camera.
+##
+## Composed rather than rotated by a signed angle: "behind" and "to the right"
+## are both read off the fight's own axis, so neither depends on which way the
+## slant happens to lean. A rotation by a signed yaw would put the camera on the
+## wrong shoulder the day somebody made the slant negative.
+static func shoulder(
+	pitch_degrees: float = PITCH_DEGREES,
+	shoulder_degrees: float = SHOULDER_DEGREES,
+	separation: float = SEPARATION,
+	slant_degrees: float = SLANT_DEGREES
+) -> Vector3:
+	var near: Vector3 = seat(NEAR_SIDE, separation, slant_degrees)
+	var far: Vector3 = seat(NEAR_SIDE + 1, separation, slant_degrees)
+
+	var forward: Vector3 = (far - near)
+	forward.y = 0.0
+	if forward.length_squared() <= 0.0:
+		# Both on the same spot. Any direction frames it equally badly, and this
+		# one at least matches what the camera used to do.
+		forward = Vector3(0.0, 0.0, -1.0)
+	forward = forward.normalized()
+
+	# Looking along `forward`, the camera's own right — the same convention Godot
+	# uses for a camera, which looks along -Z with +X to its right.
+	var to_the_right: Vector3 = forward.cross(Vector3.UP).normalized()
+	var off: float = deg_to_rad(shoulder_degrees)
+	var level: Vector3 = (-forward * cos(off) + to_the_right * sin(off)).normalized()
+
+	var pitch: float = deg_to_rad(pitch_degrees)
+	return (level * cos(pitch) + Vector3.UP * sin(pitch)).normalized()
 
 
 ## Where the camera looks. The centre of the pair, so neither is favoured — the

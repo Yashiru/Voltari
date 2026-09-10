@@ -21,6 +21,24 @@ const IDENTIFIER: String = "^[a-z][a-z0-9_]*$"
 ## size silently produces one too.
 const SMALLEST: int = 1
 
+## How wide a cell is, in metres, and how big its art is drawn.
+##
+## **Two numbers because they answer two questions.** `CELL_SIZE` is how far apart
+## cells are; `ART_SCALE` is how large the mesh in one is drawn. The tile library
+## is authored at two metres a tile, so on a one-metre grid it is drawn at half —
+## and a tile then fills its cell exactly instead of overlapping its neighbours
+## four times over.
+##
+## One metre is a cell a person fits in. At two, a 1.7 m character stood on a
+## tile nearly wider than they are tall, and everything read as furniture built
+## for somebody else.
+##
+## Both live here because this is where a map is shaped. Changing them changes
+## new maps; an existing map carries its own, which is what makes the change
+## reversible one map at a time.
+const CELL_SIZE: float = 1.0
+const ART_SCALE: float = 0.5
+
 
 class Result:
 	extends RefCounted
@@ -151,4 +169,6 @@ static func _layer(layer_name: String, library: MeshLibrary) -> GridMap:
 	var layer: GridMap = GridMap.new()
 	layer.name = layer_name
 	layer.mesh_library = library
+	layer.cell_size = Vector3.ONE * CELL_SIZE
+	layer.cell_scale = ART_SCALE
 	return layer

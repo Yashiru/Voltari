@@ -150,6 +150,26 @@ prop half a cell into a doorway is a legitimate thing to want.
 `cell_scale` on a `GridMap` scales everything in that layer at once, which is the
 answer to "all my tiles are twenty percent too big" and to nothing else.
 
+### The grid is one metre, and the art is drawn at half
+
+`cell_size` is how far apart cells are; `cell_scale` is how big the mesh in one is
+drawn. **They answer two questions and both have to be set.** The tile library is
+authored at two metres a tile, so on a one-metre grid it is drawn at half — and a
+tile then fills its cell exactly instead of overlapping its neighbours four times
+over.
+
+New maps get both from `VltNewMap.CELL_SIZE` and `ART_SCALE`, and so do the
+starter maps. **A map you painted before carries its own**: select each of its
+three `GridMap` layers and set `Cell > Size` to 1 and `Cell > Scale` to 0.5.
+Nothing is lost either way — cells keep their coordinates, so the map changes
+size and not shape, and setting the two back undoes it.
+
+One metre is a cell a person fits in. At two, the 1.7 m character stood on a tile
+nearly wider than they are tall and everything read as furniture built for
+somebody else. Walking speed is unaffected: how long a cell takes is derived from
+its width, so the player crosses twice as many cells a second at the same
+metres a second.
+
 ### Cells are centred vertically
 
 `cell_center_y` is on by default, so the centre of a ground cell is **half a cell

@@ -35,7 +35,7 @@ const GROUND_SPEED: float = 3.6
 
 ## Only a fallback: the grid is asked how wide a cell is. Kept for a map whose
 ## terrain layer is missing, which is a map somebody is midway through building.
-const CELL: float = 2.0
+const CELL: float = 1.0
 
 ## The model stands with its feet at its own origin, and a cell's centre is where
 ## the floor tile is drawn from — so the two meet with nothing added.

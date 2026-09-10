@@ -81,6 +81,18 @@ func test_nothing_blocks_and_nothing_is_decorated() -> void:
 	assert_int(map.decor.get_used_cells().size()).is_equal(0)
 
 
+func test_a_new_map_is_on_the_grid_a_person_fits_in() -> void:
+	# One metre is a cell a person fits in. At two, a 1.7 m character stood on a
+	# tile nearly wider than they are tall.
+	var map: VltWorldMap = _opened(_create())
+
+	for layer: GridMap in [map.terrain, map.blocking, map.decor]:
+		assert_float(layer.cell_size.x).is_equal_approx(VltNewMap.CELL_SIZE, 0.001)
+		assert_float(layer.cell_scale).override_failure_message(
+			"%s draws two-metre art at full size on a one-metre grid" % layer.name
+		).is_equal_approx(VltNewMap.ART_SCALE, 0.001)
+
+
 func test_every_layer_can_be_painted_into() -> void:
 	# A layer with no library cannot hold a cell at all, which would make two
 	# thirds of a new map unusable until somebody worked out why.

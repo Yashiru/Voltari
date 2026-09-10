@@ -7,46 +7,52 @@
 [ext_resource type="Script" path="res://addons/voltari/world/events/steps/branch_step.gd" id="5_8k1pe"]
 [ext_resource type="Script" path="res://addons/voltari/world/events/steps/say_step.gd" id="6_u4x8j"]
 
-[node name="starter_cave" type="Node3D" unique_id=1365193539 node_paths=PackedStringArray("terrain", "blocking", "decor")]
+[node name="starter_cave" type="Node3D" unique_id=1919451845 node_paths=PackedStringArray("terrain", "blocking", "decor")]
 script = ExtResource("1_wklws")
 map_id = "starter_cave"
 terrain = NodePath("Terrain")
 blocking = NodePath("Blocking")
 decor = NodePath("Decor")
 
-[node name="Terrain" type="GridMap" parent="." unique_id=1021371912]
+[node name="Terrain" type="GridMap" parent="." unique_id=1058467146]
 mesh_library = ExtResource("2_hcd7q")
+cell_size = Vector3(1, 1, 1)
+cell_scale = 0.5
 data = {
 "cells": PackedInt32Array(0, 0, 0, 0, 1, 0, 0, 2, 0, 0, 3, 0, 1, 0, 0, 1, 1, 0, 1, 2, 0, 1, 3, 0, 2, 0, 0, 2, 1, 0, 2, 2, 0, 2, 3, 0, 3, 0, 0, 3, 1, 0, 3, 2, 0, 3, 3, 0)
 }
 
-[node name="Blocking" type="GridMap" parent="." unique_id=1906004479]
+[node name="Blocking" type="GridMap" parent="." unique_id=584641721]
 mesh_library = ExtResource("2_hcd7q")
+cell_size = Vector3(1, 1, 1)
+cell_scale = 0.5
 
-[node name="Decor" type="GridMap" parent="." unique_id=202217111]
+[node name="Decor" type="GridMap" parent="." unique_id=656005098]
 mesh_library = ExtResource("2_hcd7q")
+cell_size = Vector3(1, 1, 1)
+cell_scale = 0.5
 
-[node name="DoorWest" type="Node3D" parent="." unique_id=329510034]
+[node name="DoorWest" type="Node3D" parent="." unique_id=1455084749]
 script = ExtResource("3_at1ye")
 cell = Vector2i(0, 2)
 to_map = "starter_field"
 to_cell = Vector2i(6, 3)
 to_facing = 3
 
-[node name="Echo" type="Node3D" parent="." unique_id=692578818]
+[node name="Echo" type="Node3D" parent="." unique_id=937572278]
 script = ExtResource("4_632oy")
 cell = Vector2i(2, 1)
 
-[node name="IfRead" type="Node" parent="Echo" unique_id=167987288 node_paths=PackedStringArray("when_set", "otherwise")]
+[node name="IfRead" type="Node" parent="Echo" unique_id=766707824 node_paths=PackedStringArray("when_set", "otherwise")]
 script = ExtResource("5_8k1pe")
 flag = "read_the_sign"
 when_set = NodePath("Known")
 otherwise = NodePath("Unknown")
 
-[node name="Known" type="Node" parent="Echo/IfRead" unique_id=1454219556]
+[node name="Known" type="Node" parent="Echo/IfRead" unique_id=717316023]
 script = ExtResource("6_u4x8j")
 line_id = "sign_echo_known"
 
-[node name="Unknown" type="Node" parent="Echo/IfRead" unique_id=716786015]
+[node name="Unknown" type="Node" parent="Echo/IfRead" unique_id=1454031218]
 script = ExtResource("6_u4x8j")
 line_id = "sign_echo_unknown"

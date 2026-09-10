@@ -184,9 +184,15 @@ func _map(
 	return map
 
 
+## The grid a starter map uses is the grid a new map uses.
+##
+## Read from `VltNewMap` rather than repeated here: two places that both know how
+## wide a cell is are two places that disagree the first time one changes.
 func _grid(node_name: String, cells: Array[Vector2i], item: int) -> GridMap:
 	var grid: GridMap = GridMap.new()
 	grid.name = node_name
+	grid.cell_size = Vector3.ONE * VltNewMap.CELL_SIZE
+	grid.cell_scale = VltNewMap.ART_SCALE
 	grid.mesh_library = load(TILES)
 	for at: Vector2i in cells:
 		grid.set_cell_item(Vector3i(at.x, VltWorldMap.GROUND, at.y), item)

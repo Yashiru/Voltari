@@ -101,3 +101,30 @@ func test_the_flag_crosses_the_map() -> void:
 
 	assert_bool(set_anywhere).is_true()
 	assert_bool(read_anywhere).is_true()
+
+
+func test_the_grid_is_the_one_new_maps_use() -> void:
+	# Two places that both know how wide a cell is are two places that disagree
+	# the first time one changes. The starter maps read it from the same constant
+	# the New map button does.
+	for map: VltWorldMap in _maps():
+		for layer: GridMap in [map.terrain, map.blocking, map.decor]:
+			assert_float(layer.cell_size.x).override_failure_message(
+				"%s/%s is on a %.2f m grid" % [map.map_id, layer.name, layer.cell_size.x]
+			).is_equal_approx(VltNewMap.CELL_SIZE, 0.001)
+			assert_float(layer.cell_scale).override_failure_message(
+				"%s/%s draws its tiles at %.2f" % [map.map_id, layer.name, layer.cell_scale]
+			).is_equal_approx(VltNewMap.ART_SCALE, 0.001)
+
+
+func test_a_tile_fills_its_cell() -> void:
+	# The two numbers answer two questions and have to agree: the library is
+	# authored at two metres a tile, so on a one-metre grid it is drawn at half.
+	# Get that wrong and every tile overlaps its neighbours four times over.
+	var library: MeshLibrary = load("res://game/maps/tiles.meshlib") as MeshLibrary
+	var ground: float = library.get_item_mesh(0).get_aabb().size.x
+
+	assert_float(ground * VltNewMap.ART_SCALE).override_failure_message(
+		"a %.2f m tile drawn at %.2f does not fill a %.2f m cell"
+		% [ground, VltNewMap.ART_SCALE, VltNewMap.CELL_SIZE]
+	).is_equal_approx(VltNewMap.CELL_SIZE, 0.01)

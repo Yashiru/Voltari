@@ -313,6 +313,19 @@ func _show_build(report: VltTileLibrary.Report) -> void:
 	_say("\n".join(lines))
 
 
+## Reports a snap the 3D toolbar asked for. Here rather than in a popup: the
+## answer is a number, and a number that interrupts you is worse than a number
+## you can glance at.
+func say_snapped(moved: int, selected: int) -> void:
+	if selected == 0:
+		_say("[color=orange]Nothing selected.[/color]")
+		return
+	if moved == 0:
+		_say("[color=gray]Nothing to move — already on their cells, or not props under a map.[/color]")
+		return
+	_say("[color=lightgreen]%d of %d moved onto a cell.[/color]" % [moved, selected])
+
+
 func _say(text: String) -> void:
 	_report.clear()
 	_report.append_text(text)

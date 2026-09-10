@@ -22,7 +22,12 @@ const SAVE_PATH: String = "user://sandbox.json"
 ## How long one cell takes. The pace lives here, the way it lives in the battle
 ## stage — nothing below has an opinion about it.
 const STEP_SECONDS: float = 0.16
+## Only a fallback now: the grid is asked where a cell is. Kept for a map whose
+## terrain layer is missing, which is a map somebody is midway through building.
 const CELL: float = 2.0
+
+## Half the capsule, so it stands on the floor rather than in it.
+const BODY_LIFT: float = 0.8
 const BATTLE_SCENE: String = "res://game/scenes/battle/battle_screen.tscn"
 const STARTER_LEVEL: int = 12
 
@@ -531,8 +536,20 @@ func _enter(into: String, at: Vector2i, facing: VltFacing.Direction) -> void:
 		_begin(arrival)
 
 
+## Puts the capsule and the camera where the walker is.
+##
+## The position is asked of the grid rather than computed from `CELL`, and that is
+## not tidying: a `GridMap` centres its cells vertically by default, so the floor
+## of a map is half a cell up. Assuming zero buried the player to the chest in
+## every map painted with a real tile.
 func _place_body() -> void:
-	var where: Vector3 = Vector3(float(_walker.cell.x) * CELL, 0.8, float(_walker.cell.y) * CELL)
+	var ground: Vector3 = Vector3(float(_walker.cell.x) * CELL, 0.0, float(_walker.cell.y) * CELL)
+	if _map != null and _map.terrain != null:
+		ground = _map.terrain.map_to_local(
+			Vector3i(_walker.cell.x, VltWorldMap.GROUND, _walker.cell.y)
+		)
+
+	var where: Vector3 = ground + Vector3(0, BODY_LIFT, 0)
 	_body.position = where
 	_camera.position = where + Vector3(0, 9, 7)
 	_camera.look_at(where)

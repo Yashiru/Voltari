@@ -129,6 +129,35 @@ Everything else about them — where a warp leads, which table a zone names, wha
 an event does — is `@export`s in the inspector. Events are typed nodes, and their
 steps are child nodes (spec 15).
 
+### Props you want to scale are not grid cells
+
+**A `GridMap` cell carries an item id and one of 24 orthogonal orientations, and
+no scale at all.** Choosing a size while painting does not exist, and that is the
+shape of the tool rather than a missing feature.
+
+So anything whose size or angle you want to choose goes in as an ordinary node:
+drag the model from the FileSystem into the scene as a child of the map, and set
+position, rotation and scale in the inspector like any 3D object. Nothing reads
+it — the same as the decoration layer, for the same reason (decision 0054).
+
+**Snap to cells** in the 3D toolbar moves the selected props onto the nearest
+cell. Height, rotation and scale are left alone: a prop sunk into the floor or
+raised onto a ledge is art. It is on demand rather than continuous, because a
+prop half a cell into a doorway is a legitimate thing to want.
+
+`cell_scale` on a `GridMap` scales everything in that layer at once, which is the
+answer to "all my tiles are twenty percent too big" and to nothing else.
+
+### Cells are centred vertically
+
+`cell_center_y` is on by default, so the centre of a ground cell is **half a cell
+up**, not at zero. Two consequences, both already handled, both worth knowing
+before you wonder why something floats: gizmo outlines clear the tile they sit on,
+and the player capsule stands on the floor instead of being buried to the chest.
+
+If you place a prop by typing numbers rather than dragging, this is the offset
+you are missing.
+
 ## 6. Check it
 
 **Validate maps** in the dock, whenever you like and certainly before committing.

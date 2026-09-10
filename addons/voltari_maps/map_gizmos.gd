@@ -24,9 +24,13 @@ const ZONE: String = "zone"
 const EVENT: String = "event"
 const REST: String = "rest"
 
-## How far above the floor the outline sits. Enough to clear a ground tile and
-## not enough to look like it is floating.
-const LIFT: float = 0.06
+## How far above the node the outline sits.
+##
+## A cell centre is not at floor level: the grid centres cells vertically by
+## default, so a node on a cell sits at mid-height and a ground tile is drawn
+## around the same point. The lift has to clear that tile's top half — 0.06 put
+## the outline *inside* a 0.2-thick floor, where it z-fights instead of reading.
+const LIFT: float = 0.15
 
 ## The height of the post standing on a marked cell. A flat outline alone is
 ## invisible edge-on, which is most of the time when you are looking across a

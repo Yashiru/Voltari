@@ -196,3 +196,42 @@ func test_the_editor_plugin_loads() -> void:
 		assert_object(load(path)).override_failure_message(
 			"%s does not compile — the map editor is broken" % path
 		).is_not_null()
+
+
+# --- snapping a free prop -----------------------------------------------------
+
+
+func test_snapping_a_prop_moves_it_onto_a_cell() -> void:
+	# Props are ordinary nodes, not grid cells: a GridMap cell carries an item and
+	# one of 24 orientations and no scale at all, so anything whose size you want
+	# to choose has to live in the scene and be snapped on request.
+	var map: VltWorldMap = _map()
+	var centre: Vector3 = VltMapPlacement.centre_of(map, Vector2i(3, 2))
+	var size: float = VltMapPlacement.cell_size(map)
+
+	var nudged: Vector3 = centre + Vector3(size * 0.3, 0.0, -size * 0.2)
+	assert_vector(VltMapPlacement.snapped_to_grid(map, nudged)).is_equal(centre)
+
+
+func test_snapping_leaves_the_height_alone() -> void:
+	# A prop sunk into the floor or raised onto a ledge is art, and the grid has
+	# no opinion about it. Snapping y would undo the one adjustment a free-placed
+	# object exists to allow.
+	var map: VltWorldMap = _map()
+	# Computed rather than written down: a cell centre is not at y zero — the grid
+	# centres cells vertically by default, so the floor of this grid is a metre up.
+	var floor_level: float = VltMapPlacement.centre_of(map, Vector2i(1, 1)).y
+	var raised: Vector3 = VltMapPlacement.centre_of(map, Vector2i(1, 1)) + Vector3(0.1, 2.5, 0.1)
+
+	assert_float(VltMapPlacement.snapped_to_grid(map, raised).y).override_failure_message(
+		"the height was snapped away"
+	).is_equal_approx(floor_level + 2.5, 0.001)
+
+
+func test_a_prop_already_on_its_cell_does_not_move() -> void:
+	# What lets the caller count what it actually changed, so "nothing to move"
+	# can be said rather than reported as work.
+	var map: VltWorldMap = _map()
+	var centre: Vector3 = VltMapPlacement.centre_of(map, Vector2i(2, 4))
+
+	assert_vector(VltMapPlacement.snapped_to_grid(map, centre)).is_equal(centre)

@@ -130,6 +130,16 @@ static func centre_of(map: VltWorldMap, cell: Vector2i) -> Vector3:
 	return map.terrain.map_to_local(Vector3i(cell.x, VltWorldMap.GROUND, cell.y))
 
 
+## The same point, moved onto the nearest cell.
+##
+## **The height is left alone.** A prop sunk into the floor or raised onto a ledge
+## is art, and a grid has no opinion about it — snapping `y` would undo the one
+## adjustment a free-placed object is there to allow.
+static func snapped_to_grid(map: VltWorldMap, local: Vector3) -> Vector3:
+	var centre: Vector3 = centre_of(map, cell_at(map, local))
+	return Vector3(centre.x, local.y, centre.z)
+
+
 ## Which cell a point in the map's local space falls in.
 static func cell_at(map: VltWorldMap, local: Vector3) -> Vector2i:
 	if map == null or map.terrain == null:

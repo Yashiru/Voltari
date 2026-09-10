@@ -50,6 +50,7 @@ static func check(
 		problems.append_array(_check_reachable(by_id, entry_map))
 
 	problems.append_array(_check_flags(by_id))
+	problems.append_array(_check_recovery(by_id))
 	return problems
 
 
@@ -204,6 +205,38 @@ static func _check_flags(by_id: Dictionary[String, VltWorldMap]) -> PackedString
 	for flag: String in written.keys():
 		if not read.has(flag):
 			problems.append("%s: sets \"%s\", which nothing ever reads" % [wrote_at[flag], flag])
+
+	return problems
+
+
+## Every map has somewhere to be sent back to.
+##
+## Losing a battle teleports the player to the nearest rest point, so a map with
+## none in front of it is content a defeat cannot recover from — the player
+## falls and there is nowhere to put them. Nothing else would notice until it
+## happened.
+static func _check_recovery(by_id: Dictionary[String, VltWorldMap]) -> PackedStringArray:
+	var problems: PackedStringArray = PackedStringArray()
+	if by_id.is_empty():
+		return problems
+
+	var anywhere: bool = false
+	for map: VltWorldMap in by_id.values():
+		if not VltRestPoint.points_on(map).is_empty():
+			anywhere = true
+			break
+
+	# No rest point at all is one problem, not one per map. A map pass that
+	# printed the same sentence for every room would bury everything else.
+	if not anywhere:
+		problems.append("no map has a rest point, so a defeat has nowhere to send anybody")
+		return problems
+
+	for map_id: String in by_id.keys():
+		if VltRestPoint.nearest(by_id, map_id, Vector2i.ZERO) == null:
+			problems.append(
+				"map \"%s\" can reach no rest point, so a defeat there cannot recover" % map_id
+			)
 
 	return problems
 

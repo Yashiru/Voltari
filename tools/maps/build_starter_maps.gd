@@ -79,6 +79,14 @@ func _write_field() -> void:
 	door.to_facing = VltFacing.Direction.EAST
 	_own(map, map, door)
 
+	# Somewhere to be sent back to. The cave has none and reaches this one
+	# through the door, which is the case the metric exists for.
+	var rest: VltRestPoint = VltRestPoint.new()
+	rest.name = "Camp"
+	rest.cell = Vector2i(0, 0)
+	rest.facing = VltFacing.Direction.SOUTH
+	_own(map, map, rest)
+
 	_sign(map, "Sign", Vector2i(2, 2), "sign_field")
 	_save(map, FIELD)
 

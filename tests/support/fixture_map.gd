@@ -1,7 +1,7 @@
 class_name VltFixtureMap
 extends RefCounted
 
-## A map built in code, for the world tests (spec 14, section 9).
+## A map built in code, for the world tests (spec 14, section 10).
 ##
 ## Built rather than painted on purpose. A `.tscn` fixture would have to be
 ## opened to be understood, and a test whose setup is invisible is a test nobody
@@ -62,6 +62,13 @@ static func warp(
 	built.to_map = to_map
 	built.to_cell = to_cell
 	built.to_facing = facing
+	return built
+
+
+static func rest(at: Vector2i, facing: VltFacing.Direction = VltFacing.Direction.SOUTH) -> VltRestPoint:
+	var built: VltRestPoint = VltRestPoint.new()
+	built.cell = at
+	built.facing = facing
 	return built
 
 

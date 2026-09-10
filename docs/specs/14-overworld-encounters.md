@@ -168,6 +168,7 @@ wrong:
 - two zones claiming one cell, which has no right answer
 - two maps claiming one id, which a save cannot tell apart
 - a map no warp leads to
+- a world with no rest point anywhere, and a map that can reach none (section 9)
 
 **It runs engine-side, not in the content build.** Maps are scenes and only Godot
 can load one, so a Node script could not read a map without reimplementing the
@@ -207,7 +208,49 @@ The identifier rule bites here for the first time outside content: **a map id is
 held in a save**, so it is stable, `snake_case`, and never reused for a different
 map. Renaming a map file is a migration, not a rename.
 
-## 9. Testing obligations
+## 9. Losing has somewhere to send you
+
+A defeat has to end somewhere. A game that ended a lost battle by putting the
+player back on the map with a fainted party would be a game that could not
+continue: nothing else in it heals.
+
+So a map carries a third kind of node beside warps and zones — a **rest point**,
+a cell and a facing. Losing teleports the party to the nearest one and restores
+it to full health.
+
+**"Nearest" needs a metric, and between two maps there is no obvious one.** The
+one chosen is written down rather than left to the implementation:
+
+1. On the current map, the fewest steps away, counted as Manhattan distance —
+   movement is four-directional, so a diagonal is two steps and a straight-line
+   distance would call a wall a shortcut.
+2. Otherwise the fewest map transitions, walking the warp graph outward from
+   where the player fell. The first map reached that has one wins, and inside it
+   rule 1 applies from the cell the warp arrives at.
+
+Fewest doors beats fewest steps, and there is no exchange rate between them. A
+metric that summed the two would need one, and any number picked would be
+arbitrary in a way this is not.
+
+It is **not "the last one visited"**, which is what the reference games do. That
+is defensible and it is a different decision: it needs a memory in the save, and
+it makes two players standing in the same place wake up somewhere different.
+Decision 0053 records the choice and what would reopen it.
+
+**Healing the party is a placeholder and is named as one.** It is here because
+nothing else can heal, not because a defeat should be free. The day an item or a
+service exists, this stops being right — and the sentence that will have to be
+revisited is this one, not a behaviour nobody wrote down.
+
+The validator refuses a world with no rest point anywhere — one problem, not one
+per map — and a map that can reach none through its doors. That second case is
+content a defeat cannot recover from, and it is invisible until somebody loses
+there.
+
+The metric may still return nothing, for a world built by hand in a test. Null is
+a real answer the caller handles; standing back up where you fell beats a crash.
+
+## 10. Testing obligations
 
 - **Slot selection matches the weights.** Over many draws, proportions hold. This
   is the property that a wrong implementation passes every individual test.
@@ -237,6 +280,13 @@ rendering — node logic runs headless, and the suite is already headless:
   lives.
 - **Encounter checks happen per step and only inside a zone** — the join between
   the native half and the pure one, and the only place a mistake there shows up.
+- **The rest-point metric picks what it says it picks**: the nearer of two on one
+  map, a map with none reaching one through a door, one door beating two whatever
+  the grid distances are, and null when nothing is reachable. A ring of doors
+  terminates.
+- **Losing teleports and heals**, proven by losing a real battle rather than by
+  calling the recovery directly — and losing underground comes up on the map that
+  has the camp.
 
 **What no test covers, and this line exists so nobody reads the absence as an
 oversight:** whether a map is well laid out, and how movement feels. Those are

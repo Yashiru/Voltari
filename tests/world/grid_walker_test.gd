@@ -1,6 +1,6 @@
 extends GdUnitTestSuite
 
-## What one step does (spec 14, section 9).
+## What one step does (spec 14, section 10).
 ##
 ## The overworld is engine-native, so these are example-based tests on a fixture
 ## map — the project's weakest pillar, and the honest one for code whose failures

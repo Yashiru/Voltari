@@ -154,7 +154,20 @@ ten times over. What it will tell you about:
 An empty folder is reported as a problem, not as a pass. A typo in the path would
 otherwise read as success.
 
-## 7. Commit
+## 7. Walk it
+
+`F5` in the editor runs the sandbox. It **finds** the maps in `game/maps` rather
+than being told about them, so the one you just painted is there without editing
+any code.
+
+Press **M** for the list, pick a map, and you are on it. You arrive on its rest
+point if it has one — that is already "where you come round on this map", so
+there is no second concept for "where you start". Otherwise the first cell you
+can stand on.
+
+The list only appears when there is more than one map to choose between.
+
+## 8. Commit
 
 Path-scoped, always:
 

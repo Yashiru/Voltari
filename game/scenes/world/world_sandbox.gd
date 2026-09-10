@@ -10,10 +10,10 @@ extends Node3D
 ## Rough on purpose, like the battle screen. Nothing here is a camera direction
 ## or a HUD design, and its replacement should be a deletion.
 
-const MAPS: Dictionary[String, String] = {
-	"starter_field": "res://game/maps/starter_field.tscn",
-	"starter_cave": "res://game/maps/starter_cave.tscn",
-}
+## Where maps are looked for. **Found, not listed** — a map somebody paints has
+## to be reachable without editing this file, or the editor produces content the
+## game cannot open.
+const MAPS_FOLDER: String = "res://game/maps"
 
 const START_MAP: String = "starter_field"
 const START_CELL: Vector2i = Vector2i(1, 1)
@@ -33,6 +33,10 @@ var _species: Dictionary[String, VltSpecies] = {}
 var _flags: VltQuestFlags = VltQuestFlags.new()
 var _encounters: VltSeededEncounterDecider
 
+## Every map found, by the id it declares. The id rather than the filename: the
+## id is what a save holds (decision 0040), and nothing says the two agree.
+var _maps: Dictionary[String, String] = {}
+
 var _map: VltWorldMap = null
 var _walker: VltGridWalker
 var _held: VltStepIntent.Held = VltStepIntent.Held.new()
@@ -50,6 +54,7 @@ var _party: Array[VltBattleCreature] = []
 var _bag: Dictionary[String, int] = {"basic_ball": 5, "better_ball": 2}
 var _message: Label
 var _hint: Label
+var _menu: VBoxContainer
 var _stick: TouchStick
 var _camera: Camera3D
 var _body: Node3D
@@ -79,9 +84,18 @@ func _ready() -> void:
 		_born(roster[mini(1, roster.size() - 1)], STARTER_LEVEL - 2),
 	]
 
+	_maps = _discover()
 	_build_interface()
-	_enter(START_MAP, START_CELL, VltFacing.Direction.SOUTH)
+
+	# The start map when there is one, otherwise whatever was found first. A
+	# build with no starter map at all should still open something.
+	var first: String = START_MAP if _maps.has(START_MAP) else _first_found()
+	if not first.is_empty():
+		_enter(first, START_CELL if first == START_MAP else _spawn_for(first),
+			VltFacing.Direction.SOUTH)
+
 	_load_if_present()
+	_offer_maps()
 
 
 ## Where the walker is standing, and on which map. The way in for anything
@@ -209,6 +223,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			_save()
 		KEY_F9:
 			_load_if_present()
+		KEY_M:
+			show_maps()
 
 
 func _interact() -> void:
@@ -248,11 +264,11 @@ func _meet(outcome: VltEncounter.Outcome) -> void:
 ## loading the world twice.
 func _all_maps() -> Dictionary[String, VltWorldMap]:
 	var loaded: Dictionary[String, VltWorldMap] = {}
-	for id: String in MAPS:
+	for id: String in _maps:
 		if _map != null and _map.map_id == id:
 			loaded[id] = _map
 			continue
-		var packed: PackedScene = load(MAPS[id])
+		var packed: PackedScene = load(_maps[id])
 		loaded[id] = packed.instantiate() as VltWorldMap
 	return loaded
 
@@ -376,11 +392,130 @@ func _advance_event() -> void:
 # --- maps --------------------------------------------------------------------
 
 
+## Every map in the folder, by the id it declares.
+##
+## Each one is opened to be asked. The filename is not trusted to be the id —
+## the two agree for everything the tools produce and nothing enforces it, and a
+## map that answered to the wrong name would be a save pointing at the wrong
+## place.
+func _discover() -> Dictionary[String, String]:
+	var found: Dictionary[String, String] = {}
+	var directory: DirAccess = DirAccess.open(MAPS_FOLDER)
+	if directory == null:
+		return found
+
+	var files: PackedStringArray = directory.get_files()
+	files.sort()
+
+	for file: String in files:
+		if not file.ends_with(".tscn"):
+			continue
+		var path: String = "%s/%s" % [MAPS_FOLDER, file]
+		var packed: PackedScene = load(path) as PackedScene
+		if packed == null:
+			continue
+
+		var map: VltWorldMap = packed.instantiate() as VltWorldMap
+		if map == null:
+			continue
+		if not map.map_id.is_empty() and not found.has(map.map_id):
+			found[map.map_id] = path
+		map.free()
+
+	return found
+
+
+func _first_found() -> String:
+	for id: String in _maps:
+		return id
+	return ""
+
+
+## Where to put somebody arriving on a map nothing else has an opinion about.
+##
+## Its rest point if it has one — that is already "where you come round on this
+## map", so inventing a second answer would be inventing a second concept.
+## Otherwise the first cell you can stand on, in the map's own order.
+func _spawn_for(id: String) -> Vector2i:
+	var packed: PackedScene = load(_maps[id]) as PackedScene
+	var map: VltWorldMap = packed.instantiate() as VltWorldMap
+	if map == null:
+		return Vector2i.ZERO
+
+	var at: Vector2i = Vector2i.ZERO
+	var points: Array[VltRestPoint] = VltRestPoint.points_on(map)
+	if not points.is_empty():
+		at = points[0].cell
+	elif map.terrain != null:
+		for painted: Vector3i in map.terrain.get_used_cells():
+			var candidate: Vector2i = Vector2i(painted.x, painted.z)
+			if map.is_walkable(candidate):
+				at = candidate
+				break
+
+	map.free()
+	return at
+
+
+## The launch menu: every map found, and a way onto it.
+##
+## Shown over a world that has already started rather than in front of one that
+## has not. A panel is a panel either way, and this way nothing else in the
+## sandbox has to know there is a moment before the world exists.
+func _offer_maps() -> void:
+	if _maps.size() <= 1:
+		return
+
+	for id: String in _maps:
+		var button: Button = Button.new()
+		button.text = id
+		button.pressed.connect(_go_to.bind(id))
+		_menu.add_child(button)
+
+	var close: Button = Button.new()
+	close.text = "close"
+	close.pressed.connect(_menu.hide)
+	_menu.add_child(close)
+
+
+func _go_to(id: String) -> void:
+	_menu.hide()
+	if _battle != null or _run != null:
+		return
+	_enter(id, _spawn_for(id), VltFacing.Direction.SOUTH)
+
+
+## Opens the map chooser again. Public because jumping between maps is what the
+## menu is for, and closing it should not be the end of it.
+func show_maps() -> void:
+	if _menu.get_child_count() > 0:
+		_menu.show()
+
+
+## Which maps were found. The way in for a test, and the answer to "why is the
+## map I painted not here".
+func known_maps() -> PackedStringArray:
+	var ids: PackedStringArray = PackedStringArray()
+	for id: String in _maps:
+		ids.append(id)
+	ids.sort()
+	return ids
+
+
+## Enters a map by id, the way the menu does. Public so a test drives the same
+## path a click does.
+func go_to(id: String) -> bool:
+	if not _maps.has(id):
+		return false
+	_go_to(id)
+	return true
+
+
 func _enter(into: String, at: Vector2i, facing: VltFacing.Direction) -> void:
 	if _map != null:
 		_map.queue_free()
 
-	var packed: PackedScene = load(MAPS[into])
+	var packed: PackedScene = load(_maps[into])
 	_map = packed.instantiate() as VltWorldMap
 	add_child(_map)
 
@@ -436,7 +571,7 @@ func _load_if_present() -> void:
 		VltSaveStore.read(SAVE_PATH), sections
 	)
 
-	if not MAPS.has(where.map_id):
+	if not _maps.has(where.map_id):
 		_message.text = "Saved on a map this build does not have."
 		return
 
@@ -508,6 +643,11 @@ func _build_interface() -> void:
 	_stick.mouse_filter = Control.MOUSE_FILTER_PASS
 	layer.add_child(_stick)
 
+	# Above the stick, so a button is a button and not a drag.
+	_menu = VBoxContainer.new()
+	_menu.position = Vector2(24, 100)
+	layer.add_child(_menu)
+
 
 static func _controls() -> String:
-	return "arrows or drag to walk  ·  space to interact  ·  F5 save  ·  F9 load"
+	return "arrows or drag to walk  ·  space to interact  ·  M maps  ·  F5 save  ·  F9 load"

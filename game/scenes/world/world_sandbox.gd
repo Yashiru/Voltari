@@ -45,6 +45,10 @@ var _maps: Dictionary[String, String] = {}
 var _map: VltWorldMap = null
 var _walker: VltGridWalker
 var _held: VltStepIntent.Held = VltStepIntent.Held.new()
+
+## Where to draw somebody who is between two cells. It never moves them
+## (spec 14, section 2) — the walker is already on the new cell.
+var _glide: CellGlide = CellGlide.new()
 var _cooldown: float = 0.0
 
 var _run: VltEventRun = null
@@ -173,6 +177,12 @@ func load_now() -> void:
 
 
 func _process(delta: float) -> void:
+	# Before anything else, and whatever else is happening. A step interrupted by
+	# an encounter still has to finish, or the player comes back from the battle
+	# standing between two cells.
+	if _glide.is_moving():
+		_draw_body(_glide.advance(delta))
+
 	_cooldown = maxf(0.0, _cooldown - delta)
 
 	if _battle != null:
@@ -204,7 +214,7 @@ func _process(delta: float) -> void:
 func _step(direction: VltFacing.Direction) -> void:
 	var step: VltGridWalker.Step = _walker.step(direction)
 	_cooldown = STEP_SECONDS
-	_place_body()
+	_walk_body()
 
 	if step.warp != null:
 		_enter(step.warp.to_map, step.warp.to_cell, step.warp.to_facing)
@@ -550,17 +560,50 @@ func _enter(into: String, at: Vector2i, facing: VltFacing.Direction) -> void:
 ## not tidying: a `GridMap` centres its cells vertically by default, so the floor
 ## of a map is half a cell up. Assuming zero buried the player to the chest in
 ## every map painted with a real tile.
+## Starts the walk to whichever cell the walker is on.
+##
+## The walker is already there — this only says where to draw somebody catching
+## up (spec 14, section 2). The glide lasts exactly as long as the cooldown
+## between steps, which is what makes holding a direction one continuous walk
+## rather than a series of hops with pauses in them.
+func _walk_body() -> void:
+	_glide.to(_body.position, _standing_place(), STEP_SECONDS)
+
+
+## Arrives at once. What a warp, a load and a defeat need: they move the player
+## somewhere else entirely, and sliding across the gap would draw them walking
+## through whatever is between — including, across a warp, another map.
 func _place_body() -> void:
+	_glide.snap(_standing_place())
+	_draw_body(_glide.position())
+
+
+## Where the walker's cell puts a body, in the map's own space.
+func _standing_place() -> Vector3:
 	var ground: Vector3 = Vector3(float(_walker.cell.x) * CELL, 0.0, float(_walker.cell.y) * CELL)
 	if _map != null and _map.terrain != null:
 		ground = _map.terrain.map_to_local(
 			Vector3i(_walker.cell.x, VltWorldMap.GROUND, _walker.cell.y)
 		)
+	return ground + Vector3(0, BODY_LIFT, 0)
 
-	var where: Vector3 = ground + Vector3(0, BODY_LIFT, 0)
+
+## Puts the body and the camera at a point. The camera follows the drawing rather
+## than the cell, so it is as smooth as the walk is.
+func _draw_body(where: Vector3) -> void:
 	_body.position = where
 	_camera.position = where + Vector3(0, 9, 7)
 	_camera.look_at(where)
+
+
+## Where the body is drawn, which between cells is not where the player is. The
+## way in for a test, and the only honest way to ask "is it still moving".
+func body_position() -> Vector3:
+	return _body.position
+
+
+func is_stepping() -> bool:
+	return _glide.is_moving()
 
 
 # --- the save ----------------------------------------------------------------

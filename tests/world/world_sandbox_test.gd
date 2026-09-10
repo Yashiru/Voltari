@@ -567,3 +567,75 @@ func test_jumping_is_refused_mid_battle() -> void:
 	assert_str(world.map_id()).override_failure_message(
 		"the world moved out from under a battle"
 	).is_equal(where)
+
+
+# --- walking, rather than blinking --------------------------------------------
+
+
+func test_a_step_leaves_the_body_behind_the_player() -> void:
+	# Spec 14 section 2 in the open: the walker is on the new cell at once and
+	# the drawing catches up. Anything that asserted them equal would be
+	# asserting the teleport.
+	var world: WorldSandbox = _sandbox()
+	var before: Vector3 = world.body_position()
+
+	world.walk(VltFacing.Direction.EAST)
+
+	assert_bool(world.is_stepping()).override_failure_message(
+		"the body arrived instantly"
+	).is_true()
+	assert_vector(world.body_position()).override_failure_message(
+		"the body moved before a single frame had passed"
+	).is_equal_approx(before, Vector3.ONE * 0.001)
+
+
+func test_the_body_catches_up_with_the_cell() -> void:
+	var world: WorldSandbox = _sandbox()
+	var cell_before: Vector2i = world.cell()
+
+	world.walk(VltFacing.Direction.EAST)
+	assert_vector(world.cell()).is_equal(cell_before + Vector2i(1, 0))
+
+	for frame: int in range(30):
+		await get_tree().process_frame
+
+	assert_bool(world.is_stepping()).override_failure_message(
+		"the step never finished"
+	).is_false()
+
+
+func test_a_warp_does_not_slide_across_the_gap() -> void:
+	# Sliding here would draw the player walking through everything between two
+	# maps, which is nothing at all.
+	var world: WorldSandbox = _sandbox()
+
+	world.walk(VltFacing.Direction.SOUTH)
+	world.walk(VltFacing.Direction.SOUTH)
+
+	# Stopped on the step that warps rather than after a fixed count: walking one
+	# more would start an ordinary glide on the far side and prove nothing.
+	for step: int in range(8):
+		world.walk(VltFacing.Direction.EAST)
+		if world.map_id() == "starter_cave":
+			break
+
+	assert_str(world.map_id()).is_equal("starter_cave")
+	assert_bool(world.is_stepping()).override_failure_message(
+		"the player is gliding between two maps"
+	).is_false()
+
+
+func test_a_defeat_does_not_slide_either() -> void:
+	var world: WorldSandbox = _sandbox()
+	await _lose(world)
+
+	assert_bool(world.is_stepping()).override_failure_message(
+		"the player is gliding to the camp"
+	).is_false()
+
+
+func test_jumping_to_a_map_does_not_slide() -> void:
+	var world: WorldSandbox = _sandbox()
+	world.go_to("starter_cave")
+
+	assert_bool(world.is_stepping()).is_false()

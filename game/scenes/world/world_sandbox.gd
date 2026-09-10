@@ -69,7 +69,12 @@ func _ready() -> void:
 	for id: String in library.species.keys():
 		roster.append(id)
 	roster.sort()
-	_party = [_born(roster[0], STARTER_LEVEL)]
+	# Two, so that switching is reachable at all. One creature makes every
+	# battle a fight to the end whether or not that was the design.
+	_party = [
+		_born(roster[0], STARTER_LEVEL),
+		_born(roster[mini(1, roster.size() - 1)], STARTER_LEVEL - 2),
+	]
 
 	_build_interface()
 	_enter(START_MAP, START_CELL, VltFacing.Direction.SOUTH)

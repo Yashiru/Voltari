@@ -14,6 +14,13 @@ const STEP: float = 0.45
 const LINE_HOLD: float = 0.8
 const BAR_SPEED: float = 60.0
 
+## What a clip is given, whatever it says it wants. The floor keeps a missing or
+## instant clip from flashing past; the ceiling keeps one long take from holding
+## a whole turn hostage. Between them the clip's own length is used, which is
+## what makes a hit land as the blow finishes.
+const SHORTEST_CLIP: float = 0.2
+const LONGEST_CLIP: float = 1.4
+
 ## How long everything takes, scaled. One is the pace the numbers above were
 ## tuned at; the player's setting moves all of them together rather than any of
 ## them individually, which is what a single slider can honestly promise.
@@ -57,9 +64,18 @@ func skipping() -> bool:
 
 func play(at: VltSlotRef, slot: String) -> void:
 	var body: CreatureBody = _bodies.get(_key(at))
-	if body != null:
-		body.play(slot)
-	await _pause(STEP)
+	if body == null:
+		await _pause(STEP)
+		return
+
+	var length: float = body.play(slot)
+	if length <= 0.0:
+		# Nothing played — a stand-in, or a slot this creature never earned. The
+		# beat is still spent, so the battle keeps its rhythm.
+		await _pause(STEP)
+		return
+
+	await _pause(clampf(length, SHORTEST_CLIP, LONGEST_CLIP))
 
 
 func say(line: BattleLines.Line) -> void:

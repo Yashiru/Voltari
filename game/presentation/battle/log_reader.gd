@@ -61,25 +61,35 @@ func play(events: Array[VltLogEvent]) -> void:
 		await one(event)
 
 
-## One event: advance what is known, then show it.
+## One event: advance what is known, say what it is, then show it.
 ##
 ## The view moves first. A clip that played before the view knew about it would
 ## animate a health bar that had not dropped yet, which reads as a stutter and is
 ## really an ordering mistake.
+##
+## **The line comes before the clips**, and the bars after. An attack announced
+## after it had already landed put a whole sentence between the blow and the
+## flinch — the actor swung, the text explained it, and only then did the target
+## react. Said first, the sentence is what the animation illustrates.
+##
+## It costs one case: a faint reads its line as the creature falls rather than
+## after. Naming the events that announce and the events that report would be a
+## third table beside the clips and the lines, and one late line is cheaper than
+## a third vocabulary.
 func one(event: VltLogEvent) -> void:
 	_warn_if_unknown(event)
 
 	view.advance(event, _registry, _species, _party)
 	_rename()
 
+	var line: BattleLines.Line = BattleLines.of(event, _names)
+	if not line.is_silent():
+		await stage.say(line)
+
 	for cue: BattleClips.Cue in BattleClips.of(event, _moves):
 		await stage.play(cue.at, cue.slot)
 
 	await stage.refresh(view)
-
-	var line: BattleLines.Line = BattleLines.of(event, _names)
-	if not line.is_silent():
-		await stage.say(line)
 
 
 ## What to call whoever is standing where, rebuilt after every event because a

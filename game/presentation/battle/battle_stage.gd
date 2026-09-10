@@ -15,6 +15,10 @@ extends RefCounted
 
 
 ## Play a clip on whoever is at a position, and return when it has finished.
+##
+## "Finished" is the clip's own length, not a number the reader chose. A fixed
+## wait runs the next thing over the top of a long attack and leaves a gap after
+## a short one — and that gap is what makes a hit look late.
 func play(_at: VltSlotRef, _slot: String) -> void:
 	pass
 

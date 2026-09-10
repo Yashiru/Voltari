@@ -97,16 +97,18 @@ func _events(state: VltBattleState) -> Array[VltLogEvent]:
 # --- what it does with an event ----------------------------------------------
 
 
-func test_it_plays_a_clip_then_redraws_then_speaks() -> void:
-	# The order is the point. A clip that played before the view knew about it
-	# would animate a bar that had not dropped yet.
+func test_it_speaks_then_plays_then_redraws() -> void:
+	# The order is the point, and it is not the one this started with. An attack
+	# announced *after* it had landed put a whole sentence between the blow and
+	# the flinch: the actor swung, the text explained it, and only then did the
+	# target react. Said first, the sentence is what the animation illustrates.
 	var recorder: Recorder = Recorder.new()
 	var state: VltBattleState = _battle()
 	var reader: BattleLogReader = _reader(state, recorder)
 
 	await reader.one(VltLogMoveUsed.create(VltSlotRef.at(OURS, 0), MOVE, 0, 9, VltSlotRef.at(THEIRS, 0)))
 
-	assert_array(recorder.calls).is_equal(["play attack_physical @0,0", "say battle.move_used"])
+	assert_array(recorder.calls).is_equal(["say battle.move_used", "play attack_physical @0,0"])
 	assert_int(recorder.refreshes).is_equal(1)
 
 
@@ -148,12 +150,16 @@ func test_it_plays_a_whole_log_in_order() -> void:
 	assert_array(recorder.calls).is_equal(
 		[
 			"say battle.turn_start",
-			"play attack_physical @0,0",
 			"say battle.move_used",
+			"play attack_physical @0,0",
 			"say battle.effectiveness.super",
 			"play hurt @1,0",
-			"play faint @1,0",
+			# The one case the order costs: a faint reads its line as the
+			# creature falls rather than after it. Naming which events announce
+			# and which report would be a third table beside the clips and the
+			# lines, and one early line is cheaper than a third vocabulary.
 			"say battle.faint",
+			"play faint @1,0",
 		]
 	)
 

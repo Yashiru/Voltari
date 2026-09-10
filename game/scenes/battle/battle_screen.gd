@@ -33,10 +33,22 @@ signal ended(player_won: bool)
 var incoming_player: Array[VltBattleCreature] = []
 var incoming_foe: Array[VltBattleCreature] = []
 
+## Ball id to how many are left. There is no inventory system and no spec for
+## one, so this is the seam holding a count until there is somewhere better.
+var bag: Dictionary[String, int] = {}
+
+## The source of chance. Set before adding this to the tree; absent means a
+## seeded one of its own.
+##
+## Offered because a battle worth reproducing is a battle whose randomness the
+## caller chose — a replay needs exactly this, and so does any test that has to
+## make an unlikely thing happen rather than wait for it.
+var incoming_decider: VltDecider = null
+
 var _library: ContentLibrary
 var _registry: VltEffectRegistry
 var _engine: VltTurnEngine
-var _decider: VltSeededDecider
+var _decider: VltDecider
 var _state: VltBattleState
 var _reader: BattleLogReader
 var _stage: BattleScreenStage
@@ -44,6 +56,7 @@ var _stage: BattleScreenStage
 ## The position the battle opened from, and everything that has happened since.
 ## Both are what the post-battle pipeline needs: experience is earned by whoever
 ## faced what fell, and only the log knows who that was (spec 10, section 4).
+var _balls: Dictionary[String, float] = {}
 var _initial: VltBattleState
 var _history: VltBattleLog = VltBattleLog.new()
 
@@ -63,9 +76,12 @@ var _busy: bool = false
 
 func _ready() -> void:
 	_library = ContentLibrary.load_all()
+	_balls = VltItemLoader.ball_multipliers(
+		VltContentPayloads.read_indexed("res://content/generated/items")
+	)
 	_registry = _effects()
 	_engine = VltTurnEngine.new(_library.moves, _library.chart, _registry)
-	_decider = VltSeededDecider.new(SEED)
+	_decider = incoming_decider if incoming_decider != null else VltSeededDecider.new(SEED)
 
 	_build_interface()
 	_start()
@@ -159,15 +175,21 @@ func _born(species: VltSpecies) -> VltBattleCreature:
 ## One exchange: the player's chosen move, the AI's answer, then the log played
 ## back through the reader.
 func _take_turn(move_index: int) -> void:
+	await _take_turn_with(
+		VltCommand.use_move(VltSlotRef.at(PLAYER, 0), move_index, VltSlotRef.at(FOE, 0))
+	)
+
+
+## One exchange, whatever the player chose to do with their half of it. A throw
+## and a move are the same shape to everything below here, which is the point of
+## commands being data (spec 03).
+func _take_turn_with(mine: VltCommand) -> void:
 	if _busy:
 		return
 	_busy = true
 	_menu.hide()
 
-	var commands: Array[VltCommand] = [
-		VltCommand.use_move(VltSlotRef.at(PLAYER, 0), move_index, VltSlotRef.at(FOE, 0)),
-		_foe_command(),
-	]
+	var commands: Array[VltCommand] = [mine, _foe_command()]
 
 	var outcome: VltTurnOutcome = _engine.resolve(_state, commands, _decider)
 	_state = outcome.state
@@ -207,7 +229,27 @@ func _foe_command() -> VltCommand:
 ## The creatures are the caller's own objects, so what this changes is changed
 ## for good the moment it returns. That is what makes progress stick without
 ## anything being copied back.
+## Whoever was caught, taken out of the side that owned them.
+##
+## The core vacates the slot and leaves the creature where it was: spec 11
+## section 7 says where it goes next belongs to a party and box system, and
+## there is none. So the seam decides, and it decides the simplest thing —
+## straight into the party, no room check, because nothing describes a full one.
+func _take_captured() -> void:
+	for event: VltLogEvent in _history.events:
+		var result: VltLogCaptureResult = event as VltLogCaptureResult
+		if result == null or not result.captured:
+			continue
+
+		var side: int = result.target.side
+		if result.party_index < _state.sides[side].party.size():
+			_state.sides[PLAYER].party.append(
+				_state.sides[side].party[result.party_index]
+			)
+
+
 func _settle() -> void:
+	_take_captured()
 	_won = _standing(PLAYER)
 	var won: bool = _won
 
@@ -316,8 +358,13 @@ func _hand_back() -> void:
 		return
 
 	var final: Array[VltBattleCreature] = _state.sides[PLAYER].party
-	for index: int in range(mini(incoming_player.size(), final.size())):
-		incoming_player[index] = final[index]
+	for index: int in range(final.size()):
+		if index < incoming_player.size():
+			incoming_player[index] = final[index]
+		else:
+			# Somebody new. A capture is the only way this happens today, and
+			# appending is why the world sees it without being told.
+			incoming_player.append(final[index])
 
 
 func _summary(won: bool) -> String:
@@ -416,7 +463,57 @@ func _offer_moves() -> void:
 		button.pressed.connect(_take_turn.bind(index))
 		_menu.add_child(button)
 
+	for ball_id: String in _bag_order():
+		var throw: Button = Button.new()
+		throw.text = "throw %s   x%d" % [ball_id, bag[ball_id]]
+		throw.pressed.connect(throw_ball.bind(ball_id))
+		_menu.add_child(throw)
+
 	_menu.show()
+
+
+## Sorted, so the buttons are in the same order every time. A bag that reordered
+## itself would make the wrong ball one mis-tap away.
+func _bag_order() -> Array[String]:
+	var ids: Array[String] = []
+	for ball_id: String in bag:
+		if bag[ball_id] > 0 and _balls.has(ball_id):
+			ids.append(ball_id)
+	ids.sort()
+	return ids
+
+
+## Throws a ball at whoever is opposite.
+##
+## The threshold is computed here and travels in the command: the core has a
+## number and does not know what a ball is (decision 0032). Which means this is
+## the only place that has to know how health, the species and a status combine.
+func throw_ball(ball_id: String) -> void:
+	if _busy or not _balls.has(ball_id) or bag.get(ball_id, 0) <= 0:
+		return
+
+	var at: VltSlotRef = VltSlotRef.at(FOE, 0)
+	var target: VltBattleCreature = _state.creature_at(at)
+	if target == null:
+		return
+
+	bag[ball_id] = bag[ball_id] - 1
+
+	var rate: int = VltCapture.modified_rate(
+		target.max_hp(),
+		target.current_hp,
+		_library.species[target.species_id].catch_rate,
+		_balls[ball_id],
+		VltCapture.status_multiplier(
+			VltEffectDispatch.major_status(_state, _registry, at)
+		)
+	)
+
+	_take_turn_with(
+		VltCommand.throw_ball(
+			VltSlotRef.at(PLAYER, 0), at, VltCapture.shake_threshold(rate)
+		)
+	)
 
 
 ## Held down to skip. The reader has no opinion about this — it always awaits,

@@ -244,3 +244,122 @@ func test_a_real_battle_puts_a_real_offer_in_the_queue() -> void:
 	for award: VltPostBattle.Award in screen.awards():
 		offered.append_array(award.offered)
 	assert_array(offered).contains(["inert_status"])
+
+
+# --- throwing a ball ---------------------------------------------------------
+
+
+func _with_bag(balls: Dictionary[String, int]) -> BattleScreen:
+	var packed: PackedScene = load(SCREEN)
+	var screen: BattleScreen = auto_free(packed.instantiate() as BattleScreen)
+	screen.bag = balls
+	add_child(screen)
+	screen.skip(true)
+	return screen
+
+
+func test_a_throw_spends_a_ball() -> void:
+	var screen: BattleScreen = _with_bag({"basic_ball": 2})
+	await screen.throw_ball("basic_ball")
+	assert_int(screen.bag["basic_ball"]).is_equal(1)
+
+
+func test_an_empty_bag_throws_nothing() -> void:
+	# The button is not offered, but a caller is not the button — and spending
+	# a ball that is not there would go unnoticed until somebody counted.
+	var screen: BattleScreen = _with_bag({"basic_ball": 0})
+	var turn: int = screen.view().turn
+
+	await screen.throw_ball("basic_ball")
+
+	assert_int(screen.bag["basic_ball"]).is_equal(0)
+	assert_int(screen.view().turn).override_failure_message(
+		"a turn was spent throwing a ball nobody had"
+	).is_equal(turn)
+
+
+func test_a_ball_nobody_declared_is_refused() -> void:
+	var screen: BattleScreen = _with_bag({"imaginary_ball": 3})
+	await screen.throw_ball("imaginary_ball")
+	assert_int(screen.view().turn).is_equal(0)
+
+
+func test_a_throw_is_a_turn_like_any_other() -> void:
+	# A ball and a move are the same shape to everything below the screen, which
+	# is the point of commands being data.
+	var screen: BattleScreen = _with_bag({"basic_ball": 5})
+	var before: int = screen.view().turn
+
+	await screen.throw_ball("basic_ball")
+
+	assert_int(screen.view().turn).override_failure_message(
+		"a throw did not advance the battle"
+	).is_greater(before)
+
+
+func test_a_throw_that_lands_takes_the_creature() -> void:
+	# Every shake answered yes, because a probability is a poor thing to wait
+	# for — and the best ball against a weakened target is still only about one
+	# throw in three with this roster, which is not a test.
+	var library: ContentLibrary = ContentLibrary.load_all()
+	var packed: PackedScene = load(SCREEN)
+	var screen: BattleScreen = auto_free(packed.instantiate() as BattleScreen)
+
+	var species: VltSpecies = library.species["placeholder_base"]
+	var wild: VltBattleCreature = VltBirth.at_level(
+		species, 3, library.natures, library.moves,
+		library.curves[species.growth_rate], VltSeededGenerationDecider.new(7)
+	)
+	wild.current_hp = 1
+
+	var certain: VltScriptedDecider = VltScriptedDecider.new()
+	certain.capture = VltScriptedDecider.Answer.ALWAYS
+
+	screen.incoming_foe = [wild] as Array[VltBattleCreature]
+	screen.bag = {"best_ball": 1}
+	screen.incoming_decider = certain
+	add_child(screen)
+	screen.skip(true)
+
+	await screen.throw_ball("best_ball")
+
+	assert_bool(screen.view().theirs[0].present).override_failure_message(
+		"every shake passed and the creature was still standing there"
+	).is_false()
+
+
+func test_a_caught_creature_joins_the_party_that_threw() -> void:
+	# The seam's decision. The core vacates the slot and leaves the creature
+	# where it was — spec 11 section 7 says where it goes next belongs to a
+	# party and box system, and there is none.
+	var library: ContentLibrary = ContentLibrary.load_all()
+	var packed: PackedScene = load(SCREEN)
+	var screen: BattleScreen = auto_free(packed.instantiate() as BattleScreen)
+
+	var species: VltSpecies = library.species["placeholder_base"]
+	var mine: VltBattleCreature = VltBirth.at_level(
+		species, 20, library.natures, library.moves,
+		library.curves[species.growth_rate], VltSeededGenerationDecider.new(1)
+	)
+	var wild: VltBattleCreature = VltBirth.at_level(
+		species, 3, library.natures, library.moves,
+		library.curves[species.growth_rate], VltSeededGenerationDecider.new(7)
+	)
+	wild.current_hp = 1
+
+	var certain: VltScriptedDecider = VltScriptedDecider.new()
+	certain.capture = VltScriptedDecider.Answer.ALWAYS
+
+	var party: Array[VltBattleCreature] = [mine]
+	screen.incoming_player = party
+	screen.incoming_foe = [wild] as Array[VltBattleCreature]
+	screen.bag = {"best_ball": 1}
+	screen.incoming_decider = certain
+	add_child(screen)
+	screen.skip(true)
+
+	await screen.throw_ball("best_ball")
+
+	assert_int(party.size()).override_failure_message(
+		"the creature was caught and went nowhere"
+	).is_equal(2)

@@ -43,6 +43,10 @@ var _battle: BattleScreen = null
 ## The player's own creatures. They carry their wounds between battles, which is
 ## the whole reason they are held here rather than made when one starts.
 var _party: Array[VltBattleCreature] = []
+
+## What is left to throw. There is no inventory and no spec for one, so this is
+## a count in the seam until there is somewhere better for it to live.
+var _bag: Dictionary[String, int] = {"basic_ball": 5, "better_ball": 2}
 var _message: Label
 var _hint: Label
 var _stick: TouchStick
@@ -116,6 +120,11 @@ func in_battle() -> bool:
 ## The player's own creatures, carrying their wounds between battles.
 func party() -> Array[VltBattleCreature]:
 	return _party
+
+
+## What is left to throw.
+func bag() -> Dictionary[String, int]:
+	return _bag
 
 
 ## Starts a battle against a given species, bypassing the grass. Public because
@@ -217,6 +226,7 @@ func _meet(outcome: VltEncounter.Outcome) -> void:
 	var packed: PackedScene = load(BATTLE_SCENE)
 	_battle = packed.instantiate() as BattleScreen
 	_battle.incoming_player = _party
+	_battle.bag = _bag
 	_battle.incoming_foe = [wild] as Array[VltBattleCreature]
 	_battle.ended.connect(_battle_ended)
 

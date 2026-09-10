@@ -64,6 +64,9 @@ then never touched again.
 Facing is part of position, not a rendering detail: what a warp does, what a zone
 sees, and what spec 15 will interact with all read it.
 
+> **How to actually build one:** `docs/authoring-maps.md`. This document settles
+> what a map is; that one is the workflow.
+
 ## 3. Maps are painted, not written
 
 A map is a Godot scene, and it carries **three painted layers**, of which only

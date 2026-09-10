@@ -1,0 +1,194 @@
+extends GdUnitTestSuite
+
+## Where the two creatures stand and where the camera watches from (spec 17).
+##
+## The reason this is arithmetic rather than four numbers in a scene: the numbers
+## were tuned against a screenshot, and every one of them was wrong the moment
+## another changed. What is asserted here is the *relationships* — both in frame,
+## facing each other, one nearer than the other — so retuning the staging cannot
+## quietly break the framing.
+
+const HEIGHT: float = 1.0
+const FOV: float = 75.0
+const PLAYER: int = 0
+const FOE: int = 1
+
+
+func _seats() -> Array[Vector3]:
+	return [BattleStaging.seat(PLAYER), BattleStaging.seat(FOE)]
+
+
+# --- where they stand ---------------------------------------------------------
+
+
+func test_the_two_seats_are_mirror_images() -> void:
+	# So the pair is centred whatever the separation, which is what lets the
+	# camera look at the origin and be right.
+	var seats: Array[Vector3] = _seats()
+	assert_vector(seats[PLAYER] + seats[FOE]).is_equal_approx(Vector3.ZERO, Vector3.ONE * 0.001)
+
+
+func test_they_stand_the_separation_apart() -> void:
+	var seats: Array[Vector3] = _seats()
+	assert_float(seats[PLAYER].distance_to(seats[FOE])).is_equal_approx(
+		BattleStaging.SEPARATION, 0.001
+	)
+
+
+func test_yours_is_nearer_the_camera_and_to_the_left() -> void:
+	# The whole staging in one assertion. Two creatures the same distance away
+	# read as a diagram; the depth is what makes one of them yours.
+	var seats: Array[Vector3] = _seats()
+
+	assert_bool(seats[PLAYER].z > seats[FOE].z).override_failure_message(
+		"your creature is not the near one: %s against %s" % [seats[PLAYER], seats[FOE]]
+	).is_true()
+	assert_bool(seats[PLAYER].x < seats[FOE].x).override_failure_message(
+		"your creature is not the left one"
+	).is_true()
+
+
+func test_they_are_not_side_by_side_and_not_in_line() -> void:
+	# Zero slant is a diagram; ninety puts one exactly behind the other. The
+	# staging is only staging in between.
+	var seats: Array[Vector3] = _seats()
+
+	assert_bool(absf(seats[PLAYER].z - seats[FOE].z) > 0.2).override_failure_message(
+		"the pair is flat across the frame"
+	).is_true()
+	assert_bool(absf(seats[PLAYER].x - seats[FOE].x) > 0.2).override_failure_message(
+		"one creature is hidden behind the other"
+	).is_true()
+
+
+func test_a_wider_separation_moves_both_and_keeps_the_centre() -> void:
+	var wide_player: Vector3 = BattleStaging.seat(PLAYER, 6.0)
+	var wide_foe: Vector3 = BattleStaging.seat(FOE, 6.0)
+
+	assert_float(wide_player.distance_to(wide_foe)).is_equal_approx(6.0, 0.001)
+	assert_vector(wide_player + wide_foe).is_equal_approx(Vector3.ZERO, Vector3.ONE * 0.001)
+
+
+func test_a_separation_of_nothing_puts_both_on_the_spot() -> void:
+	# Degenerate rather than negative: a negative separation would swap the two
+	# sides silently, which is worse than them overlapping.
+	assert_vector(BattleStaging.seat(PLAYER, -4.0)).is_equal_approx(
+		Vector3.ZERO, Vector3.ONE * 0.001
+	)
+
+
+# --- which way they face ------------------------------------------------------
+
+
+func test_each_faces_the_other() -> void:
+	# The property that stops the facing drifting when the seats are retuned:
+	# neither is turned to a fixed angle, both are turned at each other.
+	var seats: Array[Vector3] = _seats()
+
+	for side: int in [PLAYER, FOE]:
+		var other: int = FOE if side == PLAYER else PLAYER
+		var yaw: float = BattleStaging.yaw_towards(seats[side], seats[other])
+		# A model looks along +Z, so a body at yaw θ faces (sin θ, 0, cos θ).
+		var looking: Vector3 = Vector3(sin(yaw), 0.0, cos(yaw))
+		var towards: Vector3 = (seats[other] - seats[side]).normalized()
+
+		assert_float(looking.dot(towards)).override_failure_message(
+			"side %d faces %s instead of %s" % [side, looking, towards]
+		).is_greater(0.999)
+
+
+func test_they_face_opposite_ways() -> void:
+	var seats: Array[Vector3] = _seats()
+	var mine: float = BattleStaging.yaw_towards(seats[PLAYER], seats[FOE])
+	var theirs: float = BattleStaging.yaw_towards(seats[FOE], seats[PLAYER])
+
+	assert_float(absf(angle_difference(mine, theirs))).override_failure_message(
+		"the two are not turned away from each other"
+	).is_equal_approx(PI, 0.001)
+
+
+func test_facing_a_place_you_already_are_is_not_an_error() -> void:
+	# Two creatures on the same spot is a degenerate staging, not a crash, and a
+	# NaN yaw would put a body somewhere no assertion could describe.
+	var yaw: float = BattleStaging.yaw_towards(Vector3.ZERO, Vector3.ZERO)
+	assert_bool(is_nan(yaw)).is_false()
+	assert_float(yaw).is_equal(0.0)
+
+
+# --- what the camera sees -----------------------------------------------------
+
+
+func _in_frame(point: Vector3, eye: Vector3, target: Vector3, fov: float) -> bool:
+	var looking: Vector3 = (target - eye).normalized()
+	var towards: Vector3 = (point - eye).normalized()
+	return rad_to_deg(looking.angle_to(towards)) <= fov * 0.5
+
+
+func test_both_creatures_are_inside_the_field_of_view() -> void:
+	# The assertion that makes the arithmetic worth having: head and feet of both
+	# creatures, inside the vertical field of view, computed rather than checked
+	# against a screenshot.
+	var eye: Vector3 = BattleStaging.eye(HEIGHT, FOV)
+	var target: Vector3 = BattleStaging.target(HEIGHT)
+
+	for seat: Vector3 in _seats():
+		for point: Vector3 in [seat, seat + Vector3(0, HEIGHT, 0)]:
+			assert_bool(_in_frame(point, eye, target, FOV)).override_failure_message(
+				"%s is outside the frame from %s" % [point, eye]
+			).is_true()
+
+
+func test_it_stays_in_frame_at_other_fields_of_view() -> void:
+	# A camera somebody retunes, or a different aspect. The distance is derived
+	# from the field of view, so a narrower one must simply stand further back.
+	for fov: float in [40.0, 55.0, 75.0, 100.0]:
+		var eye: Vector3 = BattleStaging.eye(HEIGHT, fov)
+		var target: Vector3 = BattleStaging.target(HEIGHT)
+
+		for seat: Vector3 in _seats():
+			assert_bool(
+				_in_frame(seat + Vector3(0, HEIGHT, 0), eye, target, fov)
+			).override_failure_message(
+				"a head leaves the frame at %d degrees" % fov
+			).is_true()
+
+
+func test_a_narrower_lens_stands_further_back() -> void:
+	assert_float(BattleStaging.eye(HEIGHT, 40.0).length()).is_greater(
+		BattleStaging.eye(HEIGHT, 90.0).length()
+	)
+
+
+func test_a_bigger_pair_pushes_the_camera_back() -> void:
+	assert_float(BattleStaging.distance_for(4.0, FOV)).is_greater(
+		BattleStaging.distance_for(1.0, FOV)
+	)
+
+
+func test_the_camera_is_behind_and_above() -> void:
+	var eye: Vector3 = BattleStaging.eye(HEIGHT, FOV)
+
+	assert_float(eye.z).override_failure_message("the camera is not behind the pair").is_greater(0.0)
+	assert_float(eye.y).override_failure_message(
+		"the camera is at ground level, so the far creature is hidden by the near one"
+	).is_greater(HEIGHT)
+
+
+func test_yours_is_the_nearer_to_the_camera() -> void:
+	# Both in frame is not enough: the near one has to be *yours*, or the depth
+	# says the wrong thing.
+	var eye: Vector3 = BattleStaging.eye(HEIGHT, FOV)
+	var seats: Array[Vector3] = _seats()
+
+	assert_float(eye.distance_to(seats[PLAYER])).is_less(eye.distance_to(seats[FOE]))
+
+
+func test_nothing_here_produces_a_nan() -> void:
+	# Every degenerate input at once. A NaN in a transform is a node that
+	# disappears with no error anywhere.
+	for fov: float in [0.0, -30.0, 180.0, 400.0]:
+		var eye: Vector3 = BattleStaging.eye(0.0, fov, 0.0)
+		assert_bool(is_nan(eye.x) or is_nan(eye.y) or is_nan(eye.z)).override_failure_message(
+			"fov %f produced %s" % [fov, eye]
+		).is_false()
+		assert_bool(eye.is_finite()).is_true()

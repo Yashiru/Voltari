@@ -22,24 +22,9 @@ const SEED: int = 20260910
 ## name is a contract; a private variable is not.
 const MENU_NAME: String = "MoveMenu"
 
-## Where each side stands, indexed by side.
-##
-## Not symmetric, and that is the staging: yours is near the camera and to the
-## left, the other is further away and to the right. Two creatures the same
-## distance away read as a diagram; the depth is what makes one of them *yours*.
-const SEATS: Array[Vector3] = [
-	Vector3(-1.0, 0.0, 1.2),
-	Vector3(1.2, 0.0, -1.1),
-]
-
-## Where the camera sits, relative to your own creature, and what it looks at.
-##
-## Over your shoulder rather than side-on: it is what puts your creature in the
-## foreground and the other one across from it, and it is why the two seats are
-## not mirror images. The target is biased towards the far side so the near
-## creature sits low in frame instead of filling it.
-const EYE: Vector3 = Vector3(0.7, 1.2, 1.3)
-const LOOKING_AT: Vector3 = Vector3(0.5, 0.55, -0.2)
+## How tall a creature is drawn. The manifests declare it and `CreatureBody`
+## enforces it, so the staging can rely on it rather than measuring.
+const CREATURE_HEIGHT: float = 1.0
 
 ## Emitted once, when nobody on one side is still standing. The argument says
 ## which side won, because a caller that had to work that out from the state
@@ -640,14 +625,7 @@ func _build_interface() -> void:
 	# On its own this scene's camera becomes current by being the only one. As a
 	# child of the world it is not, and nothing was making it — which is
 	# invisible to every headless test and the first thing anybody would see.
-	for child: Node in get_children():
-		if child is Camera3D:
-			var camera: Camera3D = child as Camera3D
-			camera.make_current()
-			# Framed here rather than in the scene, because it is framed *from*
-			# the seats and a transform typed into a `.tscn` cannot follow them.
-			camera.position = SEATS[PLAYER] + EYE
-			camera.look_at(LOOKING_AT)
+	_frame(_camera_or_new())
 
 	var layer: CanvasLayer = CanvasLayer.new()
 	add_child(layer)
@@ -674,14 +652,48 @@ func _build_interface() -> void:
 		layer.add_child(bar)
 
 		var body: CreatureBody = CreatureBody.new()
-		body.position = SEATS[side]
-		# Your own creature turns its back on you and the other one faces you.
-		# A model's forward is +Z, towards the camera, so it is the near side that
-		# turns — which is the opposite of what this said before, and why both
-		# creatures were looking at the player.
-		body.rotation_degrees = Vector3(0, 180 if side == PLAYER else 0, 0)
+		body.position = BattleStaging.seat(side)
+		# Turned to look at whoever is opposite rather than to a fixed angle. Two
+		# bodies each given the other's seat face each other whatever the seats
+		# are, which is what stops this drifting when the staging is retuned.
+		body.rotation.y = BattleStaging.yaw_towards(
+			body.position, BattleStaging.seat(_other_than(side))
+		)
 		add_child(body)
 		_stage.seat(at, title, bar, body)
+
+
+## The other side. Two sides today, and this is the one place that would have to
+## change if that ever stopped being true.
+static func _other_than(side: int) -> int:
+	return FOE if side == PLAYER else PLAYER
+
+
+## The scene's camera, or one made on the spot.
+##
+## A screen with no camera renders nothing at all, and the scene file is a thing
+## somebody can edit. Making one is cheaper than a black screen nobody can
+## explain.
+func _camera_or_new() -> Camera3D:
+	for child: Node in get_children():
+		if child is Camera3D:
+			return child as Camera3D
+
+	var made: Camera3D = Camera3D.new()
+	made.name = "Camera3D"
+	add_child(made)
+	return made
+
+
+## Points the camera at the pair, far enough back that both fit.
+##
+## Framed here rather than in the scene because it is framed *from* the seats and
+## the camera's own field of view — a transform typed into a `.tscn` cannot
+## follow either.
+func _frame(camera: Camera3D) -> void:
+	camera.make_current()
+	camera.position = BattleStaging.eye(CREATURE_HEIGHT, camera.fov)
+	camera.look_at(BattleStaging.target(CREATURE_HEIGHT))
 
 
 static func _label(into: Node, at: Vector2, size: int) -> Label:

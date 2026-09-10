@@ -188,6 +188,7 @@ func test_the_editor_plugin_loads() -> void:
 	for path: String in [
 		"res://addons/voltari_maps/plugin.gd",
 		"res://addons/voltari_maps/map_gizmos.gd",
+		"res://addons/voltari_maps/map_dock.gd",
 	]:
 		assert_object(load(path)).override_failure_message(
 			"%s does not compile — the map editor is broken" % path

@@ -11,6 +11,8 @@ extends EditorPlugin
 ## - **Placing** it. The nodes are addressed by cell and the editor moves things
 ##   by transform; keeping those two in agreement is what makes a door something
 ##   you drag rather than something you type.
+## - **Checking** it. The validator existed and was reachable only from a test,
+##   which is not where anybody is standing when they paint a door.
 ##
 ## The cell stays the truth (see `map_placement.gd`). A drag is read, converted,
 ## and snapped — so nothing is ever left between two cells.
@@ -22,6 +24,7 @@ extends EditorPlugin
 const MOVED: float = 0.001
 
 var _gizmos: EditorNode3DGizmoPlugin = null
+var _dock: VltMapDock = null
 
 ## Where each node was last put, by instance id. It is what separates "the author
 ## dragged this" from "this node has never been placed" — and without it, a warp
@@ -33,6 +36,10 @@ var _placed: Dictionary[int, Vector3] = {}
 func _enter_tree() -> void:
 	_gizmos = VltMapGizmos.new()
 	add_node_3d_gizmo_plugin(_gizmos)
+
+	_dock = VltMapDock.new()
+	add_control_to_dock(DOCK_SLOT_RIGHT_BL, _dock)
+
 	set_process(true)
 
 
@@ -41,6 +48,10 @@ func _exit_tree() -> void:
 	if _gizmos != null:
 		remove_node_3d_gizmo_plugin(_gizmos)
 		_gizmos = null
+	if _dock != null:
+		remove_control_from_docks(_dock)
+		_dock.queue_free()
+		_dock = null
 	_placed.clear()
 
 

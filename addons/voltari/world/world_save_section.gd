@@ -25,7 +25,7 @@ const CELL_Z_FIELD: String = "cell_z"
 const FACING_FIELD: String = "facing"
 
 ## The live world. `write` reads it when it is here.
-var walker: VltGridWalker = null
+var walker: VltFreeWalker = null
 
 ## What the last read produced, and what `write` falls back on. The caller loads
 ## `map_id`, then places the walker on `cell` facing `facing`.
@@ -34,7 +34,7 @@ var cell: Vector2i = Vector2i.ZERO
 var facing: VltFacing.Direction = VltFacing.Direction.SOUTH
 
 
-func _init(live: VltGridWalker = null) -> void:
+func _init(live: VltFreeWalker = null) -> void:
 	walker = live
 
 
@@ -57,8 +57,12 @@ func write() -> Dictionary:
 	if walker != null:
 		if walker.map != null:
 			map_id = walker.map.map_id
-		cell = walker.cell
-		facing = walker.facing
+		# The **cell**, not the metres. A save says where you were well enough to
+		# put you back, and storing a position inside a cell would put a float in
+		# a document that has to be read for years to buy half a metre. Loading
+		# therefore stands you in the middle of the cell you left.
+		cell = walker.cell()
+		facing = walker.facing()
 
 	return {
 		MAP_FIELD: map_id,

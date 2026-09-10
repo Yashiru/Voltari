@@ -7,11 +7,11 @@ extends GdUnitTestSuite
 ## world's behaviour to the world's own tests.
 
 
-func _walker(at: Vector2i, turned: VltFacing.Direction) -> VltGridWalker:
+func _walker(at: Vector2i, turned: VltFacing.Direction) -> VltFreeWalker:
 	var map: VltWorldMap = auto_free(
 		VltFixtureMap.map("field", VltFixtureMap.filled(Vector2i(5, 5)))
 	)
-	var walker: VltGridWalker = auto_free(VltGridWalker.new())
+	var walker: VltFreeWalker = auto_free(VltFreeWalker.new())
 	walker.map = map
 	walker.place(at, turned)
 	return walker
@@ -53,11 +53,13 @@ func test_the_world_round_trips() -> void:
 func test_writing_reads_the_live_world_not_a_stale_copy() -> void:
 	# The failure this catches is the section that saves where the player started
 	# instead of where they are — silent, and only visible on the next load.
-	var walker: VltGridWalker = _walker(Vector2i(1, 1), VltFacing.Direction.NORTH)
+	var walker: VltFreeWalker = _walker(Vector2i(1, 1), VltFacing.Direction.NORTH)
 	var section: VltWorldSaveSection = VltWorldSaveSection.new(walker)
 
-	walker.step(VltFacing.Direction.EAST)
-	walker.step(VltFacing.Direction.SOUTH)
+	# A whole cell's worth each way, which is what a step used to be.
+	var width: float = walker.map.cell_width()
+	walker.move(Vector2(width, 0.0))
+	walker.move(Vector2(0.0, width))
 
 	var written: Dictionary = section.write()
 	assert_int(_int_in(written, VltWorldSaveSection.CELL_X_FIELD)).is_equal(2)

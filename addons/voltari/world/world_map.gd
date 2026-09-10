@@ -98,6 +98,33 @@ func zones() -> Array[VltEncounterZone]:
 	return found
 
 
+## Which cell a point in this map's space falls in.
+##
+## Asked of the grid rather than computed, because the grid has opinions this
+## would otherwise have to reproduce: how wide a cell is, and whether cell zero
+## straddles the origin or starts at it. Getting the second wrong offsets
+## everything by half a cell, which is small enough to look like art.
+func cell_at(local: Vector3) -> Vector2i:
+	if terrain == null:
+		return Vector2i(int(roundf(local.x)), int(roundf(local.z)))
+	var grid: Vector3i = terrain.local_to_map(local)
+	return Vector2i(grid.x, grid.z)
+
+
+## The middle of a cell, in this map's space.
+func centre_of(cell: Vector2i) -> Vector3:
+	if terrain == null:
+		return Vector3(cell.x, 0.0, cell.y)
+	return terrain.map_to_local(Vector3i(cell.x, GROUND, cell.y))
+
+
+## How wide a cell is, in metres.
+func cell_width() -> float:
+	if terrain == null:
+		return 1.0
+	return maxf(terrain.cell_size.x, 0.001)
+
+
 static func _has_cell(layer: GridMap, cell: Vector2i) -> bool:
 	if layer == null:
 		return false

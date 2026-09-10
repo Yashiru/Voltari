@@ -61,17 +61,11 @@ var _encounters: VltSeededEncounterDecider
 var _maps: Dictionary[String, String] = {}
 
 var _map: VltWorldMap = null
-var _walker: VltGridWalker
-var _held: VltStepIntent.Held = VltStepIntent.Held.new()
-
-## Where to draw somebody who is between two cells. It never moves them
-## (spec 14, section 2) — the walker is already on the new cell.
-var _glide: CellGlide = CellGlide.new()
+var _walker: VltFreeWalker
 
 ## Tells the grass where the walker is. Purely a look — nothing it does reaches
 ## a rule, and grass has never blocked anything.
 var _grass: GrassField = GrassField.new()
-var _cooldown: float = 0.0
 
 var _run: VltEventRun = null
 var _battle: BattleScreen = null
@@ -132,7 +126,7 @@ func _ready() -> void:
 ## Where the walker is standing, and on which map. The way in for anything
 ## outside — a scene above, or a test.
 func cell() -> Vector2i:
-	return _walker.cell
+	return _walker.cell()
 
 
 func map_id() -> String:
@@ -148,17 +142,18 @@ func in_event() -> bool:
 	return _run != null
 
 
-## One step, bypassing the stick. Public because driving the world from outside
-## is what a sandbox is for.
+## One cell's worth of travel in a direction, bypassing the stick. Public because
+## driving the world from outside is what a sandbox is for, and a whole cell is
+## the unit anything outside still thinks in.
 func walk(direction: VltFacing.Direction) -> void:
-	_step(direction)
+	var width: float = _map.cell_width() if _map != null else CELL
+	_travel(Vector2(VltFacing.DELTAS[direction]) * width)
 
 
-## Turn without moving — what a flick does, and what you do before reading a
-## sign you cannot walk into.
+## Turn without moving — what you do before reading a sign you cannot walk into.
 func face(direction: VltFacing.Direction) -> void:
-	_walker.facing = direction
-	_held.face(direction)
+	_walker.heading = Vector2(VltFacing.DELTAS[direction])
+	_body.face_at_once(_walker.heading)
 
 
 func interact() -> void:
@@ -200,27 +195,14 @@ func load_now() -> void:
 
 
 func _process(delta: float) -> void:
-	# Before anything else, and whatever else is happening. A step interrupted by
-	# an encounter still has to finish, or the player comes back from the battle
-	# standing between two cells.
-	if _glide.is_moving():
-		_draw_body(_glide.advance(delta))
+	_grass.advance(delta)
 
-	# Follows the drawing rather than the cell, so the grass opens with the walk
-	# instead of jumping a cell ahead of it.
-	_grass.follow(_body.position, delta)
-
-	# Every frame, moving or not: the character turns towards its facing and
-	# settles out of its run, and both of those are continuous even when the grid
-	# is not.
-	_body.advance(delta, GROUND_SPEED if _glide.is_moving() else 0.0, _walker.facing)
-
-	_cooldown = maxf(0.0, _cooldown - delta)
-
-	if _battle != null:
-		return
-	if _run != null:
-		_advance_event()
+	if _battle != null or _run != null:
+		# Standing still, and still alive: the character settles out of its run
+		# and keeps breathing while a battle or an event is on top of the world.
+		_body.advance(delta, 0.0, _walker.heading)
+		if _run != null:
+			_advance_event()
 		return
 
 	var stick: Vector2 = _stick.stick()
@@ -232,34 +214,42 @@ func _process(delta: float) -> void:
 			Input.is_key_pressed(KEY_LEFT) or Input.is_key_pressed(KEY_A)
 		)
 
-	var intent: VltStepIntent.Step = VltStepIntent.of(stick, _held, delta)
-	if not intent.wanted:
+	# The stick is a direction and nothing else now. No quantising, no flick, no
+	# cooldown: the world is continuous and the only thing left to decide is
+	# whether a thumb is resting (decision 0058).
+	var wanted: Vector2 = VltStepIntent.of(stick)
+	var speed: float = wanted.length() * GROUND_SPEED
+	_body.advance(delta, speed, _walker.heading)
+	if speed <= 0.0:
 		return
 
-	# A flick turns without moving, which is how you face a sign you are about
-	# to read.
-	_walker.facing = intent.direction
-	if intent.walk and _cooldown <= 0.0:
-		_step(intent.direction)
-		# Only the caller knows which of the frames that wanted to walk became a
-		# step, because only the caller holds the cooldown. A diagonal that
-		# alternated per frame instead of per step would spin on the spot.
-		_held.stepped(intent.direction)
+	_travel(wanted.normalized() * speed * delta)
 
 
-func _step(direction: VltFacing.Direction) -> void:
-	var step: VltGridWalker.Step = _walker.step(direction)
-	_cooldown = _step_seconds()
-	_walk_body()
+## Moves by a displacement in metres and does whatever crossing a boundary asks
+## for.
+##
+## Everything a step used to trigger happens here, in the order it always had.
+## What changed is only what fires it: a cell that is not the cell you were in.
+func _travel(by: Vector2) -> void:
+	var move: VltFreeWalker.Move = _walker.move(by)
+	_place_body()
 
-	if step.warp != null:
-		_enter(step.warp.to_map, step.warp.to_cell, step.warp.to_facing)
+	if not move.entered:
 		return
-	if step.event != null:
-		_begin(step.event)
+
+	# Only when the cell actually changed. Ringing the grass you are standing in
+	# for a refused move would make a wall feel like a footfall.
+	_grass.enter_cell(_standing_place())
+
+	if move.warp != null:
+		_enter(move.warp.to_map, move.warp.to_cell, move.warp.to_facing)
 		return
-	if step.encounter != null:
-		_meet(step.encounter)
+	if move.event != null:
+		_begin(move.event)
+		return
+	if move.encounter != null:
+		_meet(move.encounter)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -332,7 +322,7 @@ func _all_maps() -> Dictionary[String, VltWorldMap]:
 ## service exists (decision 0053).
 func _recover() -> void:
 	var maps: Dictionary[String, VltWorldMap] = _all_maps()
-	var found: VltRestPoint.Found = VltRestPoint.nearest(maps, map_id(), _walker.cell)
+	var found: VltRestPoint.Found = VltRestPoint.nearest(maps, map_id(), _walker.cell())
 
 	for id: String in maps:
 		if maps[id] != _map:
@@ -583,13 +573,13 @@ func _enter(into: String, at: Vector2i, facing: VltFacing.Direction) -> void:
 
 	_walker.map = _map
 	_walker.place(at, facing)
-	_held.face(facing)
 	_place_body()
+	_body.face_at_once(_walker.heading)
 
-	# A different map means different materials, and a centre that travelled
-	# there would draw a parting sweeping across the floor.
+	# A different map means different materials, and a swing left over from the
+	# one you came from would ring a cell nobody has stepped on.
 	_grass.of_map(_map)
-	_grass.place(_body.position)
+	_grass.quiet()
 	_message.text = into
 
 	# Arriving on a map is one of the three moments an event may fire
@@ -605,46 +595,28 @@ func _enter(into: String, at: Vector2i, facing: VltFacing.Direction) -> void:
 ## not tidying: a `GridMap` centres its cells vertically by default, so the floor
 ## of a map is half a cell up. Assuming zero buried the player to the chest in
 ## every map painted with a real tile.
-## Starts the walk to whichever cell the walker is on.
+## Draws the body wherever the walker is.
 ##
-## The walker is already there — this only says where to draw somebody catching
-## up (spec 14, section 2). The glide lasts exactly as long as the cooldown
-## between steps, which is what makes holding a direction one continuous walk
-## rather than a series of hops with pauses in them.
-func _walk_body() -> void:
-	_glide.to(_body.position, _standing_place(), _step_seconds())
-
-
-## Arrives at once. What a warp, a load and a defeat need: they move the player
-## somewhere else entirely, and sliding across the gap would draw them walking
-## through whatever is between — including, across a warp, another map.
+## No interpolation any more, and none needed: the walker's own position is
+## continuous, so the body is already exactly where the player is rather than
+## catching up with a cell they had already reached.
 func _place_body() -> void:
-	_glide.snap(_standing_place())
-	_draw_body(_glide.position())
-	_body.face_at_once(_walker.facing)
+	_draw_body(Vector3(_walker.spot.x, _floor_height(), _walker.spot.y))
 
 
-## How long one cell takes, at the one speed there is.
-##
-## Read from the grid rather than declared, so a map painted on a finer grid is
-## crossed at the same *speed* rather than at the same rate — which is what keeps
-## the legs matching the ground on every map rather than on the one the number
-## was tuned against.
-func _step_seconds() -> float:
-	var width: float = CELL
-	if _map != null and _map.terrain != null:
-		width = maxf(_map.terrain.cell_size.x, 0.001)
-	return width / maxf(GROUND_SPEED, 0.001)
-
-
-## Where the walker's cell puts a body, in the map's own space.
+## Where the walker's *cell* is, which is what the grass is rung at.
 func _standing_place() -> Vector3:
-	var ground: Vector3 = Vector3(float(_walker.cell.x) * CELL, 0.0, float(_walker.cell.y) * CELL)
-	if _map != null and _map.terrain != null:
-		ground = _map.terrain.map_to_local(
-			Vector3i(_walker.cell.x, VltWorldMap.GROUND, _walker.cell.y)
-		)
-	return ground + Vector3(0, BODY_LIFT, 0)
+	if _map == null:
+		return Vector3(_walker.spot.x, BODY_LIFT, _walker.spot.y)
+	return _map.centre_of(_walker.cell()) + Vector3(0, BODY_LIFT, 0)
+
+
+## How high the floor is here. A cell's centre, because that is where a floor
+## tile is drawn from.
+func _floor_height() -> float:
+	if _map == null:
+		return BODY_LIFT
+	return _map.centre_of(_walker.cell()).y + BODY_LIFT
 
 
 ## Puts the body and the camera at a point. The camera follows the drawing rather
@@ -656,14 +628,15 @@ func _draw_body(where: Vector3) -> void:
 	_camera.look_at(looking_at)
 
 
-## Where the body is drawn, which between cells is not where the player is. The
-## way in for a test, and the only honest way to ask "is it still moving".
+## Where the body is drawn, which is now exactly where the player is.
 func body_position() -> Vector3:
 	return _body.position
 
 
-func is_stepping() -> bool:
-	return _glide.is_moving()
+## Where the player is, in metres, on the map they are on. Continuous — the cell
+## is `cell()`, and it is the origin that decides it.
+func spot() -> Vector2:
+	return _walker.spot
 
 
 # --- the save ----------------------------------------------------------------
@@ -741,7 +714,7 @@ func _build_interface() -> void:
 	sun.rotation_degrees = Vector3(-55, -30, 0)
 	add_child(sun)
 
-	_walker = VltGridWalker.new()
+	_walker = VltFreeWalker.new()
 	_walker.tables = _tables
 	_walker.encounter_decider = _encounters
 	add_child(_walker)

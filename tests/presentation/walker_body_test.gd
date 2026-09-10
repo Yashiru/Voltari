@@ -51,12 +51,12 @@ func test_it_is_idling_before_anything_asks_it_to() -> void:
 func test_moving_runs_and_stopping_settles_to_the_idle() -> void:
 	var body: WalkerBody = _body()
 
-	body.advance(FRAME, RUNNING, VltFacing.Direction.SOUTH)
+	body.advance(FRAME, RUNNING, Vector2(0, 1))
 	assert_str(body.playing()).is_equal("Running")
 
 	# Past the grace, which is what a real stop is.
 	for frame: int in range(30):
-		body.advance(FRAME, 0.0, VltFacing.Direction.SOUTH)
+		body.advance(FRAME, 0.0, Vector2(0, 1))
 	assert_str(body.playing()).is_equal(WalkerGait.IDLE_CLIP)
 
 
@@ -68,9 +68,9 @@ func test_chained_steps_never_drop_to_the_idle() -> void:
 
 	for step: int in range(6):
 		for frame: int in range(9):
-			body.advance(FRAME, RUNNING, VltFacing.Direction.EAST)
+			body.advance(FRAME, RUNNING, Vector2(1, 0))
 		# The seam between two steps.
-		body.advance(FRAME, 0.0, VltFacing.Direction.EAST)
+		body.advance(FRAME, 0.0, Vector2(1, 0))
 		assert_str(body.playing()).override_failure_message(
 			"the legs stopped between step %d and the next" % step
 		).is_equal("Running")
@@ -79,11 +79,11 @@ func test_chained_steps_never_drop_to_the_idle() -> void:
 func test_the_grace_is_shorter_than_a_pause() -> void:
 	# It must not turn a genuine stop into a skid.
 	var body: WalkerBody = _body()
-	body.advance(FRAME, RUNNING, VltFacing.Direction.SOUTH)
+	body.advance(FRAME, RUNNING, Vector2(0, 1))
 
 	var elapsed: float = 0.0
 	while body.playing() != WalkerGait.IDLE_CLIP and elapsed < 1.0:
-		body.advance(FRAME, 0.0, VltFacing.Direction.SOUTH)
+		body.advance(FRAME, 0.0, Vector2(0, 1))
 		elapsed += FRAME
 
 	assert_float(elapsed).override_failure_message(
@@ -93,12 +93,12 @@ func test_the_grace_is_shorter_than_a_pause() -> void:
 
 func test_the_playback_rate_follows_the_speed() -> void:
 	var body: WalkerBody = _body()
-	body.advance(FRAME, RUNNING, VltFacing.Direction.SOUTH)
+	body.advance(FRAME, RUNNING, Vector2(0, 1))
 
 	var player: AnimationPlayer = _player(body)
 	assert_float(player.speed_scale).is_equal_approx(1.0, 0.01)
 
-	body.advance(FRAME, RUNNING * 1.2, VltFacing.Direction.SOUTH)
+	body.advance(FRAME, RUNNING * 1.2, Vector2(0, 1))
 	assert_float(player.speed_scale).is_greater(1.0)
 
 
@@ -106,7 +106,7 @@ func test_the_idle_plays_at_its_own_rate() -> void:
 	# Standing still is not a gait, so nothing scales it.
 	var body: WalkerBody = _body()
 	for frame: int in range(30):
-		body.advance(FRAME, 0.0, VltFacing.Direction.SOUTH)
+		body.advance(FRAME, 0.0, Vector2(0, 1))
 
 	assert_float(_player(body).speed_scale).is_equal_approx(1.0, 0.001)
 
@@ -147,10 +147,10 @@ func test_it_turns_rather_than_snapping() -> void:
 	# A four-facing world that snapped would flick the model through ninety
 	# degrees inside one frame, which is the cheapest thing to get wrong here.
 	var body: WalkerBody = _body()
-	body.face_at_once(VltFacing.Direction.SOUTH)
+	body.face_at_once(Vector2(0, 1))
 	var from: float = body.rotation.y
 
-	body.advance(FRAME, 0.0, VltFacing.Direction.EAST)
+	body.advance(FRAME, 0.0, Vector2(1, 0))
 	var moved: float = absf(angle_difference(from, body.rotation.y))
 
 	assert_float(moved).override_failure_message("it did not turn at all").is_greater(0.0)
@@ -161,13 +161,13 @@ func test_it_turns_rather_than_snapping() -> void:
 
 func test_a_turn_finishes() -> void:
 	var body: WalkerBody = _body()
-	body.face_at_once(VltFacing.Direction.SOUTH)
+	body.face_at_once(Vector2(0, 1))
 
 	for frame: int in range(60):
-		body.advance(FRAME, 0.0, VltFacing.Direction.WEST)
+		body.advance(FRAME, 0.0, Vector2(-1, 0))
 
 	assert_float(
-		absf(angle_difference(body.rotation.y, WalkerGait.yaw_of(VltFacing.Direction.WEST)))
+		absf(angle_difference(body.rotation.y, WalkerGait.yaw_towards(Vector2(-1, 0))))
 	).is_less(0.001)
 
 
@@ -175,10 +175,10 @@ func test_arriving_somewhere_faces_at_once() -> void:
 	# A warp, a load and a defeat all put the player somewhere else. Turning
 	# through the change would spin them on arrival.
 	var body: WalkerBody = _body()
-	body.face_at_once(VltFacing.Direction.NORTH)
+	body.face_at_once(Vector2(0, -1))
 
 	assert_float(body.rotation.y).is_equal_approx(
-		WalkerGait.yaw_of(VltFacing.Direction.NORTH), 0.001
+		WalkerGait.yaw_towards(Vector2(0, -1)), 0.001
 	)
 	assert_str(body.playing()).override_failure_message(
 		"it arrived mid-stride"

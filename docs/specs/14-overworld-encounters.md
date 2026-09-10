@@ -49,23 +49,39 @@ So the world gets example-based tests: real, and the weakest pillar the project
 has. That is stated here so the difference is understood as a property of where
 the code lives, rather than as an effort somebody forgot to make.
 
-## 2. Movement is locked to the grid
+## 2. The player is free and the rules are not
 
-The player moves one cell at a time. Rendering interpolates between cells and the
-3D characters animate through the step (decision 0020), so it looks continuous;
-the logic is discrete.
+**Superseded once, by decision 0058.** This section used to lock movement to the
+grid. It no longer does, and what replaced it kept everything the lock was for.
 
-This is not only an implementation choice. It gives **a step a definition**. An
-encounter check happens per step, and with grid movement a step is an event with
-a beginning and an end. Under free movement it would become a distance
-threshold — a constant with no defensible value, tuned until it felt right and
-then never touched again.
+**Position is continuous, in metres. Every rule reads a cell** — the one the
+character's **origin** falls in. That split is the whole design: nothing below
+has to know that movement stopped being discrete, because a cell is still a cell.
+
+**What replaced a step is the occupied cell changing.** Warps, events and
+encounter checks keep the rule and the order they always had, fired by crossing a
+boundary rather than by a discrete step.
+
+This section previously argued that free movement would turn an encounter check
+into *"a distance threshold — a constant with no defensible value, tuned until it
+felt right and then never touched again"*. That did not happen and could not: a
+boundary is a boundary whatever route reached it. **No constant was added**, and
+the rate in section 4 keeps its meaning exactly — still per cell entered.
+
+**What stops you is the painted blocking layer**, read as a lookup. The character
+has a radius; the cells under the corners of the box around it must all be
+walkable; each axis is tried on its own, so walking into a wall at an angle
+slides along it. No physics body and no collision shapes — section 1 survives
+intact, and what stops you is still one thing rather than two.
+
+The radius is the only number this added, and it is bounded rather than tuned: it
+must stay under half a cell, or a one-cell corridor would refuse to admit
+anybody.
 
 Facing is part of position, not a rendering detail: what a warp does, what a zone
-sees, and what spec 15 will interact with all read it.
-
-> **How to actually build one:** `docs/authoring-maps.md`. This document settles
-> what a map is; that one is the workflow.
+sees, and what spec 15 interacts with all read it. It is **derived** from the
+heading rather than stored beside it, so the two cannot disagree — the world
+speaks in four directions and the character turns through all of them.
 
 ## 3. Maps are painted, not written
 

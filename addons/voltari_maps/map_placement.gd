@@ -112,6 +112,13 @@ static func map_of(node: Node) -> VltWorldMap:
 ## Read rather than declared, because the grid already answers it. A constant
 ## here would be a second place to change, and the first symptom of it being
 ## wrong is markers that drift further from their cells the further out you look.
+##
+## `VltWorldMap` answers all three of these questions itself, and this cannot
+## ask it. **An editor holds a non-`@tool` script as a placeholder instance and
+## refuses to call methods on one**, so a map opened in the editor would throw on
+## every gizmo redraw. Reading the `GridMap` directly is a property access, which
+## a placeholder does allow. That is the whole reason for the repetition below,
+## and it is cheaper than making the engine run in the editor.
 static func cell_size(map: VltWorldMap) -> float:
 	if map == null or map.terrain == null:
 		return DEFAULT_CELL_SIZE

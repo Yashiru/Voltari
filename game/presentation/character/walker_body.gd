@@ -73,11 +73,12 @@ func playing() -> String:
 
 ## One frame of being a character: turned, walking or standing, at the right rate.
 ##
-## `speed` is the ground speed in metres a second, zero when still. `facing` is
-## the grid direction the walker holds — the body catches up with it, the same
-## way its position catches up with its cell (spec 14, section 2).
-func advance(delta: float, speed: float, facing: VltFacing.Direction) -> void:
-	rotation.y = WalkerGait.turned(rotation.y, WalkerGait.yaw_of(facing), delta)
+## `speed` is the ground speed in metres a second, zero when still. `heading` is
+## the way the walker is pointed, as a vector — **not one of four**: movement is
+## omnidirectional and the body follows it exactly, because quantising here would
+## put the character's shoulders on a grid its feet had already left.
+func advance(delta: float, speed: float, heading: Vector2) -> void:
+	rotation.y = WalkerGait.turned(rotation.y, WalkerGait.yaw_towards(heading), delta)
 
 	if speed > WalkerGait.STILL:
 		_since_moving = 0.0
@@ -93,8 +94,8 @@ func advance(delta: float, speed: float, facing: VltFacing.Direction) -> void:
 
 ## Puts the character on a direction at once, without turning to it. What
 ## arriving somewhere needs: a warp, a load, a defeat.
-func face_at_once(facing: VltFacing.Direction) -> void:
-	rotation.y = WalkerGait.yaw_of(facing)
+func face_at_once(heading: Vector2) -> void:
+	rotation.y = WalkerGait.yaw_towards(heading)
 	_since_moving = INF
 	_last_speed = 0.0
 	_show(WalkerGait.moving_at(0.0))

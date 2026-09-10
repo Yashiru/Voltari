@@ -105,8 +105,18 @@ static func rate_for(clip: String, speed: float) -> float:
 ## reach further along +Z than its ankles. So a body at yaw θ faces
 ## `(sin θ, 0, cos θ)`, and the yaw is the bearing.
 static func yaw_of(direction: VltFacing.Direction) -> float:
-	var delta: Vector2i = VltFacing.DELTAS[direction]
-	return atan2(float(delta.x), float(delta.y))
+	return yaw_towards(Vector2(VltFacing.DELTAS[direction]))
+
+
+## The same, for a heading that is not one of four.
+##
+## Movement is omnidirectional and the body follows it exactly: quantising here
+## would put the character's shoulders on a four-way grid its feet had already
+## left.
+static func yaw_towards(heading: Vector2) -> float:
+	if heading.length_squared() <= 0.0:
+		return 0.0
+	return atan2(heading.x, heading.y)
 
 
 ## One frame of turning: towards the wanted yaw, never past it, never faster than

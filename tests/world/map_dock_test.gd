@@ -53,3 +53,43 @@ func test_an_entry_map_that_does_not_exist_is_caught_here_too() -> void:
 	assert_bool(problems.is_empty()).override_failure_message(
 		"a typo in the entry map passed silently"
 	).is_false()
+
+
+# --- making one ---------------------------------------------------------------
+
+
+func test_the_dock_writes_a_map_where_it_was_told_to() -> void:
+	# The fields are the configuration and a test drives the same ones a person
+	# types into, so this covers the wiring rather than the creating.
+	var dock: VltMapDock = _dock()
+	dock.folder_field().text = "user://map_dock_test"
+	dock.new_id_field().text = "dock_made_this"
+	dock.library_field().text = "res://game/maps/tiles.meshlib"
+	dock.size_fields()[0].value = 3
+	dock.size_fields()[1].value = 2
+	DirAccess.make_dir_recursive_absolute("user://map_dock_test")
+
+	var result: VltNewMap.Result = dock.new_map()
+
+	assert_bool(result.worked()).override_failure_message(
+		"the dock could not make a map: %s" % ", ".join(result.problems)
+	).is_true()
+	assert_str(result.path).is_equal("user://map_dock_test/dock_made_this.tscn")
+
+	var packed: PackedScene = load(result.path) as PackedScene
+	var map: VltWorldMap = auto_free(packed.instantiate() as VltWorldMap)
+	assert_str(map.map_id).is_equal("dock_made_this")
+	assert_bool(map.is_walkable(Vector2i(2, 1))).is_true()
+	assert_bool(map.is_walkable(Vector2i(3, 0))).is_false()
+
+	DirAccess.remove_absolute(result.path)
+	DirAccess.remove_absolute("user://map_dock_test")
+
+
+func test_a_map_the_dock_refuses_says_why() -> void:
+	var dock: VltMapDock = _dock()
+	dock.new_id_field().text = "Not An Id"
+
+	var result: VltNewMap.Result = dock.new_map()
+	assert_bool(result.worked()).is_false()
+	assert_str(result.problems[0]).contains("not a map id")

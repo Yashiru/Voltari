@@ -3,8 +3,9 @@
 How to build one, with what. The *why* is spec 14 and decisions 0038, 0039, 0054
 and 0027; this is the part you follow.
 
-The editor is Godot's. The plugin adds the three things Godot cannot know about a
-Voltari map: what its nodes are, where they sit, and whether it is sound.
+The editor is Godot's. The plugin adds the four things Godot cannot know about a
+Voltari map: how to start one, what its nodes are, where they sit, and whether it
+is sound.
 
 ---
 
@@ -70,7 +71,25 @@ map whose palette is missing. **The map still works**: a `GridMap` keeps its
 cells with no mesh library at all, so the world stays exactly as walkable as you
 painted it and turns invisible. Nothing to work around.
 
-## 3. Paint the three layers
+## 3. Make the map
+
+In the **Maps** dock: a *New map id*, a width and a height, optionally the name
+of the tile to floor it with, then **New map**. It writes
+`game/maps/<id>.tscn` and opens it.
+
+The id is an identifier, not a title: lower case, digits and underscores,
+starting with a letter. A save holds it (decision 0040), so renaming a map later
+is a migration rather than a rename.
+
+**It refuses to overwrite.** Everything else it refuses is a typo caught early;
+writing over a painted map destroys work that has no other copy.
+
+What you get is a rectangle of ground, all three layers wired and sharing the
+palette, and nothing else. A brand-new map has no rest point, so the validator
+will tell you it cannot recover a defeat — that is true, and it is the first
+thing to fix rather than something to hide.
+
+## 4. Paint the three layers
 
 A map scene is a `VltWorldMap` with three `GridMap` children. Select one and use
 Godot's own GridMap editor.
@@ -88,7 +107,7 @@ Nothing detects a wall you can walk through. Painting a wall mesh into `decor`,
 or terrain with no `blocking` under a rock, produces exactly that, and no test
 will ever fail because of it. It is a visual mistake and you are the only check.
 
-## 4. Place what the map carries
+## 5. Place what the map carries
 
 Add these as children of the map root — or under a grouping node, which the
 plugin follows:
@@ -110,7 +129,7 @@ Everything else about them — where a warp leads, which table a zone names, wha
 an event does — is `@export`s in the inspector. Events are typed nodes, and their
 steps are child nodes (spec 15).
 
-## 5. Check it
+## 6. Check it
 
 **Validate maps** in the dock, whenever you like and certainly before committing.
 
@@ -135,7 +154,7 @@ ten times over. What it will tell you about:
 An empty folder is reported as a problem, not as a pass. A typo in the path would
 otherwise read as success.
 
-## 6. Commit
+## 7. Commit
 
 Path-scoped, always:
 

@@ -2,11 +2,12 @@
 class_name VltMapDock
 extends VBoxContainer
 
-## The map author's panel.
+## The map author's panel: make one, fill the palette, check the lot.
 ##
-## One button so far, and it is the one that was missing: **the validator was
-## only reachable from a test**. A door painted to nowhere was caught by running
-## the suite, which is not where anybody is standing when they paint a door.
+## The validator is the button that was missing. It existed and was **only
+## reachable from a test** — a door painted to nowhere was caught by remembering
+## to run the suite, which is not where anybody is standing when they paint a
+## door.
 ##
 ## It checks every map at once rather than the one being edited, because the
 ## mistakes it finds are the ones no single map can see — a warp's destination
@@ -36,6 +37,10 @@ var _folder: LineEdit = null
 var _entry: LineEdit = null
 var _models: LineEdit = null
 var _library: LineEdit = null
+var _new_id: LineEdit = null
+var _ground: LineEdit = null
+var _width: SpinBox = null
+var _height: SpinBox = null
 var _report: RichTextLabel = null
 
 
@@ -50,6 +55,18 @@ func _init() -> void:
 	check.text = "Validate maps"
 	check.pressed.connect(_on_validate_pressed)
 	add_child(check)
+
+	add_child(HSeparator.new())
+
+	_new_id = _field("New map id", "")
+	_width = _size_field("Width", 12)
+	_height = _size_field("Height", 12)
+	_ground = _field("Ground tile (blank: the first)", "")
+
+	var make: Button = Button.new()
+	make.text = "New map"
+	make.pressed.connect(_on_new_map_pressed)
+	add_child(make)
 
 	add_child(HSeparator.new())
 
@@ -69,7 +86,7 @@ func _init() -> void:
 	add_child(_report)
 
 
-## The two inputs, reachable so a caller can set them. There is no second way to
+## The inputs, reachable so a caller can set them. There is no second way to
 ## configure a run: the fields are the configuration, and a test drives the same
 ## ones a person types into.
 func folder_field() -> LineEdit:
@@ -82,6 +99,18 @@ func entry_field() -> LineEdit:
 
 func models_field() -> LineEdit:
 	return _models
+
+
+func new_id_field() -> LineEdit:
+	return _new_id
+
+
+func ground_field() -> LineEdit:
+	return _ground
+
+
+func size_fields() -> Array[SpinBox]:
+	return [_width, _height]
 
 
 func library_field() -> LineEdit:
@@ -97,6 +126,19 @@ func _field(label: String, value: String) -> LineEdit:
 	edit.text = value
 	add_child(edit)
 	return edit
+
+
+func _size_field(label: String, value: int) -> SpinBox:
+	var caption: Label = Label.new()
+	caption.text = label
+	add_child(caption)
+
+	var spin: SpinBox = SpinBox.new()
+	spin.min_value = VltNewMap.SMALLEST
+	spin.max_value = 256
+	spin.value = value
+	add_child(spin)
+	return spin
 
 
 ## `pressed` carries no argument and `validate` returns one, which GDScript will
@@ -182,6 +224,48 @@ func _show(
 	for path: String in unreadable:
 		lines.append("[color=gray]not a map, skipped: %s[/color]" % path)
 
+	_say("\n".join(lines))
+
+
+func _on_new_map_pressed() -> void:
+	new_map()
+
+
+## Writes a map to start from, and opens it.
+##
+## Opened because a map that was created and not shown is a map somebody has to
+## go and find, and the first thing anybody wants to do with a new one is paint
+## on it.
+func new_map() -> VltNewMap.Result:
+	var result: VltNewMap.Result = VltNewMap.create(
+		_new_id.text,
+		Vector2i(int(_width.value), int(_height.value)),
+		_library.text,
+		_ground.text,
+		_folder.text
+	)
+	_show_new_map(result)
+
+	if result.worked() and Engine.is_editor_hint():
+		EditorInterface.open_scene_from_path(result.path)
+
+	return result
+
+
+func _show_new_map(result: VltNewMap.Result) -> void:
+	if not result.worked():
+		_say("[color=orange]%s[/color]" % "\n".join(result.problems))
+		return
+
+	var lines: PackedStringArray = PackedStringArray()
+	lines.append("[color=lightgreen]%s[/color]" % result.path)
+	if not result.ground.is_empty():
+		lines.append("  terrain filled with \"%s\"" % result.ground)
+	# Said now rather than discovered on the next validation run. A brand new map
+	# genuinely cannot recover a defeat, and that is the first thing to fix.
+	lines.append(
+		"[color=gray]  no warps, zones, events or rest point yet — the validator will say so[/color]"
+	)
 	_say("\n".join(lines))
 
 

@@ -3,6 +3,8 @@
 **Status:** Accepted
 **Date:** 2026-09-10
 **Refines:** decision 0055 (a creature is never still)
+**Superseded in part by:** decision 0058 — the harness and the method stand; the
+deformation this describes was reversed
 **Recorded in:** spec 16, section 12
 
 ## Context

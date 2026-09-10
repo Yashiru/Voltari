@@ -12,14 +12,10 @@ extends SceneTree
 ##
 ## Four things come out, and each answers a different question:
 ##
-##   still.png     the field with nobody in it — is the wind alive, and is the
+##   still.png     the field with nobody in it — is the wind subtle, and is the
 ##                 field varied, or does it breathe as one animal?
-##   walk_NN.png   the walk, from the angle the game looks at the world
-##   top_off.png   the same instant from above, with the walker ignored
-##   top_on.png    the same instant from above, with the walker felt
-##
-## The last two are a pair on purpose: a footprint is obvious in the difference
-## between them and easy to imagine into either one alone.
+##   walk_NN.png   walking cell to cell, from the angle the game looks from
+##   jostle_NN.png the same, from above, where a cell swinging is unmistakable
 ##
 ## It reads the quarantined library (decision 0027) and runs on one machine only,
 ## which is the same footing as the manifest builder.
@@ -30,18 +26,20 @@ const OUT: String = "user://grass"
 
 ## A patch on the grid new maps use, scattered rather than solid: a field with no
 ## gaps in it is a carpet, and a carpet hides everything this is for.
-const PATCH: int = 26
-const CELL: float = 0.5
-const ART: float = 0.25
+## The grid new maps are painted on. **The same numbers, read from the same
+## place**: a preview on a different grid previews a world nobody plays.
+const PATCH: int = 16
+const CELL: float = VltNewMap.CELL_SIZE
+const ART: float = VltNewMap.ART_SCALE
 const DENSITY: float = 0.62
 const SCATTER_SEED: int = 20260910
 
-## Long enough for the wake to have something to trail behind.
-const STRIDE: float = 0.24
-const STEPS: int = 16
-const HOLD: int = 8
+## A step every third of a second, which is the pace the world walks at, and a
+## frame saved often enough to catch a swing settling.
+const STEPS: int = 7
 const TICK: float = 1.0 / 60.0
-const TICKS_PER_FRAME: int = 6
+const TICKS_PER_STEP: int = 20
+const SAVE_EVERY: int = 5
 
 var _grass: GrassField = GrassField.new()
 var _grid: GridMap
@@ -70,61 +68,39 @@ func _init() -> void:
 	await _settle(8)
 	_save("%s/still.png" % folder)
 
-	# The walk, from the game's own angle.
+	# Walking cell to cell. A step is one call, and the frames between it are the
+	# swing settling — which is the whole of what there is to look at.
 	_marker.visible = true
 	_grass.set_strength(1.0)
-	var path: Array[Vector3] = _path()
-	_grass.place(path[0])
+	_grass.quiet()
+	await _step_through(folder, "walk")
 
-	for index: int in range(path.size()):
-		for tick: int in range(TICKS_PER_FRAME):
-			_grass.follow(path[index], TICK)
-			_marker.position = path[index] + Vector3(0.0, 0.45, 0.0)
-			await process_frame
-		await RenderingServer.frame_post_draw
-		_save("%s/walk_%02d.png" % [folder, index])
-
-	# The wake, from above and while moving. It is the one thing that cannot be
-	# seen from a standing still frame: what is behind somebody is only behind
-	# them while they are going somewhere.
+	# The same, from above. A cell swinging is easiest to see looking straight
+	# down at the row it is in.
 	_look_down()
-	_grass.place(path[0])
-	for index: int in range(path.size()):
-		for tick: int in range(TICKS_PER_FRAME):
-			_grass.follow(path[index], TICK)
-			_marker.position = path[index] + Vector3(0.0, 0.45, 0.0)
-			await process_frame
-		await RenderingServer.frame_post_draw
-		if index % 3 == 0:
-			_save("%s/wake_%02d.png" % [folder, index])
-
-	# The pair. Same instant, same wind, one with the walker felt and one
-	# without — so the footprint is a difference rather than an impression.
-	#
-	# The walker is put under the middle of the frame first. Judging a footprint
-	# that sits off to one side means judging mostly the pixels it cannot reach.
-	_grass.place(Vector3.ZERO)
-	_marker.position = Vector3(0.0, 0.45, 0.0)
-	_look_down()
-	_grass.set_strength(0.0)
-	await _settle(4)
-	_save("%s/top_off.png" % folder)
-
-	_grass.set_strength(1.0)
-	await _settle(4)
-	_save("%s/top_on.png" % folder)
+	_grass.quiet()
+	await _step_through(folder, "jostle")
 
 	print("wrote the sheet to %s" % folder)
 	quit()
 
 
-func _path() -> Array[Vector3]:
-	var walk: Array[Vector3] = []
+## Walks cell to cell, saving a frame every so often through each step. The
+## interesting frames are the ones *between* steps: a swing that is over by the
+## next footfall is a swing nobody sees.
+func _step_through(folder: String, name: String) -> void:
+	var frame: int = 0
 	for step: int in range(STEPS):
-		walk.append(Vector3(-1.9 + float(step) * STRIDE, 0.0, 0.0))
-	for hold: int in range(HOLD):
-		walk.append(walk[walk.size() - 1])
-	return walk
+		var at: Vector3 = Vector3(-3.0 + float(step) * CELL, 0.0, 0.0)
+		_grass.enter_cell(at)
+		for tick: int in range(TICKS_PER_STEP):
+			_grass.advance(TICK)
+			_marker.position = at + Vector3(0.0, 0.45, 0.0)
+			await process_frame
+			if tick % SAVE_EVERY == 0:
+				await RenderingServer.frame_post_draw
+				_save("%s/%s_%02d.png" % [folder, name, frame])
+				frame += 1
 
 
 ## Applies `name=value` arguments to the materials, so a render can be asked for
@@ -195,6 +171,7 @@ func _build() -> bool:
 	root.add_child(_marker)
 
 	_grass.of_layers([_grid] as Array[GridMap])
+	_grass.set_cell_size(CELL)
 	print("materials found: %d, item %s" % [_grass.material_count(), _item_name])
 	return true
 
@@ -203,14 +180,14 @@ func _build() -> bool:
 func _look_across() -> void:
 	_camera.projection = Camera3D.PROJECTION_PERSPECTIVE
 	_camera.look_at_from_position(
-		Vector3(0.9, 1.5, 2.8), Vector3(0.0, 0.22, -0.3), Vector3.UP
+		Vector3(1.4, 2.2, 4.0), Vector3(0.0, 0.35, -0.4), Vector3.UP
 	)
 
 
 func _look_down() -> void:
 	_camera.projection = Camera3D.PROJECTION_PERSPECTIVE
 	_camera.look_at_from_position(
-		Vector3(0.0, 3.0, 0.7), Vector3.ZERO, Vector3.FORWARD
+		Vector3(0.0, 5.0, 1.2), Vector3.ZERO, Vector3.FORWARD
 	)
 
 

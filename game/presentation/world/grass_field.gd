@@ -1,64 +1,48 @@
 class_name GrassField
 extends RefCounted
 
-## Tells the grass what the walker is doing.
+## Tells the grass which cell was just stepped into.
 ##
-## The shader holds no memory at all — it is a function of the moment. Everything
-## with a past lives here, and there is more of it than a position:
+## The shader holds no state: it is handed two cells and how long ago each was
+## entered, and it swings whichever of them is still ringing. Everything with a
+## past is here, and there is very little of it — **a jostle is one shot**. A cell
+## is either ringing or it is not, nothing accumulates, and nothing is recorded
+## about where anybody has been.
 ##
-## - **Two centres.** One tight to the player, one trailing. Grass the trailing
-##   centre still covers but the leading one has left is grass just stepped off,
-##   and the shader uses the gap between them to hold it down and ring it back
-##   up. That is a wake without a memory: nothing records where anybody has been.
-## - **A heading**, so grass splays along the path rather than opening in a
-##   circle. A circle is a force field; a path is somebody walking.
-## - **A speed**, so a player who stops stops pushing grass aside and simply
-##   stands in it.
+## Two slots because a cell is crossed in about half a second and a swing lasts
+## about as long: with one, leaving a cell would cut its swing off mid-air.
 ##
-## Every one of them is smoothed the same way, and none of them by a fixed
-## fraction per frame: `1 - e^(-rate * delta)` gives the same motion at thirty
-## frames a second and at two hundred and forty, and the alternative is grass
-## that recovers faster on a better machine.
+## It knows nothing about the grid. The world hands over a point — the middle of
+## the cell it just moved onto — and the shader compares that against each cell's
+## own origin. Nothing here has to agree with anybody about how wide a cell is.
 
-const POSITION: String = "walker_position"
-const WAKE: String = "walker_wake"
-const HEADING: String = "walker_heading"
-const SPEED: String = "walker_speed"
+const JOSTLE_A: String = "jostle_a"
+const JOSTLE_A_AGE: String = "jostle_a_age"
+const JOSTLE_B: String = "jostle_b"
+const JOSTLE_B_AGE: String = "jostle_b_age"
 const STRENGTH: String = "walker_strength"
+const REACH: String = "jostle_reach"
+const SECONDS: String = "jostle_seconds"
 
-## How fast the leading centre catches up, per second. Tight: this one is
-## supposed to be under the player's feet.
-const FOLLOW_PER_SECOND: float = 14.0
+## How long one swing lasts. **Held here rather than only in the shader**, because
+## this is what has to know when a cell has stopped ringing — and two places that
+## both know it are two places that disagree the first time one is tuned.
+const SWING_SECONDS: float = 0.7
 
-## How fast the trailing centre catches up. The gap between the two is the wake,
-## so this number is how long grass stays down behind somebody — about a third of
-## a second, which is long enough to read as a footprint and short enough not to
-## look like damage.
-const WAKE_PER_SECOND: float = 3.2
+## How much of a cell counts as being in it. A little over half, so the cell
+## stepped onto rings and the four beside it do not.
+const REACH_OF_A_CELL: float = 0.62
 
-## How fast the heading and the speed settle. Slower than the centre on purpose:
-## a heading that snapped would flick the splay through ninety degrees the frame
-## a player turned a corner.
-const HEADING_PER_SECOND: float = 8.0
-const SPEED_PER_SECOND: float = 6.0
-
-## How fast anybody walks, in metres a second, for the purpose of deciding
-## whether they are moving. Not a rule about movement — the world owns that — but
-## the scale this converts a velocity into "pushing" on.
-const BRISK: float = 3.0
-
-## Close enough to have arrived. Below this a still player stops writing uniforms
-## that cannot change anything.
-const ARRIVED: float = 0.0005
+## An age far past the end of any swing. Handed over rather than a flag, so the
+## shader has one thing to check instead of two.
+const OVER: float = 999.0
 
 var _materials: Array[ShaderMaterial] = []
-var _centre: Vector3 = Vector3.ZERO
-var _wake: Vector3 = Vector3.ZERO
-var _heading: Vector3 = Vector3(0.0, 0.0, 1.0)
-var _speed: float = 0.0
+var _newest: Vector3 = Vector3.ZERO
+var _newest_age: float = OVER
+var _older: Vector3 = Vector3.ZERO
+var _older_age: float = OVER
 var _strength: float = 1.0
-var _previous: Vector3 = Vector3.ZERO
-var _started: bool = false
 
 
 ## Collects the grass materials a map draws with. Safe to call again — a warp
@@ -68,6 +52,11 @@ func of_map(map: VltWorldMap) -> void:
 		_materials = []
 		return
 	of_layers([map.terrain, map.blocking, map.decor])
+
+	# How far a jostle reaches comes from the grid the map is painted on, not
+	# from a number in a shader. A map on a finer grid rings one of its own cells
+	# rather than a metre's worth of somebody else's.
+	set_cell_size(map.cell_width())
 
 
 ## The same, from any set of layers. The preview harness builds its own grid and
@@ -79,13 +68,13 @@ func of_layers(layers: Array[GridMap]) -> void:
 		_collect(layer)
 
 
-## Everything is drawn from a mesh library, and the same library is usually on
-## all three layers — so a material found twice is stored once. Without that,
-## every uniform would be written three times a frame for no effect.
 func _collect(layer: GridMap) -> void:
 	if layer == null or layer.mesh_library == null:
 		return
 
+	# The same library usually sits on all three layers, so a material found
+	# twice is stored once. Without that every uniform would be written three
+	# times a frame for no effect.
 	for id: int in layer.mesh_library.get_item_list():
 		var mesh: Mesh = layer.mesh_library.get_item_mesh(id)
 		if mesh == null:
@@ -96,90 +85,90 @@ func _collect(layer: GridMap) -> void:
 				_materials.append(material)
 
 
-## Moves everything towards what the walker is doing, and tells the grass.
-func follow(where: Vector3, delta: float) -> void:
-	if not where.is_finite() or delta < 0.0:
-		return
-	if not _started:
-		place(where)
+## Somebody stepped onto a cell. Sets it ringing.
+##
+## The cell already ringing moves to the second slot rather than being dropped:
+## walking is a run of cells and each should finish its swing behind you.
+func enter_cell(centre: Vector3) -> void:
+	if not centre.is_finite():
 		return
 
-	_track_motion(where, delta)
-
-	_centre = _towards(_centre, where, FOLLOW_PER_SECOND, delta)
-	_wake = _towards(_wake, where, WAKE_PER_SECOND, delta)
-	# Only when time passed. A frame of no time that moved the mark would erase
-	# the travel the next frame is about to measure against it.
-	if delta > 0.0:
-		_previous = where
+	_older = _newest
+	_older_age = _newest_age
+	_newest = centre
+	_newest_age = 0.0
 	_push()
 
 
-## Reads the velocity before the centres move, because the centres are what the
-## velocity is being measured against.
+## Ages both swings by a frame.
 ##
-## A player who is barely moving keeps the heading they had. A zero heading is
-## not a direction, and handing one to the shader would collapse the splay to
-## whatever the arithmetic happened to produce.
-func _track_motion(where: Vector3, delta: float) -> void:
-	if delta <= 0.0:
+## Cheap, and it stops writing once both are over — a still player standing in
+## grass costs two comparisons a frame and no uniform writes at all.
+func advance(delta: float) -> void:
+	if delta <= 0.0 or not settling():
 		return
 
-	var travelled: Vector3 = where - _previous
-	travelled.y = 0.0
-
-	var pace: float = travelled.length() / delta
-	_speed = _eased(_speed, clampf(pace / BRISK, 0.0, 1.0), SPEED_PER_SECOND, delta)
-
-	if travelled.length_squared() > 0.0:
-		var going: Vector3 = travelled.normalized()
-		_heading = _towards(_heading, going, HEADING_PER_SECOND, delta)
-		if _heading.length_squared() > 0.0:
-			_heading = _heading.normalized()
-
-
-## Puts the walker somewhere at once, with no lag and no wake.
-##
-## What a warp and a defeat need: letting the centres travel would draw a parting
-## sweeping across the map, and letting the wake lag would leave a trail from
-## somewhere the player never was.
-func place(where: Vector3) -> void:
-	if not where.is_finite():
-		return
-	_centre = where
-	_wake = where
-	_previous = where
-	_speed = 0.0
-	_started = true
+	_newest_age = _aged(_newest_age, delta)
+	_older_age = _aged(_older_age, delta)
 	_push()
 
 
-## Fades the effect out without moving anything somewhere untrue. A battle hides
-## the world; grass bent around a player who is not there is worse than grass
-## that stands up.
+## Ages one swing, and parks it once it is over. Parked rather than left to climb
+## so that a session running for an hour hands the shader a number it can still
+## compare.
+static func _aged(age: float, delta: float) -> float:
+	var older: float = age + delta
+	return OVER if older >= SWING_SECONDS else older
+
+
+## Whether anything is still moving because of somebody. Public because "is it
+## quiet" is the only question a caller can usefully ask.
+func settling() -> bool:
+	return _newest_age < SWING_SECONDS or _older_age < SWING_SECONDS
+
+
+## Nothing is ringing, and nothing was.
+##
+## What a warp and a defeat need: a swing left over from the map you came from
+## would ring a cell on this one that nobody has stepped on.
+func quiet() -> void:
+	_newest_age = OVER
+	_older_age = OVER
+	_push()
+
+
+## Fades the jostle out without pretending nobody is there. A battle hides the
+## world, and grass swinging around somebody off screen is worse than grass
+## standing still.
 func set_strength(strength: float) -> void:
 	_strength = clampf(strength, 0.0, 1.0)
 	_push()
 
 
-func centre() -> Vector3:
-	return _centre
-
-
-func wake() -> Vector3:
-	return _wake
-
-
-func heading() -> Vector3:
-	return _heading
-
-
-func speed() -> float:
-	return _speed
+## Tells the grass how wide a cell is. Called by whoever knows — a map, or a
+## harness that built its own grid.
+func set_cell_size(metres: float) -> void:
+	if metres <= 0.0:
+		return
+	for material: ShaderMaterial in _materials:
+		material.set_shader_parameter(REACH, metres * REACH_OF_A_CELL)
 
 
 func material_count() -> int:
 	return _materials.size()
+
+
+## What the shader is being told, for a test and for the preview harness.
+func newest_cell() -> Vector3:
+	return _newest
+
+
+func newest_age() -> float:
+	return _newest_age
+
+
+func older_age() -> float:
+	return _older_age
 
 
 ## Sets one shader value on every grass material.
@@ -192,22 +181,11 @@ func tune(name: String, value: float) -> void:
 		material.set_shader_parameter(name, value)
 
 
-## Exponential smoothing, frame-rate independent. `rate` is how much of the gap
-## is closed per second, read through `1 - e^(-rate * t)`.
-static func _towards(from: Vector3, to: Vector3, rate: float, delta: float) -> Vector3:
-	if from.distance_to(to) <= ARRIVED:
-		return to
-	return from.lerp(to, 1.0 - exp(-rate * delta))
-
-
-static func _eased(from: float, to: float, rate: float, delta: float) -> float:
-	return lerpf(from, to, 1.0 - exp(-rate * delta))
-
-
 func _push() -> void:
 	for material: ShaderMaterial in _materials:
-		material.set_shader_parameter(POSITION, _centre)
-		material.set_shader_parameter(WAKE, _wake)
-		material.set_shader_parameter(HEADING, _heading)
-		material.set_shader_parameter(SPEED, _speed)
+		material.set_shader_parameter(JOSTLE_A, _newest)
+		material.set_shader_parameter(JOSTLE_A_AGE, _newest_age)
+		material.set_shader_parameter(JOSTLE_B, _older)
+		material.set_shader_parameter(JOSTLE_B_AGE, _older_age)
+		material.set_shader_parameter(SECONDS, SWING_SECONDS)
 		material.set_shader_parameter(STRENGTH, _strength)

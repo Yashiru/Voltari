@@ -22,6 +22,17 @@ const SEED: int = 20260910
 ## name is a contract; a private variable is not.
 const MENU_NAME: String = "MoveMenu"
 
+## Emitted once, when nobody on one side is still standing. The argument says
+## which side won, because a caller that had to work that out from the state
+## would be reaching past the seam this whole screen defends.
+signal ended(player_won: bool)
+
+## Set before adding this to the tree. Empty means the screen builds its own
+## battle, which is what makes it runnable on its own — a screen you cannot open
+## without a world behind it is a screen nobody debugs.
+var incoming_player: Array[VltBattleCreature] = []
+var incoming_foe: Array[VltBattleCreature] = []
+
 var _library: ContentLibrary
 var _registry: VltEffectRegistry
 var _engine: VltTurnEngine
@@ -64,6 +75,13 @@ func is_busy() -> bool:
 	return _busy
 
 
+## Play at once rather than at a pace. What holding the button does, offered
+## publicly because a caller driving a battle from outside — a test, or a fast
+## forward the player asked for — needs the same thing the key does.
+func skip(on: bool) -> void:
+	_stage.skip = on
+
+
 ## Plays one exchange, and returns when the log has been seen. Public because
 ## driving a battle from outside is what a screen is for.
 func take_turn(move_index: int) -> void:
@@ -75,16 +93,16 @@ func take_turn(move_index: int) -> void:
 
 func _start() -> void:
 	_state = VltBattleState.create(1)
-	# Sorted, so the two sides are the same two creatures on every run. A screen
-	# that shuffled its roster would make a bug hard to reproduce for no gain.
-	var roster: Array[String] = []
-	for id: String in _library.species.keys():
-		roster.append(id)
-	roster.sort()
+
+	var parties: Array = [
+		incoming_player if not incoming_player.is_empty() else _demo_party(PLAYER),
+		incoming_foe if not incoming_foe.is_empty() else _demo_party(FOE),
+	]
 
 	for side: int in range(VltBattleState.SIDE_COUNT):
-		var species: VltSpecies = _library.species[roster[side % roster.size()]]
-		_state.sides[side].party.append(_born(species))
+		for creature: Variant in parties[side]:
+			@warning_ignore("unsafe_cast")
+			_state.sides[side].party.append(creature as VltBattleCreature)
 		_state.sides[side].slots[0].occupy(0)
 
 	var opening: VltBattleView = VltBattleView.of(_state, _registry, PLAYER)
@@ -95,6 +113,20 @@ func _start() -> void:
 
 	_stage.refresh(opening)
 	_offer_moves()
+
+
+## What the screen makes when nobody handed it a battle. Sorted, so the two
+## sides are the same two creatures on every run — a screen that shuffled its
+## roster would make a bug hard to reproduce for no gain.
+func _demo_party(side: int) -> Array[VltBattleCreature]:
+	var roster: Array[String] = []
+	for id: String in _library.species.keys():
+		roster.append(id)
+	roster.sort()
+
+	var party: Array[VltBattleCreature] = []
+	party.append(_born(_library.species[roster[side % roster.size()]]))
+	return party
 
 
 func _born(species: VltSpecies) -> VltBattleCreature:
@@ -129,6 +161,7 @@ func _take_turn(move_index: int) -> void:
 	_busy = false
 	if _finished():
 		_message.text = "The battle is over."
+		ended.emit(_standing(PLAYER))
 		return
 	_offer_moves()
 
@@ -151,11 +184,12 @@ func _foe_command() -> VltCommand:
 
 
 func _finished() -> bool:
-	for side: int in range(VltBattleState.SIDE_COUNT):
-		var creature: VltBattleCreature = _state.creature_at(VltSlotRef.at(side, 0))
-		if creature == null or creature.is_fainted():
-			return true
-	return false
+	return not _standing(PLAYER) or not _standing(FOE)
+
+
+func _standing(side: int) -> bool:
+	var creature: VltBattleCreature = _state.creature_at(VltSlotRef.at(side, 0))
+	return creature != null and not creature.is_fainted()
 
 
 # --- what it looks like ------------------------------------------------------

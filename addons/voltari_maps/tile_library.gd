@@ -36,6 +36,14 @@ const SOURCES: Array[String] = [
 ]
 
 
+## The shader that opens grass around a walker, and the items it is put on.
+##
+## Applied here because this is where the meshes are made: the imported material
+## has to be *replaced*, not layered over, and doing it anywhere else would mean
+## a second pass that undoes itself on the next rebuild.
+const PARTING_SHADER: String = "res://game/presentation/world/grass_parting.gdshader"
+
+
 ## What one run did. Returned rather than printed so a caller can show it, and
 ## so a test can read it.
 class Report:
@@ -54,6 +62,9 @@ class Report:
 	## rather than deleted.
 	var orphaned: PackedStringArray = PackedStringArray()
 
+	## Items whose material was swapped for the parting shader.
+	var parting: PackedStringArray = PackedStringArray()
+
 	var problems: PackedStringArray = PackedStringArray()
 	var output: String = ""
 
@@ -65,7 +76,7 @@ class Report:
 
 
 ## Reads `folder`, writes `output`, and says what it did.
-static func build(folder: String, output: String) -> Report:
+static func build(folder: String, output: String, parting: String = "") -> Report:
 	var report: Report = Report.new()
 	report.output = output
 
@@ -104,6 +115,8 @@ static func build(folder: String, output: String) -> Report:
 	for item_name: String in by_name:
 		if not produced.has(item_name):
 			report.orphaned.append(item_name)
+
+	_dress_grass(library, by_name, parting, report)
 
 	_bake_previews(library)
 
@@ -308,3 +321,81 @@ static func _next_id(library: MeshLibrary) -> int:
 	for id: int in library.get_item_list():
 		highest = maxi(highest, id)
 	return highest + 1
+
+
+# --- grass that opens ---------------------------------------------------------
+
+
+## Puts the parting shader on every item whose name contains `wanted`.
+##
+## By name, and by a fragment the author types rather than one written here. A
+## rule guessed from the geometry would be a rule nobody could correct; a list in
+## the dock is a decision somebody made and can see.
+##
+## Doing nothing when the fragment is empty is the point: a library built without
+## asking for it comes out exactly as it did before.
+static func _dress_grass(
+	library: MeshLibrary, by_name: Dictionary[String, int], wanted: String, report: Report
+) -> void:
+	if wanted.is_empty():
+		return
+
+	var shader: Shader = ResourceLoader.load(PARTING_SHADER, "Shader") as Shader
+	if shader == null:
+		report.problems.append("no shader at %s" % PARTING_SHADER)
+		return
+
+	var needle: String = wanted.to_lower()
+	for item_name: String in by_name:
+		if not item_name.to_lower().contains(needle):
+			continue
+		if _dress(library.get_item_mesh(by_name[item_name]), shader):
+			report.parting.append(item_name)
+
+
+## Replaces each surface's material with one that draws the same thing and bends.
+##
+## Returns whether anything was dressed, so an item that matched the name and
+## carried nothing swappable is not reported as done.
+static func _dress(mesh: Mesh, shader: Shader) -> bool:
+	if mesh == null:
+		return false
+
+	var dressed: bool = false
+	for surface: int in range(mesh.get_surface_count()):
+		var material: ShaderMaterial = _parting(
+			mesh.surface_get_material(surface), shader
+		)
+		if material == null:
+			continue
+		mesh.surface_set_material(surface, material)
+		dressed = true
+
+	return dressed
+
+
+## Carries the imported material's look across to the shader.
+##
+## These models have a flat colour and no texture at all, so this reproduces them
+## exactly. A textured one is carried too — and anything richer than a colour and
+## a texture is *not*, which is why an already-dressed surface is left alone
+## rather than being re-read from a shader it cannot introspect.
+static func _parting(existing: Material, shader: Shader) -> ShaderMaterial:
+	if existing is ShaderMaterial:
+		# Already dressed by an earlier run. Re-wrapping would lose the colour,
+		# since a ShaderMaterial has no albedo to read back.
+		return null
+
+	var standard: StandardMaterial3D = existing as StandardMaterial3D
+	var dressed: ShaderMaterial = ShaderMaterial.new()
+	dressed.shader = shader
+
+	if standard == null:
+		return dressed
+
+	dressed.set_shader_parameter("albedo", standard.albedo_color)
+	if standard.albedo_texture != null:
+		dressed.set_shader_parameter("albedo_texture", standard.albedo_texture)
+		dressed.set_shader_parameter("has_texture", true)
+
+	return dressed

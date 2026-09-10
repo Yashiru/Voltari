@@ -28,6 +28,11 @@ const ENCOUNTERS: String = "res://content/generated/encounters"
 const MODELS: String = "res://game/assets/placeholders/brawl_arena"
 const LIBRARY: String = "res://game/assets/placeholders/brawl_arena.meshlib"
 
+## Which items get the shader that opens around a walker, by a fragment of their
+## name. Typed rather than guessed from the geometry: a rule nobody can see is a
+## rule nobody can correct.
+const GRASS: String = "grass"
+
 ## Where a new game begins. Reachability is the one check that needs a fact no
 ## map carries, and it is skipped rather than guessed at when this is empty
 ## (spec 14, section 7).
@@ -37,6 +42,7 @@ var _folder: LineEdit = null
 var _entry: LineEdit = null
 var _models: LineEdit = null
 var _library: LineEdit = null
+var _parting: LineEdit = null
 var _new_id: LineEdit = null
 var _ground: LineEdit = null
 var _width: SpinBox = null
@@ -72,6 +78,7 @@ func _init() -> void:
 
 	_models = _field("Models folder", MODELS)
 	_library = _field("Tile library", LIBRARY)
+	_parting = _field("Grass tiles contain (blank: none)", GRASS)
 
 	var build: Button = Button.new()
 	build.text = "Build tile library"
@@ -115,6 +122,10 @@ func size_fields() -> Array[SpinBox]:
 
 func library_field() -> LineEdit:
 	return _library
+
+
+func parting_field() -> LineEdit:
+	return _parting
 
 
 func _field(label: String, value: String) -> LineEdit:
@@ -279,7 +290,9 @@ func _on_build_pressed() -> void:
 ## model or adding one to the folder cannot rewrite a map that was painted with
 ## the old library.
 func build_library() -> VltTileLibrary.Report:
-	var report: VltTileLibrary.Report = VltTileLibrary.build(_models.text, _library.text)
+	var report: VltTileLibrary.Report = VltTileLibrary.build(
+		_models.text, _library.text, _parting.text
+	)
 	_show_build(report)
 	return report
 
@@ -298,6 +311,11 @@ func _show_build(report: VltTileLibrary.Report) -> void:
 		report.total(), report.output
 	])
 	lines.append("  %d new, %d already there" % [report.added.size(), report.kept.size()])
+
+	if not report.parting.is_empty():
+		lines.append("  %d tile(s) open around a walker: %s" % [
+			report.parting.size(), ", ".join(report.parting)
+		])
 
 	if not report.orphaned.is_empty():
 		# Kept rather than removed, and said out loud so the palette growing a

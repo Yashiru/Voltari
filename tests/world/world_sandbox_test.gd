@@ -596,11 +596,16 @@ func test_the_body_catches_up_with_the_cell() -> void:
 	world.walk(VltFacing.Direction.EAST)
 	assert_vector(world.cell()).is_equal(cell_before + Vector2i(1, 0))
 
-	for frame: int in range(30):
+	# Waited out rather than counted. A fixed number of frames encodes how long a
+	# step takes, and the pace is a number somebody is allowed to change — this
+	# test failed the moment one did, saying nothing true about the walk.
+	var frames: int = 0
+	while world.is_stepping() and frames < 600:
 		await get_tree().process_frame
+		frames += 1
 
 	assert_bool(world.is_stepping()).override_failure_message(
-		"the step never finished"
+		"the step had not finished after %d frames" % frames
 	).is_false()
 
 

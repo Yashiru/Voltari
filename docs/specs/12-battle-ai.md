@@ -119,9 +119,16 @@ layer paying for a convenience that is not its own.
 
 - **How a trainer names its difficulty.** It is content the moment trainers are
   content, and trainers have no schema yet (spec 09).
-- **Switching.** An AI that only ever attacks is a weak AI, but deciding when to
-  switch needs a view of the bench, and the view deliberately hides it. What an
-  AI may know about its *own* side is not the same question as what it knows
-  about yours, and this spec has only answered the second.
+- **Switching on anything but health.** The bench is in the view now, and the
+  answer to "what may an AI know about its own side" turned out to be symmetry:
+  the view already shows your active creature exactly, and hiding your own bench
+  from its owner hides something no rule hides — a player opens their party menu.
+  The opposing bench stays absent, which was the other question and still answers
+  no.
+
+  What it does with that is deliberately narrow: **it withdraws when nearly
+  fainting and for no other reason.** Switching on a type disadvantage is the
+  stronger play and would make an AI that reads the chart better than most
+  players, before anybody had asked for one. Whether it should is open.
 - **Doubles targeting.** Choosing between two opponents is a decision singles
   never poses, and the move `target` field (spec 09) is where it starts.

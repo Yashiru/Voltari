@@ -340,3 +340,62 @@ func test_the_party_survives_a_save() -> void:
 	assert_int(again.party()[0].current_hp).override_failure_message(
 		"a saved party came back healed, which plays as a feature until somebody notices"
 	).is_equal(wounded)
+
+
+# --- being put away ----------------------------------------------------------
+
+
+func test_being_backgrounded_in_the_world_writes_a_save() -> void:
+	# On a phone this is the ordinary way a session ends, and almost all of a
+	# session is spent walking.
+	var world: WorldSandbox = _sandbox()
+	world.walk(VltFacing.Direction.EAST)
+
+	assert_bool(world.save_on_background()).is_true()
+	assert_bool(VltSaveStore.exists(WorldSandbox.SAVE_PATH)).is_true()
+
+
+func test_being_backgrounded_mid_battle_writes_nothing() -> void:
+	# A save never holds battle state (spec 13, section 6). The battle is lost
+	# on reload either way — that is accepted — but losing the walk that led to
+	# it is not.
+	var world: WorldSandbox = _sandbox()
+	world.meet(_first_species(), 5)
+
+	assert_bool(world.save_on_background()).override_failure_message(
+		"a save was written in the middle of a battle"
+	).is_false()
+	assert_bool(VltSaveStore.exists(WorldSandbox.SAVE_PATH)).is_false()
+
+
+func test_being_backgrounded_mid_event_writes_nothing() -> void:
+	# A half-run event has set no flags, so a save now records a world nothing
+	# can resume (decision 0044).
+	var world: WorldSandbox = _sandbox()
+	world.walk(VltFacing.Direction.EAST)
+	world.face(VltFacing.Direction.SOUTH)
+	world.interact()
+
+	assert_bool(world.in_event()).is_true()
+	assert_bool(world.save_on_background()).override_failure_message(
+		"a save was written with an event half-played"
+	).is_false()
+
+
+func test_the_refusal_is_only_a_refusal() -> void:
+	# It comes back and saves afterwards. A guard that left the world unable to
+	# save at all would be worse than the thing it prevents.
+	var world: WorldSandbox = _sandbox()
+	world.meet(_first_species(), 5)
+	assert_bool(world.save_on_background()).is_false()
+
+	var battle: BattleScreen = _battle_of(world)
+	battle.skip(true)
+	var guard: int = 0
+	while world.in_battle() and guard < 30:
+		await battle.take_turn(0)
+		guard += 1
+
+	assert_bool(world.save_on_background()).override_failure_message(
+		"the world could not save once the battle was over"
+	).is_true()

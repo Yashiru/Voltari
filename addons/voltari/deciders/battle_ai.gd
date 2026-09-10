@@ -27,22 +27,34 @@ class Difficulty:
 	## health. Zero means it never chooses one while a damaging move is available.
 	var status_worth: int = 0
 
-	func _init(plays_best: int, status: int) -> void:
+	## Health, out of a hundred, at or below which it withdraws rather than
+	## acts. Zero means it never does.
+	##
+	## Only nearly-fainting moves it. A type disadvantage does not, which is a
+	## deliberate narrowing: switching on type is the stronger play and it makes
+	## an AI that reads the chart better than most players, before anybody had
+	## asked for one.
+	##
+	## The numbers below are tuned by feel and are not a rule.
+	var retreats_below: int = 0
+
+	func _init(plays_best: int, status: int, retreats: int = 0) -> void:
 		confidence = plays_best
 		status_worth = status
+		retreats_below = retreats
 
 
 ## Never chooses well, and never values a status. The floor to measure against.
 static func reckless() -> Difficulty:
-	return Difficulty.new(0, 0)
+	return Difficulty.new(0, 0, 0)
 
 
 static func plain() -> Difficulty:
-	return Difficulty.new(70, 15)
+	return Difficulty.new(70, 15, 20)
 
 
 static func expert() -> Difficulty:
-	return Difficulty.new(100, 30)
+	return Difficulty.new(100, 30, 33)
 
 
 ## The command for one of its positions.
@@ -63,6 +75,10 @@ static func choose(
 
 	assert(mine.present, "an empty position has nothing to decide")
 	assert(target != null, "there is nothing left to act against")
+
+	var retreat: int = _retreat(view, mine, difficulty)
+	if retreat != VltBattleView.Combatant.UNKNOWN:
+		return VltCommand.switch_to(mine.reference, retreat)
 
 	var usable: PackedInt32Array = _usable(mine, moves)
 	assert(not usable.is_empty(), "a creature with no usable move is Struggle, not a choice")
@@ -174,6 +190,32 @@ static func _usable(
 		if slot.pp > 0 and moves.has(slot.move_id):
 			usable.append(index)
 	return usable
+
+
+## Which party member to withdraw to, or UNKNOWN to stay and act.
+##
+## The bench is in the view because spec 12 left "what an AI knows about its own
+## side" open and the answer is symmetry: a player opens their party menu.
+##
+## Healthiest first, which is the whole policy. Anything cleverer — resisting the
+## move it just took, out-speeding what is in front — is a decision nobody has
+## asked for and every one of them would look reasonable on its own.
+static func _retreat(
+	view: VltBattleView, mine: VltBattleView.Combatant, difficulty: Difficulty
+) -> int:
+	if difficulty.retreats_below <= 0 or mine.health > difficulty.retreats_below:
+		return VltBattleView.Combatant.UNKNOWN
+
+	var best: int = VltBattleView.Combatant.UNKNOWN
+	var best_health: int = mine.health
+
+	for seat: VltBattleView.Combatant in view.bench:
+		if seat.fainted or seat.health <= best_health:
+			continue
+		best = seat.party_index
+		best_health = seat.health
+
+	return best
 
 
 static func _first_standing(

@@ -13,7 +13,16 @@ func _tables() -> PackedStringArray:
 	return PackedStringArray(["meadow"])
 
 
+## A map that is fine, which since section 9 includes having somewhere to send a
+## defeated player. The tests that are about the absence of one build a bare map
+## instead.
 func _field(id: String) -> VltWorldMap:
+	var built: VltWorldMap = _bare(id)
+	built.add_child(VltFixtureMap.rest(Vector2i(0, 0)))
+	return built
+
+
+func _bare(id: String) -> VltWorldMap:
 	return auto_free(VltFixtureMap.map(id, VltFixtureMap.filled(Vector2i(4, 4))))
 
 
@@ -185,6 +194,43 @@ func test_an_entry_map_that_does_not_exist_is_reported() -> void:
 	assert_bool(
 		_complains_about(_problems(_maps([_field("field")]), "missing"), "entry map")
 	).is_true()
+
+
+# --- somewhere to send a defeated player -------------------------------------
+
+
+func test_a_world_with_no_rest_point_anywhere_is_refused() -> void:
+	# Said once rather than once per map. A pass that printed the same sentence
+	# for every room would bury everything else in this list.
+	var problems: PackedStringArray = _problems(_maps([_bare("field"), _bare("cave")]))
+
+	assert_bool(_complains_about(problems, "nowhere to send anybody")).is_true()
+	assert_int(problems.size()).is_equal(1)
+
+
+func test_a_map_that_can_reach_none_is_refused() -> void:
+	# Content a defeat cannot recover from, and invisible until somebody loses
+	# there.
+	var field: VltWorldMap = _field("field")
+	var island: VltWorldMap = _bare("island")
+
+	assert_bool(
+		_complains_about(_problems(_maps([field, island])), "island")
+	).override_failure_message(
+		"an island a defeat cannot recover from was accepted"
+	).is_true()
+
+
+func test_reaching_one_through_a_door_is_enough() -> void:
+	var field: VltWorldMap = _field("field")
+	var cave: VltWorldMap = _bare("cave")
+	cave.add_child(
+		VltFixtureMap.warp(Vector2i(1, 1), "field", Vector2i(0, 0), VltFacing.Direction.NORTH)
+	)
+
+	assert_bool(
+		_complains_about(_problems(_maps([field, cave])), "cannot recover")
+	).is_false()
 
 
 # --- everything at once ------------------------------------------------------

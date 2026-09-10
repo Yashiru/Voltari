@@ -11,8 +11,14 @@ func _tables() -> PackedStringArray:
 	return PackedStringArray(["meadow"])
 
 
+## Sound in every way this file is not about, rest point included — the validator
+## is one pass and its other complaints would land in these results too.
 func _map(id: String = "field") -> VltWorldMap:
-	return auto_free(VltFixtureMap.map(id, VltFixtureMap.filled(Vector2i(4, 4))))
+	var built: VltWorldMap = auto_free(
+		VltFixtureMap.map(id, VltFixtureMap.filled(Vector2i(4, 4)))
+	)
+	built.add_child(VltFixtureMap.rest(Vector2i(0, 0)))
+	return built
 
 
 func _maps(of: Array[VltWorldMap]) -> Array[VltWorldMap]:

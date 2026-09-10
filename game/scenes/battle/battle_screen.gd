@@ -22,6 +22,10 @@ const SEED: int = 20260910
 ## name is a contract; a private variable is not.
 const MENU_NAME: String = "MoveMenu"
 
+## How tall a creature is drawn. The manifests declare it and `CreatureBody`
+## enforces it, so the staging can rely on it rather than measuring.
+const CREATURE_HEIGHT: float = 1.0
+
 ## Emitted once, when nobody on one side is still standing. The argument says
 ## which side won, because a caller that had to work that out from the state
 ## would be reaching past the seam this whole screen defends.
@@ -621,9 +625,7 @@ func _build_interface() -> void:
 	# On its own this scene's camera becomes current by being the only one. As a
 	# child of the world it is not, and nothing was making it — which is
 	# invisible to every headless test and the first thing anybody would see.
-	for child: Node in get_children():
-		if child is Camera3D:
-			(child as Camera3D).make_current()
+	_frame(_camera_or_new())
 
 	var layer: CanvasLayer = CanvasLayer.new()
 	add_child(layer)
@@ -650,12 +652,48 @@ func _build_interface() -> void:
 		layer.add_child(bar)
 
 		var body: CreatureBody = CreatureBody.new()
-		body.position = Vector3(float(side) * 3.0 - 1.5, 0, float(side) * -1.5)
-		# The far side faces us, which is the one thing about a battle's staging
-		# that is not a matter of taste.
-		body.rotation_degrees = Vector3(0, 180 if side == FOE else 0, 0)
+		body.position = BattleStaging.seat(side)
+		# Turned to look at whoever is opposite rather than to a fixed angle. Two
+		# bodies each given the other's seat face each other whatever the seats
+		# are, which is what stops this drifting when the staging is retuned.
+		body.rotation.y = BattleStaging.yaw_towards(
+			body.position, BattleStaging.seat(_other_than(side))
+		)
 		add_child(body)
 		_stage.seat(at, title, bar, body)
+
+
+## The other side. Two sides today, and this is the one place that would have to
+## change if that ever stopped being true.
+static func _other_than(side: int) -> int:
+	return FOE if side == PLAYER else PLAYER
+
+
+## The scene's camera, or one made on the spot.
+##
+## A screen with no camera renders nothing at all, and the scene file is a thing
+## somebody can edit. Making one is cheaper than a black screen nobody can
+## explain.
+func _camera_or_new() -> Camera3D:
+	for child: Node in get_children():
+		if child is Camera3D:
+			return child as Camera3D
+
+	var made: Camera3D = Camera3D.new()
+	made.name = "Camera3D"
+	add_child(made)
+	return made
+
+
+## Points the camera at the pair, far enough back that both fit.
+##
+## Framed here rather than in the scene because it is framed *from* the seats and
+## the camera's own field of view — a transform typed into a `.tscn` cannot
+## follow either.
+func _frame(camera: Camera3D) -> void:
+	camera.make_current()
+	camera.position = BattleStaging.eye(CREATURE_HEIGHT, camera.fov)
+	camera.look_at(BattleStaging.target(CREATURE_HEIGHT))
 
 
 static func _label(into: Node, at: Vector2, size: int) -> Label:

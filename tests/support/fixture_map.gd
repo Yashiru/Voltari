@@ -1,7 +1,7 @@
 class_name VltFixtureMap
 extends RefCounted
 
-## A map built in code, for the world tests (spec 14, section 9).
+## A map built in code, for the world tests (spec 14, section 10).
 ##
 ## Built rather than painted on purpose. A `.tscn` fixture would have to be
 ## opened to be understood, and a test whose setup is invisible is a test nobody
@@ -42,15 +42,23 @@ static func filled(size: Vector2i) -> Array[Vector2i]:
 
 
 static func map(
-	id: String, walkable: Array[Vector2i], blocked: Array[Vector2i] = []
+	id: String,
+	walkable: Array[Vector2i],
+	blocked: Array[Vector2i] = [],
+	decorated: Array[Vector2i] = []
 ) -> VltWorldMap:
 	var built: VltWorldMap = VltWorldMap.new()
 	built.map_id = id
 
 	built.terrain = grid(walkable)
 	built.blocking = grid(blocked)
+	# Always present, usually empty. A layer that only appears in the tests that
+	# are about it would leave every other test proving nothing about a map that
+	# has one (decision 0054).
+	built.decor = grid(decorated)
 	built.add_child(built.terrain)
 	built.add_child(built.blocking)
+	built.add_child(built.decor)
 	return built
 
 
@@ -62,6 +70,13 @@ static func warp(
 	built.to_map = to_map
 	built.to_cell = to_cell
 	built.to_facing = facing
+	return built
+
+
+static func rest(at: Vector2i, facing: VltFacing.Direction = VltFacing.Direction.SOUTH) -> VltRestPoint:
+	var built: VltRestPoint = VltRestPoint.new()
+	built.cell = at
+	built.facing = facing
 	return built
 
 

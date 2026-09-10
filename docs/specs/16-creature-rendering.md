@@ -305,6 +305,31 @@ silhouettes, which is a brief for the artist and not a runtime toggle. Named
 variations of it (`comic-noir` and the like) are sets of numbers for the same
 shader, not separate looks.
 
+## 9b. A creature is never still
+
+**Settled by decision 0055**, which closes the open point about how the runtime
+chooses among a slot's takes.
+
+A clip that ends hands back to the **idle**, and the idle hands back to itself.
+Nothing in the runtime knows it is looping: it plays the idle when the model
+appears, and again whenever anything finishes. A creature frozen in its rest pose
+between attacks does not read as a still frame — it reads as a crash.
+
+A slot with several takes reaches past the first about **one time in four**.
+Weighted rather than uniform or in rotation: two idles alternating is a two-beat
+rhythm a viewer sees within seconds, and the point of a second idle is that it is
+not expected.
+
+The randomness is **its own source** and never one of the decision vocabularies
+(decisions 0010 and 0029). It follows that a screen is no longer reproducible
+frame for frame. What is asserted instead is the policy — the first take
+dominates, a second take is reached at all — which is what the suite tests.
+
+**A model is scaled to the `height` its manifest declares** (section 6). The field
+was loaded, documented and read by nobody, so creatures were drawn at whatever
+their exporter produced — half a metre against a metre and a half — which makes
+framing a battle impossible.
+
 ## 10. Testing obligations
 
 - **Every manifest loads** into its typed form, and every path it names exists.
@@ -318,6 +343,11 @@ shader, not separate looks.
   lists.
 - **A creature scene instances and reaches its rest state** without a script
   error, for every committed creature.
+- **A clip that ends hands back to the idle**, and the idle to itself, so a
+  creature is never left standing in its rest pose (section 9b).
+- **The variant take is the exception and is reached at all** — the policy, not
+  a frame, since decision 0055 makes a frame irreproducible on purpose.
+- **A model ends up the height its manifest declares**, whatever its own is.
 - **The budget report is produced**, and its totals are non-zero — a reporter
   that silently measures nothing looks exactly like a roster under budget.
 - **The report names a tier for every composition it measures.** A total with no
@@ -347,8 +377,9 @@ shader, not separate looks.
   quarters of the library carries it and it is content already paid for. No
   system asks for it yet: friendship, a party menu, a creature following the
   player are all unspecified.
-- **How the runtime chooses among a slot's takes** — at random, in rotation, or
-  weighted. Three landings exist; nothing yet says which one plays.
+- **Which take a *non-idle* slot plays**, for a creature that has several. The
+  idle is settled (section 9b) and nothing else has more than one take on any
+  model there is, so the rule is written where it is exercised and no further.
 - **Locomotion transitions** (`fi30`, `fi31`) are extras today. Using them needs
   a movement system that knows it is starting or stopping, which spec 14's
   grid-locked step does not currently express.

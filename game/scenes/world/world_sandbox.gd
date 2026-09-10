@@ -10,10 +10,10 @@ extends Node3D
 ## Rough on purpose, like the battle screen. Nothing here is a camera direction
 ## or a HUD design, and its replacement should be a deletion.
 
-const MAPS: Dictionary[String, String] = {
-	"starter_field": "res://game/maps/starter_field.tscn",
-	"starter_cave": "res://game/maps/starter_cave.tscn",
-}
+## Where maps are looked for. **Found, not listed** — a map somebody paints has
+## to be reachable without editing this file, or the editor produces content the
+## game cannot open.
+const MAPS_FOLDER: String = "res://game/maps"
 
 const START_MAP: String = "starter_field"
 const START_CELL: Vector2i = Vector2i(1, 1)
@@ -22,7 +22,12 @@ const SAVE_PATH: String = "user://sandbox.json"
 ## How long one cell takes. The pace lives here, the way it lives in the battle
 ## stage — nothing below has an opinion about it.
 const STEP_SECONDS: float = 0.16
+## Only a fallback now: the grid is asked where a cell is. Kept for a map whose
+## terrain layer is missing, which is a map somebody is midway through building.
 const CELL: float = 2.0
+
+## Half the capsule, so it stands on the floor rather than in it.
+const BODY_LIFT: float = 0.8
 const BATTLE_SCENE: String = "res://game/scenes/battle/battle_screen.tscn"
 const STARTER_LEVEL: int = 12
 
@@ -32,6 +37,10 @@ var _tables: Dictionary[String, VltEncounterTable] = {}
 var _species: Dictionary[String, VltSpecies] = {}
 var _flags: VltQuestFlags = VltQuestFlags.new()
 var _encounters: VltSeededEncounterDecider
+
+## Every map found, by the id it declares. The id rather than the filename: the
+## id is what a save holds (decision 0040), and nothing says the two agree.
+var _maps: Dictionary[String, String] = {}
 
 var _map: VltWorldMap = null
 var _walker: VltGridWalker
@@ -50,6 +59,7 @@ var _party: Array[VltBattleCreature] = []
 var _bag: Dictionary[String, int] = {"basic_ball": 5, "better_ball": 2}
 var _message: Label
 var _hint: Label
+var _menu: VBoxContainer
 var _stick: TouchStick
 var _camera: Camera3D
 var _body: Node3D
@@ -79,9 +89,18 @@ func _ready() -> void:
 		_born(roster[mini(1, roster.size() - 1)], STARTER_LEVEL - 2),
 	]
 
+	_maps = _discover()
 	_build_interface()
-	_enter(START_MAP, START_CELL, VltFacing.Direction.SOUTH)
+
+	# The start map when there is one, otherwise whatever was found first. A
+	# build with no starter map at all should still open something.
+	var first: String = START_MAP if _maps.has(START_MAP) else _first_found()
+	if not first.is_empty():
+		_enter(first, START_CELL if first == START_MAP else _spawn_for(first),
+			VltFacing.Direction.SOUTH)
+
 	_load_if_present()
+	_offer_maps()
 
 
 ## Where the walker is standing, and on which map. The way in for anything
@@ -209,6 +228,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			_save()
 		KEY_F9:
 			_load_if_present()
+		KEY_M:
+			show_maps()
 
 
 func _interact() -> void:
@@ -244,6 +265,47 @@ func _meet(outcome: VltEncounter.Outcome) -> void:
 	add_child(_battle)
 
 
+## Every map, kept so that "the nearest rest point" can be answered without
+## loading the world twice.
+func _all_maps() -> Dictionary[String, VltWorldMap]:
+	var loaded: Dictionary[String, VltWorldMap] = {}
+	for id: String in _maps:
+		if _map != null and _map.map_id == id:
+			loaded[id] = _map
+			continue
+		var packed: PackedScene = load(_maps[id])
+		loaded[id] = packed.instantiate() as VltWorldMap
+	return loaded
+
+
+## Losing sends the party to the nearest rest point and heals it.
+##
+## The healing is the part to be honest about: it is here because nothing else
+## can heal, and a defeat that left the party hurt would be a defeat the player
+## could not recover from at all. It stops being right the day an item or a
+## service exists (decision 0053).
+func _recover() -> void:
+	var maps: Dictionary[String, VltWorldMap] = _all_maps()
+	var found: VltRestPoint.Found = VltRestPoint.nearest(maps, map_id(), _walker.cell)
+
+	for id: String in maps:
+		if maps[id] != _map:
+			maps[id].free()
+
+	for creature: VltBattleCreature in _party:
+		creature.current_hp = creature.max_hp()
+
+	if found == null:
+		# The validator refuses content that can reach none, so this is a world
+		# somebody built by hand. Standing back up where they fell beats being
+		# stuck.
+		_message.text = "You came to where you fell."
+		return
+
+	_enter(found.map_id, found.cell, found.facing)
+	_message.text = "You came to at the camp."
+
+
 func _battle_ended(player_won: bool) -> void:
 	# Read before the screen goes: it holds what the battle was worth, and the
 	# creatures it changed are the ones the world is still carrying.
@@ -256,14 +318,11 @@ func _battle_ended(player_won: bool) -> void:
 		_battle = null
 
 	_show_world(true)
-	_message.text = summary
 
-	# Losing is not handled — there is no centre to wake up in and no spec that
-	# says what one is. Standing back up is the placeholder, and it is named
-	# rather than left to look deliberate.
 	if not player_won:
-		for creature: VltBattleCreature in _party:
-			creature.current_hp = creature.max_hp()
+		_recover()
+		return
+	_message.text = summary
 
 
 ## What just happened to the party, in one line. The awards carry more than
@@ -286,6 +345,12 @@ static func _worth(awards: Array[VltPostBattle.Award]) -> String:
 	return "You won.  " + "  ".join(parts)
 
 
+## Everything the world draws, on or off.
+##
+## **Everything**, and the list is exhaustive on purpose: a battle draws its own
+## message in the same corner, so anything left behind here is not hidden, it is
+## overlapping. That is how the map menu and the encounter line ended up printed
+## through the battle's own text.
 func _show_world(visible_now: bool) -> void:
 	if _map != null:
 		_map.visible = visible_now
@@ -293,6 +358,8 @@ func _show_world(visible_now: bool) -> void:
 	_camera.current = visible_now
 	_stick.visible = visible_now
 	_hint.visible = visible_now
+	_message.visible = visible_now
+	_menu.visible = visible_now and _menu.get_child_count() > 0
 
 
 func _born(species_id: String, level: int) -> VltBattleCreature:
@@ -338,11 +405,130 @@ func _advance_event() -> void:
 # --- maps --------------------------------------------------------------------
 
 
+## Every map in the folder, by the id it declares.
+##
+## Each one is opened to be asked. The filename is not trusted to be the id —
+## the two agree for everything the tools produce and nothing enforces it, and a
+## map that answered to the wrong name would be a save pointing at the wrong
+## place.
+func _discover() -> Dictionary[String, String]:
+	var found: Dictionary[String, String] = {}
+	var directory: DirAccess = DirAccess.open(MAPS_FOLDER)
+	if directory == null:
+		return found
+
+	var files: PackedStringArray = directory.get_files()
+	files.sort()
+
+	for file: String in files:
+		if not file.ends_with(".tscn"):
+			continue
+		var path: String = "%s/%s" % [MAPS_FOLDER, file]
+		var packed: PackedScene = load(path) as PackedScene
+		if packed == null:
+			continue
+
+		var map: VltWorldMap = packed.instantiate() as VltWorldMap
+		if map == null:
+			continue
+		if not map.map_id.is_empty() and not found.has(map.map_id):
+			found[map.map_id] = path
+		map.free()
+
+	return found
+
+
+func _first_found() -> String:
+	for id: String in _maps:
+		return id
+	return ""
+
+
+## Where to put somebody arriving on a map nothing else has an opinion about.
+##
+## Its rest point if it has one — that is already "where you come round on this
+## map", so inventing a second answer would be inventing a second concept.
+## Otherwise the first cell you can stand on, in the map's own order.
+func _spawn_for(id: String) -> Vector2i:
+	var packed: PackedScene = load(_maps[id]) as PackedScene
+	var map: VltWorldMap = packed.instantiate() as VltWorldMap
+	if map == null:
+		return Vector2i.ZERO
+
+	var at: Vector2i = Vector2i.ZERO
+	var points: Array[VltRestPoint] = VltRestPoint.points_on(map)
+	if not points.is_empty():
+		at = points[0].cell
+	elif map.terrain != null:
+		for painted: Vector3i in map.terrain.get_used_cells():
+			var candidate: Vector2i = Vector2i(painted.x, painted.z)
+			if map.is_walkable(candidate):
+				at = candidate
+				break
+
+	map.free()
+	return at
+
+
+## The launch menu: every map found, and a way onto it.
+##
+## Shown over a world that has already started rather than in front of one that
+## has not. A panel is a panel either way, and this way nothing else in the
+## sandbox has to know there is a moment before the world exists.
+func _offer_maps() -> void:
+	if _maps.size() <= 1:
+		return
+
+	for id: String in _maps:
+		var button: Button = Button.new()
+		button.text = id
+		button.pressed.connect(_go_to.bind(id))
+		_menu.add_child(button)
+
+	var close: Button = Button.new()
+	close.text = "close"
+	close.pressed.connect(_menu.hide)
+	_menu.add_child(close)
+
+
+func _go_to(id: String) -> void:
+	_menu.hide()
+	if _battle != null or _run != null:
+		return
+	_enter(id, _spawn_for(id), VltFacing.Direction.SOUTH)
+
+
+## Opens the map chooser again. Public because jumping between maps is what the
+## menu is for, and closing it should not be the end of it.
+func show_maps() -> void:
+	if _menu.get_child_count() > 0:
+		_menu.show()
+
+
+## Which maps were found. The way in for a test, and the answer to "why is the
+## map I painted not here".
+func known_maps() -> PackedStringArray:
+	var ids: PackedStringArray = PackedStringArray()
+	for id: String in _maps:
+		ids.append(id)
+	ids.sort()
+	return ids
+
+
+## Enters a map by id, the way the menu does. Public so a test drives the same
+## path a click does.
+func go_to(id: String) -> bool:
+	if not _maps.has(id):
+		return false
+	_go_to(id)
+	return true
+
+
 func _enter(into: String, at: Vector2i, facing: VltFacing.Direction) -> void:
 	if _map != null:
 		_map.queue_free()
 
-	var packed: PackedScene = load(MAPS[into])
+	var packed: PackedScene = load(_maps[into])
 	_map = packed.instantiate() as VltWorldMap
 	add_child(_map)
 
@@ -358,8 +544,20 @@ func _enter(into: String, at: Vector2i, facing: VltFacing.Direction) -> void:
 		_begin(arrival)
 
 
+## Puts the capsule and the camera where the walker is.
+##
+## The position is asked of the grid rather than computed from `CELL`, and that is
+## not tidying: a `GridMap` centres its cells vertically by default, so the floor
+## of a map is half a cell up. Assuming zero buried the player to the chest in
+## every map painted with a real tile.
 func _place_body() -> void:
-	var where: Vector3 = Vector3(float(_walker.cell.x) * CELL, 0.8, float(_walker.cell.y) * CELL)
+	var ground: Vector3 = Vector3(float(_walker.cell.x) * CELL, 0.0, float(_walker.cell.y) * CELL)
+	if _map != null and _map.terrain != null:
+		ground = _map.terrain.map_to_local(
+			Vector3i(_walker.cell.x, VltWorldMap.GROUND, _walker.cell.y)
+		)
+
+	var where: Vector3 = ground + Vector3(0, BODY_LIFT, 0)
 	_body.position = where
 	_camera.position = where + Vector3(0, 9, 7)
 	_camera.look_at(where)
@@ -398,7 +596,7 @@ func _load_if_present() -> void:
 		VltSaveStore.read(SAVE_PATH), sections
 	)
 
-	if not MAPS.has(where.map_id):
+	if not _maps.has(where.map_id):
 		_message.text = "Saved on a map this build does not have."
 		return
 
@@ -470,6 +668,11 @@ func _build_interface() -> void:
 	_stick.mouse_filter = Control.MOUSE_FILTER_PASS
 	layer.add_child(_stick)
 
+	# Above the stick, so a button is a button and not a drag.
+	_menu = VBoxContainer.new()
+	_menu.position = Vector2(24, 100)
+	layer.add_child(_menu)
+
 
 static func _controls() -> String:
-	return "arrows or drag to walk  ·  space to interact  ·  F5 save  ·  F9 load"
+	return "arrows or drag to walk  ·  space to interact  ·  M maps  ·  F5 save  ·  F9 load"

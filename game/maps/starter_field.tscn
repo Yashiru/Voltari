@@ -1,52 +1,63 @@
 [gd_scene format=3]
 
-[ext_resource type="Script" path="res://addons/voltari/world/world_map.gd" id="1_gpee6"]
-[ext_resource type="MeshLibrary" path="res://game/maps/tiles.meshlib" id="2_4u5ya"]
-[ext_resource type="Script" path="res://addons/voltari/world/encounter_zone.gd" id="3_n53pi"]
-[ext_resource type="Script" path="res://addons/voltari/world/warp.gd" id="4_ga7op"]
-[ext_resource type="Script" path="res://addons/voltari/world/events/event.gd" id="5_axril"]
-[ext_resource type="Script" path="res://addons/voltari/world/events/steps/say_step.gd" id="6_bam67"]
-[ext_resource type="Script" path="res://addons/voltari/world/events/steps/set_flag_step.gd" id="7_bdqy8"]
+[ext_resource type="Script" path="res://addons/voltari/world/world_map.gd" id="1_4u5ya"]
+[ext_resource type="MeshLibrary" path="res://game/maps/tiles.meshlib" id="2_n53pi"]
+[ext_resource type="Script" path="res://addons/voltari/world/encounter_zone.gd" id="3_ga7op"]
+[ext_resource type="Script" path="res://addons/voltari/world/warp.gd" id="4_axril"]
+[ext_resource type="Script" path="res://addons/voltari/world/rest_point.gd" id="5_bam67"]
+[ext_resource type="Script" path="res://addons/voltari/world/events/event.gd" id="6_bdqy8"]
+[ext_resource type="Script" path="res://addons/voltari/world/events/steps/say_step.gd" id="7_ktyy4"]
+[ext_resource type="Script" path="res://addons/voltari/world/events/steps/set_flag_step.gd" id="8_qng4d"]
 
-[node name="starter_field" type="Node3D" unique_id=1383274521 node_paths=PackedStringArray("terrain", "blocking")]
-script = ExtResource("1_gpee6")
+[node name="starter_field" type="Node3D" unique_id=654125043 node_paths=PackedStringArray("terrain", "blocking", "decor")]
+script = ExtResource("1_4u5ya")
 map_id = "starter_field"
 terrain = NodePath("Terrain")
 blocking = NodePath("Blocking")
+decor = NodePath("Decor")
 
-[node name="Terrain" type="GridMap" parent="." unique_id=561572459]
-mesh_library = ExtResource("2_4u5ya")
+[node name="Terrain" type="GridMap" parent="." unique_id=515575890]
+mesh_library = ExtResource("2_n53pi")
 data = {
 "cells": PackedInt32Array(0, 0, 0, 0, 1, 0, 0, 2, 0, 0, 3, 0, 0, 4, 0, 0, 5, 0, 1, 0, 0, 1, 1, 0, 1, 2, 0, 1, 3, 0, 1, 4, 0, 1, 5, 0, 2, 0, 0, 2, 1, 0, 2, 2, 0, 2, 3, 0, 2, 4, 0, 2, 5, 0, 3, 0, 0, 3, 1, 0, 3, 2, 0, 3, 3, 0, 3, 4, 0, 3, 5, 0, 4, 0, 0, 4, 1, 0, 4, 2, 0, 4, 3, 0, 4, 4, 0, 4, 5, 0, 5, 0, 0, 5, 1, 0, 5, 2, 0, 5, 3, 0, 5, 4, 0, 5, 5, 0, 6, 0, 0, 6, 1, 0, 6, 2, 0, 6, 3, 0, 6, 4, 0, 6, 5, 0, 7, 0, 0, 7, 1, 0, 7, 2, 0, 7, 3, 0, 7, 4, 0, 7, 5, 0)
 }
 
-[node name="Blocking" type="GridMap" parent="." unique_id=1893970545]
-mesh_library = ExtResource("2_4u5ya")
+[node name="Blocking" type="GridMap" parent="." unique_id=1908036520]
+mesh_library = ExtResource("2_n53pi")
 data = {
 "cells": PackedInt32Array(4, 0, 1, 4, 1, 1, 4, 2, 1, 2, 2, 1)
 }
 
-[node name="Meadow" type="Node3D" parent="." unique_id=1286310331]
-script = ExtResource("3_n53pi")
+[node name="Decor" type="GridMap" parent="." unique_id=135394009]
+mesh_library = ExtResource("2_n53pi")
+data = {
+"cells": PackedInt32Array(1, 1, 2, 5, 5, 2)
+}
+
+[node name="Meadow" type="Node3D" parent="." unique_id=432570625]
+script = ExtResource("3_ga7op")
 table_id = "placeholder_meadow"
 origin = Vector2i(0, 4)
 size = Vector2i(3, 2)
 
-[node name="DoorEast" type="Node3D" parent="." unique_id=1808608937]
-script = ExtResource("4_ga7op")
+[node name="DoorEast" type="Node3D" parent="." unique_id=354212163]
+script = ExtResource("4_axril")
 cell = Vector2i(7, 3)
 to_map = "starter_cave"
 to_cell = Vector2i(1, 2)
 to_facing = 1
 
-[node name="Sign" type="Node3D" parent="." unique_id=308697465]
-script = ExtResource("5_axril")
+[node name="Camp" type="Node3D" parent="." unique_id=1166928644]
+script = ExtResource("5_bam67")
+
+[node name="Sign" type="Node3D" parent="." unique_id=230148111]
+script = ExtResource("6_bdqy8")
 cell = Vector2i(2, 2)
 
-[node name="Say" type="Node" parent="Sign" unique_id=1937991224]
-script = ExtResource("6_bam67")
+[node name="Say" type="Node" parent="Sign" unique_id=1237485820]
+script = ExtResource("7_ktyy4")
 line_id = "sign_field"
 
-[node name="Remember" type="Node" parent="Sign" unique_id=1936709609]
-script = ExtResource("7_bdqy8")
+[node name="Remember" type="Node" parent="Sign" unique_id=1616715877]
+script = ExtResource("8_qng4d")
 flag = "read_the_sign"

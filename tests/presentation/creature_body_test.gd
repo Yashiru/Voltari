@@ -117,3 +117,192 @@ func test_every_slot_a_manifest_declares_is_in_the_vocabulary() -> void:
 			assert_bool(every.has(slot)).override_failure_message(
 				"\"%s\" declares \"%s\", which is in no set" % [id, slot]
 			).is_true()
+
+
+# --- never still --------------------------------------------------------------
+
+
+func test_a_creature_starts_breathing_the_moment_it_is_shown() -> void:
+	# A creature only ever plays its entry clip on a switch, so waiting for one
+	# left whoever opened the battle standing in a rest pose until it was hit.
+	var body: CreatureBody = _body()
+	body.show_creature(_entry(FIXTURE, {"idle": ["ba10_waitA01"]}))
+
+	assert_bool(body.is_animating()).override_failure_message(
+		"nothing was playing after the creature was put on stage"
+	).is_true()
+
+
+func test_a_clip_hands_back_to_the_idle() -> void:
+	# The whole of the "plays once then freezes" complaint. Driven by the signal
+	# the player emits rather than by waiting out the clip, so the test does not
+	# depend on how long an animation is.
+	var body: CreatureBody = _body()
+	body.show_creature(_entry(FIXTURE, {
+		"idle": ["ba10_waitA01"], "attack_physical": ["ba20_buturi01"],
+	}))
+
+	body.play("attack_physical")
+	assert_str(body.playing()).is_equal("ba20_buturi01")
+
+	body.finished_playing()
+	assert_str(body.playing()).override_failure_message(
+		"a finished clip left the creature frozen"
+	).is_equal("ba10_waitA01")
+
+
+func test_the_idle_hands_back_to_itself() -> void:
+	# What loops it, without anything here knowing that a loop is what it is.
+	var body: CreatureBody = _body()
+	body.show_creature(_entry(FIXTURE, {"idle": ["ba10_waitA01"]}))
+
+	body.finished_playing()
+	assert_str(body.playing()).is_equal("ba10_waitA01")
+
+
+func test_a_second_idle_take_is_reached_sometimes_and_not_always() -> void:
+	# Every repeat would make a creature twitchy; never would make the extra
+	# takes decoration nobody sees (decision 0055).
+	var body: CreatureBody = _body()
+	body.show_creature(
+		_entry(FIXTURE, {"idle": ["ba10_waitA01", "ba10_waitB01"]})
+	)
+
+	var seen: Dictionary[String, int] = {}
+	for repeat: int in range(400):
+		body.finished_playing()
+		var take: String = body.playing()
+		seen[take] = seen.get(take, 0) + 1
+
+	assert_int(seen.get("ba10_waitA01", 0)).override_failure_message(
+		"the first take never played"
+	).is_greater(0)
+	assert_int(seen.get("ba10_waitB01", 0)).override_failure_message(
+		"the second take never played, so a creature with two idles has one"
+	).is_greater(0)
+	assert_bool(
+		seen.get("ba10_waitA01", 0) > seen.get("ba10_waitB01", 0) * 4
+	).override_failure_message(
+		"the variant was not the exception: %s" % seen
+	).is_true()
+
+
+func test_the_variant_never_runs_twice_in_a_row() -> void:
+	# The whole of the complaint, and the reason a coin flip was not enough. A
+	# one-in-four variant comes up twice in a row six times in a hundred, and
+	# twice in a row is not "occasionally" — it is what a viewer reads as the
+	# loop having changed.
+	var body: CreatureBody = _body()
+	body.show_creature(
+		_entry(FIXTURE, {"idle": ["ba10_waitA01", "ba10_waitB01"]})
+	)
+
+	var previous: String = ""
+	for repeat: int in range(600):
+		body.finished_playing()
+		var take: String = body.playing()
+		assert_bool(take == "ba10_waitB01" and previous == "ba10_waitB01").override_failure_message(
+			"the variant played twice running, at repeat %d" % repeat
+		).is_false()
+		previous = take
+
+
+func test_plain_repeats_separate_two_variants() -> void:
+	# Not merely "not adjacent": a floor of plain repeats is what makes the first
+	# take the idle by construction rather than on average.
+	var body: CreatureBody = _body()
+	body.show_creature(
+		_entry(FIXTURE, {"idle": ["ba10_waitA01", "ba10_waitB01"]})
+	)
+
+	var gap: int = 0
+	var shortest: int = 1 << 20
+	var variants: int = 0
+	for repeat: int in range(1200):
+		body.finished_playing()
+		if body.playing() == "ba10_waitB01":
+			if variants > 0:
+				shortest = mini(shortest, gap)
+			variants += 1
+			gap = 0
+			continue
+		gap += 1
+
+	assert_int(variants).override_failure_message("the variant never played").is_greater(1)
+	assert_int(shortest).override_failure_message(
+		"two variants were only %d plain repeats apart" % shortest
+	).is_greater_equal(CreatureBody.PLAIN_BETWEEN_VARIANTS)
+
+
+func test_a_creature_with_one_idle_take_never_varies() -> void:
+	var body: CreatureBody = _body()
+	body.show_creature(_entry(FIXTURE, {"idle": ["ba10_waitA01"]}))
+
+	for repeat: int in range(50):
+		body.finished_playing()
+		assert_str(body.playing()).is_equal("ba10_waitA01")
+
+
+func test_a_stand_in_is_asked_for_nothing_and_does_not_break() -> void:
+	# No model, no player, no signal. The idle must be a no-op rather than a
+	# crash, because half the machines running this have no models at all.
+	var body: CreatureBody = _body()
+	body.show_creature(_entry("res://nowhere/at/all.tscn", {"idle": ["ba10_waitA01"]}))
+
+	body.finished_playing()
+	assert_float(body.play("attack_physical")).is_equal(0.0)
+	assert_bool(body.is_animating()).is_false()
+
+
+# --- how long a clip runs -----------------------------------------------------
+
+
+func test_playing_a_clip_reports_how_long_it_takes() -> void:
+	# The caller's pacing. A fixed wait runs the next thing over the top of a
+	# long attack and leaves a gap after a short one, and that gap is what makes
+	# a hit look late.
+	var body: CreatureBody = _body()
+	body.show_creature(_entry(FIXTURE, {"idle": ["ba10_waitA01"]}))
+
+	assert_float(body.play("idle")).override_failure_message(
+		"a clip that plays reported no length"
+	).is_greater(0.0)
+
+
+func test_a_slot_this_creature_has_not_got_reports_nothing() -> void:
+	var body: CreatureBody = _body()
+	body.show_creature(_entry(FIXTURE, {"idle": ["ba10_waitA01"]}))
+
+	assert_float(body.play("faint")).is_equal(0.0)
+
+
+# --- the size the manifest asks for -------------------------------------------
+
+
+func test_a_model_is_scaled_to_the_height_it_declares() -> void:
+	# The field was loaded, documented and read by nobody. A creature drawn at
+	# whatever its exporter produced — half a metre against a metre and a half —
+	# makes framing a battle impossible.
+	var body: CreatureBody = _body()
+	var entry: PresentationEntry = _entry(FIXTURE, {"idle": ["ba10_waitA01"]})
+	entry.height = 3.0
+	body.show_creature(entry)
+
+	assert_float(body.shown_height()).override_failure_message(
+		"the model kept its own height instead of the one the manifest asks for"
+	).is_equal_approx(3.0, 0.01)
+
+
+func test_two_creatures_of_different_sizes_end_up_the_same_height() -> void:
+	# The point of the field: a battle is framed once, not per species.
+	var body: CreatureBody = _body()
+	var entry: PresentationEntry = _entry(FIXTURE, {"idle": ["ba10_waitA01"]})
+	entry.height = 1.0
+	body.show_creature(entry)
+
+	var other: CreatureBody = _body()
+	var taller: PresentationEntry = _entry(FIXTURE, {"idle": ["ba10_waitA01"]})
+	taller.height = 1.0
+	other.show_creature(taller)
+
+	assert_float(body.shown_height()).is_equal_approx(other.shown_height(), 0.01)

@@ -244,6 +244,47 @@ func _meet(outcome: VltEncounter.Outcome) -> void:
 	add_child(_battle)
 
 
+## Every map, kept so that "the nearest rest point" can be answered without
+## loading the world twice.
+func _all_maps() -> Dictionary[String, VltWorldMap]:
+	var loaded: Dictionary[String, VltWorldMap] = {}
+	for id: String in MAPS:
+		if _map != null and _map.map_id == id:
+			loaded[id] = _map
+			continue
+		var packed: PackedScene = load(MAPS[id])
+		loaded[id] = packed.instantiate() as VltWorldMap
+	return loaded
+
+
+## Losing sends the party to the nearest rest point and heals it.
+##
+## The healing is the part to be honest about: it is here because nothing else
+## can heal, and a defeat that left the party hurt would be a defeat the player
+## could not recover from at all. It stops being right the day an item or a
+## service exists (decision 0053).
+func _recover() -> void:
+	var maps: Dictionary[String, VltWorldMap] = _all_maps()
+	var found: VltRestPoint.Found = VltRestPoint.nearest(maps, map_id(), _walker.cell)
+
+	for id: String in maps:
+		if maps[id] != _map:
+			maps[id].free()
+
+	for creature: VltBattleCreature in _party:
+		creature.current_hp = creature.max_hp()
+
+	if found == null:
+		# The validator refuses content that can reach none, so this is a world
+		# somebody built by hand. Standing back up where they fell beats being
+		# stuck.
+		_message.text = "You came to where you fell."
+		return
+
+	_enter(found.map_id, found.cell, found.facing)
+	_message.text = "You came to at the camp."
+
+
 func _battle_ended(player_won: bool) -> void:
 	# Read before the screen goes: it holds what the battle was worth, and the
 	# creatures it changed are the ones the world is still carrying.
@@ -256,14 +297,11 @@ func _battle_ended(player_won: bool) -> void:
 		_battle = null
 
 	_show_world(true)
-	_message.text = summary
 
-	# Losing is not handled — there is no centre to wake up in and no spec that
-	# says what one is. Standing back up is the placeholder, and it is named
-	# rather than left to look deliberate.
 	if not player_won:
-		for creature: VltBattleCreature in _party:
-			creature.current_hp = creature.max_hp()
+		_recover()
+		return
+	_message.text = summary
 
 
 ## What just happened to the party, in one line. The awards carry more than

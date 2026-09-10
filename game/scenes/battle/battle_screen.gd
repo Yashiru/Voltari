@@ -57,6 +57,7 @@ var _stage: BattleScreenStage
 ## Both are what the post-battle pipeline needs: experience is earned by whoever
 ## faced what fell, and only the log knows who that was (spec 10, section 4).
 var _settings: VltSettings
+var _manifests: Dictionary[String, PresentationEntry] = {}
 var _balls: Dictionary[String, float] = {}
 var _initial: VltBattleState
 var _history: VltBattleLog = VltBattleLog.new()
@@ -90,6 +91,9 @@ func _ready() -> void:
 	Translations.install()
 	_settings = AppliedSettings.install()
 	_library = ContentLibrary.load_all()
+	_manifests = PresentationLoader.all_from_payload(
+		VltContentPayloads.read_indexed("res://content/generated/presentation")
+	)
 	_balls = VltItemLoader.ball_multipliers(
 		VltContentPayloads.read_indexed("res://content/generated/items")
 	)
@@ -156,6 +160,9 @@ func _start() -> void:
 		opening, _stage, _registry, _library.moves, _library.species,
 		_state.sides[PLAYER].party
 	)
+
+	for side: int in range(VltBattleState.SIDE_COUNT):
+		_stage.dress(VltSlotRef.at(side, 0), _manifest_for(side))
 
 	_stage.refresh(opening)
 	_offer_moves()
@@ -237,6 +244,8 @@ func _resolve(commands: Array[VltCommand]) -> void:
 		return
 
 	_busy = false
+	_redress()
+
 	if _finished():
 		_settle()
 		return
@@ -556,6 +565,22 @@ func _summary(won: bool) -> String:
 	return "You won — " + "  ·  ".join(parts)
 
 
+## The manifest for whoever is standing on a side, or null when the species has
+## none. Null is ordinary: a creature with no manifest shows a stand-in.
+## Called after every turn, because a switch and a capture both change who is
+## standing there and neither says so in a way a seat could notice.
+func _redress() -> void:
+	for side: int in range(VltBattleState.SIDE_COUNT):
+		_stage.dress(VltSlotRef.at(side, 0), _manifest_for(side))
+
+
+func _manifest_for(side: int) -> PresentationEntry:
+	var creature: VltBattleCreature = _state.creature_at(VltSlotRef.at(side, 0))
+	if creature == null:
+		return null
+	return _manifests.get(creature.species_id)
+
+
 ## What the battle was worth, for whoever handed it a party. Empty until it is
 ## over, and empty when it was lost.
 func awards() -> Array[VltPostBattle.Award]:
@@ -624,14 +649,11 @@ func _build_interface() -> void:
 		bar.show_percentage = false
 		layer.add_child(bar)
 
-		# Something to look at until a creature scene is instanced here. Spec 16
-		# says what will replace it; nothing authored exists to put in yet.
-		var body: MeshInstance3D = MeshInstance3D.new()
-		var shape: CapsuleMesh = CapsuleMesh.new()
-		shape.radius = 0.45
-		shape.height = 1.6
-		body.mesh = shape
-		body.position = Vector3(float(side) * 3.0 - 1.5, 0.9, float(side) * -1.5)
+		var body: CreatureBody = CreatureBody.new()
+		body.position = Vector3(float(side) * 3.0 - 1.5, 0, float(side) * -1.5)
+		# The far side faces us, which is the one thing about a battle's staging
+		# that is not a matter of taste.
+		body.rotation_degrees = Vector3(0, 180 if side == FOE else 0, 0)
 		add_child(body)
 		_stage.seat(at, title, bar, body)
 

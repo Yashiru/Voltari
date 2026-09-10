@@ -1,0 +1,28 @@
+{
+  "id": "placeholder_base",
+  "scene": "res://game/assets/placeholders/pm0001_00/pm0001_00.tscn",
+  "height": 1,
+  "clips": {
+    "attack_physical": [
+      "ba20_buturi01"
+    ],
+    "attack_special": [
+      "ba21_tokusyu01"
+    ],
+    "enter": [
+      "ba01_landA01",
+      "ba01_landB01",
+      "ba01_landC01"
+    ],
+    "faint": [
+      "ba41_down01"
+    ],
+    "hurt": [
+      "ba30_damageS01"
+    ],
+    "idle": [
+      "ba10_waitA01",
+      "ba10_waitB01"
+    ]
+  }
+}

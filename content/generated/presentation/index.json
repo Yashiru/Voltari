@@ -1,4 +1,8 @@
 {
   "version": 1,
-  "ids": []
+  "ids": [
+    "placeholder_base",
+    "placeholder_evolved",
+    "placeholder_genderless"
+  ]
 }

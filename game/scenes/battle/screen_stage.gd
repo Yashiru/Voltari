@@ -23,7 +23,7 @@ var _tree: SceneTree
 var _message: Label
 var _bars: Dictionary[String, ProgressBar] = {}
 var _titles: Dictionary[String, Label] = {}
-var _bodies: Dictionary[String, Node3D] = {}
+var _bodies: Dictionary[String, CreatureBody] = {}
 
 ## Held down to skip. The reader never asks — it always awaits, and this is what
 ## makes the awaiting take no time (decision 0050).
@@ -36,11 +36,19 @@ func _init(tree: SceneTree, message: Label) -> void:
 
 
 ## Wires one position to the nodes that show it. Called once per slot at setup.
-func seat(at: VltSlotRef, title: Label, bar: ProgressBar, body: Node3D) -> void:
+func seat(at: VltSlotRef, title: Label, bar: ProgressBar, body: CreatureBody) -> void:
 	var key: String = _key(at)
 	_titles[key] = title
 	_bars[key] = bar
 	_bodies[key] = body
+
+
+## Puts a species in a seat. Separate from `seat` because who is standing there
+## changes and the nodes do not.
+func dress(at: VltSlotRef, entry: PresentationEntry) -> void:
+	var body: CreatureBody = _bodies.get(_key(at))
+	if body != null:
+		body.show_creature(entry)
 
 
 func skipping() -> bool:
@@ -48,9 +56,9 @@ func skipping() -> bool:
 
 
 func play(at: VltSlotRef, slot: String) -> void:
-	var body: Node3D = _bodies.get(_key(at))
+	var body: CreatureBody = _bodies.get(_key(at))
 	if body != null:
-		_animate(body, slot)
+		body.play(slot)
 	await _pause(STEP)
 
 
@@ -85,7 +93,7 @@ func _draw(seat_at: VltBattleView.Combatant) -> void:
 
 	var title: Label = _titles[key]
 	var bar: ProgressBar = _bars[key]
-	var body: Node3D = _bodies.get(key)
+	var body: CreatureBody = _bodies.get(key)
 
 	if not seat_at.present:
 		title.text = ""
@@ -109,19 +117,6 @@ func _draw(seat_at: VltBattleView.Combatant) -> void:
 		tr(BattleLines.species_key(seat_at.species_id)), seat_at.level, health, status
 	]
 	bar.value = seat_at.health
-
-
-## Plays a clip if the creature has one under that name. A body with no
-## animation is the common case while the roster is placeholders, and it must
-## not stop a battle.
-static func _animate(body: Node3D, slot: String) -> void:
-	var player: AnimationPlayer = null
-	for child: Node in body.get_children():
-		if child is AnimationPlayer:
-			player = child as AnimationPlayer
-
-	if player != null and player.has_animation(slot):
-		player.play(slot)
 
 
 ## The one place time passes. Skipping returns instantly, which is why the

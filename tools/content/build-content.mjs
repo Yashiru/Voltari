@@ -258,6 +258,20 @@ const EVERY_SLOT = new Set(Object.values(SLOTS).flat());
 // omission is not (decision 0047).
 const FALLBACK = /^use\s+(\S+)$/;
 
+/// Where the quarantined models live (decision 0027).
+const QUARANTINE = "res://game/assets/placeholders/";
+
+/// Whether a scene is really there.
+///
+/// A path under the quarantine is accepted without looking, and that is not a
+/// hole: decision 0027 guarantees those files are on exactly one machine, so a
+/// check here would fail on every clone but one and say nothing true. What it
+/// still catches is the ordinary case — a fakemon whose scene was renamed.
+function existsSince(path) {
+  if (path.startsWith(QUARANTINE)) return true;
+  return existsSync(join(REPO, path.slice("res://".length)));
+}
+
 function validatePresentation(entries, knownSpecies) {
   const problems = [];
 
@@ -268,6 +282,8 @@ function validatePresentation(entries, knownSpecies) {
 
     if (typeof entry.scene !== "string" || !entry.scene.startsWith("res://")) {
       problems.push(`${where}: scene must be a res:// path`);
+    } else if (!existsSince(entry.scene)) {
+      problems.push(`${where}: scene "${entry.scene}" is not there`);
     }
     if (typeof entry.height !== "number" || entry.height <= 0) {
       problems.push(`${where}: height must be a positive number of metres`);

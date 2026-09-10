@@ -1,0 +1,68 @@
+{
+  "id": "placeholder_genderless",
+  "scene": "res://game/assets/placeholders/pm0025_00/pm0025_00.tscn",
+  "height": 1,
+  "clips": {
+    "attack_physical": [
+      "ba20_buturi01",
+      "ba20_buturi01_1"
+    ],
+    "attack_special": [
+      "ba21_tokusyu01",
+      "ba21_tokusyu01_FBX_OVERRIDE"
+    ],
+    "eat": [
+      "kw50_eatA01",
+      "kw50_eatB01",
+      "kw50_eatC01"
+    ],
+    "enter": [
+      "ba01_landA01",
+      "ba01_landA01_1",
+      "ba01_landB01",
+      "ba01_landB01_1",
+      "ba01_landC01",
+      "ba01_landC01_1"
+    ],
+    "faint": [
+      "ba41_down01",
+      "ba41_down01_1"
+    ],
+    "happy": [
+      "kw32_happyA01",
+      "kw32_happyA01_1",
+      "kw32_happyB01",
+      "kw32_happyB01_1",
+      "kw32_happyC01",
+      "kw32_happyC01_1"
+    ],
+    "hurt": [
+      "ba30_damageS01",
+      "ba30_damageS01_1"
+    ],
+    "idle": [
+      "ba10_waitA01",
+      "ba10_waitB01",
+      "ba10_waitB01_1"
+    ],
+    "run": [
+      "fi21_run01",
+      "fi21_run01_1"
+    ],
+    "unhappy": [
+      "kw30_hate01",
+      "kw30_hate01_1"
+    ],
+    "walk": [
+      "fi20_walk01",
+      "fi20_walk01_1"
+    ]
+  },
+  "extras": [
+    "ba10_adjustear"
+  ],
+  "stow": [
+    "HideLeftEar",
+    "HideRightEar"
+  ]
+}

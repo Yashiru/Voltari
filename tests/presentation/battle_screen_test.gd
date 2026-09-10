@@ -93,3 +93,87 @@ func test_a_second_turn_cannot_start_while_one_is_playing() -> void:
 	assert_int(screen.view().turn).override_failure_message(
 		"a turn started while another was still playing"
 	).is_equal(turn)
+
+
+# --- being offered a move ----------------------------------------------------
+
+
+## Puts an offer in front of the screen directly. Reaching a real one means
+## levelling a creature past a learnset entry with four moves already, which is
+## a long battle to arrange and a poor way to test a question.
+func _offer(screen: BattleScreen, move_id: String) -> void:
+	screen._won = true
+	screen._offers = [[0, move_id]]
+	screen._ask_next()
+
+
+func test_an_offer_holds_the_battle_open() -> void:
+	# A world that took itself back while a creature was still being asked what
+	# to forget would be answering for the player.
+	var screen: BattleScreen = _screen()
+	var ended: Array[bool] = []
+	screen.ended.connect(func(won: bool) -> void: ended.append(won))
+
+	_offer(screen, "water_special")
+
+	assert_str(screen.offered_move()).is_equal("water_special")
+	assert_array(ended).override_failure_message(
+		"the battle ended while a question was still on screen"
+	).is_empty()
+
+
+func test_taking_the_offer_replaces_the_slot_chosen() -> void:
+	var screen: BattleScreen = _screen()
+	var creature: VltBattleCreature = screen._state.sides[0].party[0]
+	var kept: String = creature.moves[0].move_id
+
+	_offer(screen, "water_special")
+	screen.learn_instead_of(creature.moves.size() - 1)
+
+	assert_str(creature.moves[creature.moves.size() - 1].move_id).is_equal("water_special")
+	assert_str(creature.moves[0].move_id).override_failure_message(
+		"a slot nobody chose was overwritten"
+	).is_equal(kept)
+
+
+func test_declining_leaves_the_four_it_has() -> void:
+	# A refusal the player made is not the same as a question nobody answered,
+	# and only one of them should be remembered as a decision.
+	var screen: BattleScreen = _screen()
+	var creature: VltBattleCreature = screen._state.sides[0].party[0]
+	var before: int = creature.moves.size()
+
+	_offer(screen, "water_special")
+	screen.decline_offer()
+
+	assert_int(creature.moves.size()).is_equal(before)
+	for slot: VltMoveSlot in creature.moves:
+		assert_str(slot.move_id).is_not_equal("water_special")
+
+
+func test_answering_the_last_offer_ends_the_battle() -> void:
+	var screen: BattleScreen = _screen()
+	var ended: Array[bool] = []
+	screen.ended.connect(func(won: bool) -> void: ended.append(won))
+
+	_offer(screen, "water_special")
+	screen.decline_offer()
+
+	assert_array(ended).override_failure_message(
+		"the battle never ended after the question was answered"
+	).is_equal([true])
+
+
+func test_two_offers_are_asked_one_at_a_time() -> void:
+	# Each is a party index and a move together, which is what stops the wrong
+	# creature learning the second one.
+	var screen: BattleScreen = _screen()
+	screen._won = true
+	screen._offers = [[0, "water_special"], [0, "ghost_special"]]
+	screen._ask_next()
+
+	assert_str(screen.offered_move()).is_equal("water_special")
+	screen.decline_offer()
+	assert_str(screen.offered_move()).is_equal("ghost_special")
+	screen.decline_offer()
+	assert_str(screen.offered_move()).is_empty()

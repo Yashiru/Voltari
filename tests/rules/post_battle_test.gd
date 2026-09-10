@@ -491,3 +491,34 @@ func test_the_awards_come_back_in_party_order() -> void:
 		order.append(award.party_index)
 
 	assert_array(order).is_equal(PackedInt32Array([0, 1, 2]))
+
+
+# --- taking an offered move --------------------------------------------------
+
+
+func test_an_offered_move_replaces_the_slot_it_was_given() -> void:
+	# The answer to the question `offered` asks. A creature with room learns
+	# without being asked; this is only for the case where there is none.
+	var creature: VltBattleCreature = _born("placeholder_base", 20)
+	creature.moves.clear()
+	for index: int in range(VltBirth.MOVE_LIMIT):
+		creature.moves.append(VltMoveSlot.create("basic_physical", 5))
+
+	VltPostBattle.learn(creature, "water_special", 2, _moves)
+
+	assert_int(creature.moves.size()).is_equal(VltBirth.MOVE_LIMIT)
+	assert_str(creature.moves[2].move_id).is_equal("water_special")
+	assert_str(creature.moves[0].move_id).override_failure_message(
+		"learning a move disturbed a slot it was not given"
+	).is_equal("basic_physical")
+
+
+func test_a_learned_move_arrives_on_full_pp() -> void:
+	# It is a new move, not a refilled one, so it starts where a new move starts.
+	var creature: VltBattleCreature = _born("placeholder_base", 20)
+	creature.moves.clear()
+	creature.moves.append(VltMoveSlot.create("basic_physical", 1))
+
+	VltPostBattle.learn(creature, "water_special", 0, _moves)
+
+	assert_int(creature.moves[0].pp).is_equal(_moves["water_special"].max_pp)

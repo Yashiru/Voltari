@@ -50,6 +50,12 @@ var _history: VltBattleLog = VltBattleLog.new()
 ## What the battle was worth, once it is over. Empty until then.
 var _awards: Array[VltPostBattle.Award] = []
 
+## Moves a creature earned and has no room for, waiting to be put to the player.
+## Each is a party index and a move id; the pair is what a choice needs, and
+## keeping them together is what stops the wrong creature learning something.
+var _offers: Array[Array] = []
+var _won: bool = false
+
 var _message: Label
 var _menu: VBoxContainer
 var _busy: bool = false
@@ -202,7 +208,8 @@ func _foe_command() -> VltCommand:
 ## for good the moment it returns. That is what makes progress stick without
 ## anything being copied back.
 func _settle() -> void:
-	var won: bool = _standing(PLAYER)
+	_won = _standing(PLAYER)
+	var won: bool = _won
 
 	if won:
 		_awards = VltPostBattle.resolve(
@@ -216,9 +223,83 @@ func _settle() -> void:
 			false
 		)
 
-	_hand_back()
+	for award: VltPostBattle.Award in _awards:
+		for move_id: String in award.offered:
+			_offers.append([award.party_index, move_id])
+
 	_message.text = _summary(won)
-	ended.emit(won)
+	_ask_next()
+
+
+## The move a creature earned and cannot fit, or empty when nothing is pending.
+func offered_move() -> String:
+	@warning_ignore("unsafe_cast")
+	return "" if _offers.is_empty() else _offers[0][1] as String
+
+
+## Takes the offered move in place of the one in `slot`.
+func learn_instead_of(slot: int) -> void:
+	if _offers.is_empty():
+		return
+
+	@warning_ignore("unsafe_cast")
+	var index: int = _offers[0][0] as int
+	@warning_ignore("unsafe_cast")
+	var move_id: String = _offers[0][1] as String
+	_offers.pop_front()
+
+	VltPostBattle.learn(
+		_state.sides[PLAYER].party[index], move_id, slot, _library.moves
+	)
+	_ask_next()
+
+
+## Leaves the four it has. Explicit rather than a timeout or a closed panel: a
+## refusal the player made is not the same as a question nobody answered, and
+## only one of them should be remembered as a decision.
+func decline_offer() -> void:
+	if _offers.is_empty():
+		return
+	_offers.pop_front()
+	_ask_next()
+
+
+## Puts the question, or finishes the battle when there is none left.
+##
+## `ended` waits for this. A world that took itself back while a creature was
+## still being asked what to forget would answer for the player.
+func _ask_next() -> void:
+	if _offers.is_empty():
+		_menu.hide()
+		_hand_back()
+		ended.emit(_won)
+		return
+
+	@warning_ignore("unsafe_cast")
+	var index: int = _offers[0][0] as int
+	@warning_ignore("unsafe_cast")
+	var move_id: String = _offers[0][1] as String
+	var creature: VltBattleCreature = _state.sides[PLAYER].party[index]
+
+	_message.text = "%s can learn %s. Forget which?" % [
+		tr(BattleLines.species_key(creature.species_id)), move_id
+	]
+
+	for child: Node in _menu.get_children():
+		child.queue_free()
+
+	for slot: int in range(creature.moves.size()):
+		var button: Button = Button.new()
+		button.text = "forget %s" % creature.moves[slot].move_id
+		button.pressed.connect(learn_instead_of.bind(slot))
+		_menu.add_child(button)
+
+	var keep: Button = Button.new()
+	keep.text = "keep them all"
+	keep.pressed.connect(decline_offer)
+	_menu.add_child(keep)
+
+	_menu.show()
 
 
 ## Puts the party that came out of the battle back into the array that went in.

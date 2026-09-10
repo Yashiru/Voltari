@@ -120,6 +120,30 @@ static func _offer_moves(
 				award.offered.append(entry.move_id)
 
 
+## Teaches an offered move in place of one the creature already knows.
+##
+## The answer to the question `offered` asks, and it lives beside it so that
+## neither can be found without the other. A creature with room learns without
+## being asked; this is only for the case where there is none.
+##
+## Declining is not a call. There is no "learn nothing" path, because a path
+## that does nothing is a path somebody will one day make do something.
+static func learn(
+	creature: VltBattleCreature,
+	move_id: String,
+	replacing: int,
+	moves: Dictionary[String, VltMoveDefinition]
+) -> void:
+	assert(moves.has(move_id), "no such move \"%s\"" % move_id)
+	assert(
+		replacing >= 0 and replacing < creature.moves.size(),
+		"slot %d is not one of this creature's moves" % replacing
+	)
+	assert(not _knows(creature, move_id), "\"%s\" is already known" % move_id)
+
+	creature.moves[replacing] = VltMoveSlot.create(move_id, moves[move_id].max_pp)
+
+
 ## Applies an evolution whose trigger is satisfied.
 ##
 ## The creature is the same individual wearing a different species: experience,

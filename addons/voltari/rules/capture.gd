@@ -25,6 +25,23 @@ const RATE_SCALE: int = 16711680
 const THRESHOLD_SCALE: int = 1048560
 
 
+## What a major status is worth to a throw.
+##
+## **One value for every status**, and deliberately: spec 11's open point says
+## the band is ×2 to ×2.5 and that which status sits where is design. Inventing
+## a table now would make a guess look settled, and there is only one status in
+## the library to disagree about.
+##
+## Takes an identifier rather than an enum because that is what a status is now:
+## an effect, named (decision 0045's neighbour — see spec 17's core changes).
+const ANY_STATUS: float = 2.0
+const NO_STATUS: float = 1.0
+
+
+static func status_multiplier(status_id: String) -> float:
+	return NO_STATUS if status_id.is_empty() else ANY_STATUS
+
+
 ## Stage one. One floor, at the end, exactly where the formula puts it.
 ##
 ## The two design levers both live here. The health fraction is 1/3 at full

@@ -109,8 +109,10 @@ will ever fail because of it. It is a visual mistake and you are the only check.
 
 ## 5. Place what the map carries
 
-Add these as children of the map root — or under a grouping node, which the
-plugin follows:
+Add these as **direct children of the map root**. Not under a grouping node: the
+map reads its own children and looks no deeper, so a warp tidied into a `Warps`
+folder is a warp the game cannot see. The gizmo still draws it, which makes this
+worth knowing before you tidy.
 
 | Node | What it does |
 |------|--------------|

@@ -10,27 +10,14 @@ extends GdUnitTestSuite
 ## a missing key surfaces as its own name printed on screen, in front of whoever
 ## is playing.
 
-const TABLE: String = "res://game/localisation/battle.csv"
 const SPECIES: String = "res://content/generated/species"
 
 
-## The keys the table declares. Read as text rather than through `tr()`, because
-## a missing key is exactly what `tr()` hides — it returns the key itself.
+## The keys the battle table declares. Only the battle one: the check below runs
+## in both directions, and it can only say "nothing nobody asks for" about a
+## table whose askers it knows.
 func _declared() -> PackedStringArray:
-	var file: FileAccess = FileAccess.open(TABLE, FileAccess.READ)
-	assert_object(file).override_failure_message("no translation table at %s" % TABLE).is_not_null()
-
-	var keys: PackedStringArray = PackedStringArray()
-	var header: bool = true
-	while not file.eof_reached():
-		var row: PackedStringArray = file.get_csv_line()
-		if header:
-			header = false
-			continue
-		if row.size() > 0 and not row[0].is_empty():
-			keys.append(row[0])
-	file.close()
-	return keys
+	return VltTranslationTable.keys(VltTranslationTable.BATTLE)
 
 
 func test_every_line_the_reader_can_say_is_in_the_table() -> void:

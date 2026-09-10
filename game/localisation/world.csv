@@ -1,0 +1,4 @@
+keys,en
+sign_field,"A worn sign. It says the cave is east."
+sign_echo_known,"An echo answers: ...east, you said."
+sign_echo_unknown,"An echo answers, but you cannot make it out."

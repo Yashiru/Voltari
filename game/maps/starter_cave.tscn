@@ -1,0 +1,48 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://addons/voltari/world/world_map.gd" id="1_wklws"]
+[ext_resource type="MeshLibrary" path="res://game/maps/tiles.meshlib" id="2_hcd7q"]
+[ext_resource type="Script" path="res://addons/voltari/world/warp.gd" id="3_at1ye"]
+[ext_resource type="Script" path="res://addons/voltari/world/events/event.gd" id="4_632oy"]
+[ext_resource type="Script" path="res://addons/voltari/world/events/steps/branch_step.gd" id="5_8k1pe"]
+[ext_resource type="Script" path="res://addons/voltari/world/events/steps/say_step.gd" id="6_u4x8j"]
+
+[node name="starter_cave" type="Node3D" unique_id=817752972 node_paths=PackedStringArray("terrain", "blocking")]
+script = ExtResource("1_wklws")
+map_id = "starter_cave"
+terrain = NodePath("Terrain")
+blocking = NodePath("Blocking")
+
+[node name="Terrain" type="GridMap" parent="." unique_id=164279598]
+mesh_library = ExtResource("2_hcd7q")
+data = {
+"cells": PackedInt32Array(0, 0, 0, 0, 1, 0, 0, 2, 0, 0, 3, 0, 1, 0, 0, 1, 1, 0, 1, 2, 0, 1, 3, 0, 2, 0, 0, 2, 1, 0, 2, 2, 0, 2, 3, 0, 3, 0, 0, 3, 1, 0, 3, 2, 0, 3, 3, 0)
+}
+
+[node name="Blocking" type="GridMap" parent="." unique_id=607916452]
+mesh_library = ExtResource("2_hcd7q")
+
+[node name="DoorWest" type="Node3D" parent="." unique_id=1577275303]
+script = ExtResource("3_at1ye")
+cell = Vector2i(0, 2)
+to_map = "starter_field"
+to_cell = Vector2i(6, 3)
+to_facing = 3
+
+[node name="Echo" type="Node3D" parent="." unique_id=36379400]
+script = ExtResource("4_632oy")
+cell = Vector2i(2, 1)
+
+[node name="IfRead" type="Node" parent="Echo" unique_id=1274161023 node_paths=PackedStringArray("when_set", "otherwise")]
+script = ExtResource("5_8k1pe")
+flag = "read_the_sign"
+when_set = NodePath("Known")
+otherwise = NodePath("Unknown")
+
+[node name="Known" type="Node" parent="Echo/IfRead" unique_id=1813321098]
+script = ExtResource("6_u4x8j")
+line_id = "sign_echo_known"
+
+[node name="Unknown" type="Node" parent="Echo/IfRead" unique_id=748262214]
+script = ExtResource("6_u4x8j")
+line_id = "sign_echo_unknown"

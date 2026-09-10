@@ -210,6 +210,10 @@ func _process(delta: float) -> void:
 	_walker.facing = intent.direction
 	if intent.walk and _cooldown <= 0.0:
 		_step(intent.direction)
+		# Only the caller knows which of the frames that wanted to walk became a
+		# step, because only the caller holds the cooldown. A diagonal that
+		# alternated per frame instead of per step would spin on the spot.
+		_held.stepped(intent.direction)
 
 
 func _step(direction: VltFacing.Direction) -> void:

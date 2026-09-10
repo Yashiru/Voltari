@@ -26,6 +26,15 @@ const DEAD_ZONE: float = 0.35
 ## is the hundredth step that reveals it (decision 0051).
 const SWITCH_MARGIN: float = 0.25
 
+## How hard *both* axes have to be pushed before it counts as a deliberate
+## diagonal.
+##
+## The switch margin below exists to stop an analog stick near 45 degrees from
+## flipping axis on a tremor, and it still does: a tremor is a small second axis,
+## and this floor is far above one. Two keys held, or a thumb parked on the
+## diagonal, clear it easily — and those are unambiguous.
+const DIAGONAL_FLOOR: float = 0.55
+
 ## A push shorter than this turns without walking — the thing grid games do that
 ## nobody notices until it is missing, because it is how you face somebody
 ## standing beside you.
@@ -62,6 +71,21 @@ class Held:
 	var facing_for: float = 0.0
 	var active: bool = false
 
+	## Which axis the last step used. Only read while both axes are pushed, and
+	## it is what makes the next one take the other axis.
+	var stepped_horizontal: bool = false
+
+	## Told by the caller when a step was actually taken.
+	##
+	## The quantiser says what is wanted every frame; only the caller knows which
+	## of those became a step, because only the caller holds the cooldown. A
+	## diagonal that alternated per frame instead of per step would spin on the
+	## spot.
+	func stepped(taken: VltFacing.Direction) -> void:
+		stepped_horizontal = (
+			taken == VltFacing.Direction.EAST or taken == VltFacing.Direction.WEST
+		)
+
 	## Tells the quantiser which way the walker was turned by something other
 	## than the stick — a warp arriving, a flick, a script.
 	##
@@ -83,12 +107,18 @@ static func of(stick: Vector2, held: Held, elapsed: float) -> Step:
 		held.facing_for = 0.0
 		return Step.new(false, held.direction, false)
 
+	var was_facing: VltFacing.Direction = held.direction
 	var wanted: VltFacing.Direction = _quantise(stick, held)
 
-	if wanted != held.direction:
+	# A diagonal changes axis on purpose, every step. Treating that as a new
+	# direction would restart the flick clock at each cell and the walk would
+	# stall halfway through every second step.
+	var turning_afresh: bool = wanted != was_facing and not is_diagonal(stick)
+	held.direction = wanted
+
+	if turning_afresh:
 		# A new direction restarts the clock, which is what makes a flick a
 		# flick: it is short *in this direction*, not short since the stick moved.
-		held.direction = wanted
 		held.facing_for = 0.0
 	elif not held.active:
 		# Pushed again in the direction it was already facing. **This walks at
@@ -96,7 +126,7 @@ static func of(stick: Vector2, held: Held, elapsed: float) -> Step:
 		# nothing to say about a direction you are already facing — and restarting
 		# the clock here made every tap a turn to where you already looked, which
 		# is a tap that does nothing at all.
-		held.facing_for = FLICK_SECONDS
+		held.facing_for = FLICK_SECONDS if wanted == was_facing else 0.0
 	else:
 		held.facing_for += elapsed
 
@@ -104,11 +134,25 @@ static func of(stick: Vector2, held: Held, elapsed: float) -> Step:
 	return Step.new(true, wanted, held.facing_for >= FLICK_SECONDS)
 
 
-## The dominant axis wins, and the direction already held keeps a margin. There
-## are no diagonals because there are no diagonal steps.
+## Whether both axes are being pushed hard enough to mean it.
+static func is_diagonal(stick: Vector2) -> bool:
+	return absf(stick.x) >= DIAGONAL_FLOOR and absf(stick.y) >= DIAGONAL_FLOOR
+
+
+## The dominant axis wins, and the direction already held keeps a margin.
+##
+## **There are still no diagonal steps** (spec 14, section 2). What a diagonal
+## push produces is an alternation: east, north, east, north, one cell at a time
+## and with no pause between them, which is a staircase the eye reads as a
+## diagonal. Every one of those is an ordinary step, so walkability, warps,
+## events and encounter checks all happen exactly as they always did — twice,
+## because two cells really were crossed.
 static func _quantise(stick: Vector2, held: Held) -> VltFacing.Direction:
 	var horizontal: float = absf(stick.x)
 	var vertical: float = absf(stick.y)
+
+	if is_diagonal(stick):
+		return _towards(not held.stepped_horizontal, stick)
 
 	var wants_horizontal: bool = horizontal > vertical
 	if held.active:
@@ -118,7 +162,11 @@ static func _quantise(stick: Vector2, held: Held) -> VltFacing.Direction:
 		else:
 			wants_horizontal = horizontal > vertical + SWITCH_MARGIN
 
-	if wants_horizontal:
+	return _towards(wants_horizontal, stick)
+
+
+static func _towards(horizontally: bool, stick: Vector2) -> VltFacing.Direction:
+	if horizontally:
 		return VltFacing.Direction.EAST if stick.x > 0.0 else VltFacing.Direction.WEST
 	return VltFacing.Direction.SOUTH if stick.y > 0.0 else VltFacing.Direction.NORTH
 

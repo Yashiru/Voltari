@@ -160,15 +160,19 @@ func test_a_deliberate_turn_still_gets_through() -> void:
 func test_the_margin_is_needed_in_both_axes() -> void:
 	# Held horizontally, a vertical push must beat it; held vertically, the
 	# reverse. An asymmetric margin would make one turn easier than the other.
+	#
+	# Both pushes sit **below the diagonal floor**, which is the band the margin
+	# now governs: above it, two axes pushed that hard are a diagonal somebody
+	# meant, and the margin has nothing to say about it (decision 0056).
 	var horizontal: VltStepIntent.Held = _held()
 	_walking(Vector2(1, 0), horizontal)
-	assert_int(VltStepIntent.of(Vector2(0.7, -0.72), horizontal, FRAME).direction).is_equal(
+	assert_int(VltStepIntent.of(Vector2(0.50, -0.52), horizontal, FRAME).direction).is_equal(
 		VltFacing.Direction.EAST
 	)
 
 	var vertical: VltStepIntent.Held = _held()
 	_walking(Vector2(0, -1), vertical)
-	assert_int(VltStepIntent.of(Vector2(0.72, -0.7), vertical, FRAME).direction).is_equal(
+	assert_int(VltStepIntent.of(Vector2(0.52, -0.50), vertical, FRAME).direction).is_equal(
 		VltFacing.Direction.NORTH
 	)
 
@@ -235,3 +239,112 @@ func test_two_walkers_do_not_interfere() -> void:
 	var fresh: VltStepIntent.Step = VltStepIntent.of(Vector2(1, 0), two, FRAME)
 
 	assert_bool(fresh.walk).is_false()
+
+
+# --- a diagonal, one cell at a time -------------------------------------------
+
+
+func _diagonal() -> Vector2:
+	return Vector2(1, -1)
+
+
+## Walks a held stick for a while, taking a step whenever one is offered and the
+## cooldown allows, the way the world does.
+func _steps_over(stick: Vector2, frames: int) -> Array[String]:
+	var held: VltStepIntent.Held = _held()
+	var taken: Array[String] = []
+	var cooldown: float = 0.0
+
+	for frame: int in range(frames):
+		cooldown = maxf(0.0, cooldown - FRAME)
+		var intent: VltStepIntent.Step = VltStepIntent.of(stick, held, FRAME)
+		if not intent.wanted or not intent.walk or cooldown > 0.0:
+			continue
+		taken.append(_short(intent.direction))
+		held.stepped(intent.direction)
+		cooldown = 0.16
+
+	return taken
+
+
+func _short(direction: VltFacing.Direction) -> String:
+	match direction:
+		VltFacing.Direction.NORTH:
+			return "N"
+		VltFacing.Direction.EAST:
+			return "E"
+		VltFacing.Direction.SOUTH:
+			return "S"
+	return "W"
+
+
+func test_both_axes_pushed_alternates_one_cell_at_a_time() -> void:
+	# There are still no diagonal steps (spec 14, section 2). What comes out is a
+	# staircase of ordinary steps, which is what the eye reads as a diagonal.
+	var taken: Array[String] = _steps_over(_diagonal(), 60)
+
+	assert_int(taken.size()).override_failure_message("nothing moved").is_greater(3)
+	for index: int in range(1, taken.size()):
+		assert_str(taken[index]).override_failure_message(
+			"the walk did not alternate: %s" % ", ".join(taken)
+		).is_not_equal(taken[index - 1])
+
+
+func test_both_axes_are_both_used() -> void:
+	# Alternating between two of the same direction would satisfy the test above
+	# and go nowhere diagonal.
+	var taken: Array[String] = _steps_over(_diagonal(), 60)
+
+	assert_bool(taken.has("E")).is_true()
+	assert_bool(taken.has("N")).is_true()
+
+
+func test_one_axis_alone_never_alternates() -> void:
+	var taken: Array[String] = _steps_over(Vector2(1, 0), 60)
+
+	for direction: String in taken:
+		assert_str(direction).is_equal("E")
+
+
+func test_a_tremor_on_the_second_axis_is_still_not_a_diagonal() -> void:
+	# The whole reason the switch margin exists (decision 0051): near 45 degrees
+	# an analog stick flips axis on a wobble, and a player walking east would
+	# zigzag. The diagonal floor is far above a wobble.
+	for wobble: float in [0.05, 0.2, 0.4, 0.5]:
+		var taken: Array[String] = _steps_over(Vector2(1, -wobble), 60)
+		for direction: String in taken:
+			assert_str(direction).override_failure_message(
+				"a wobble of %f produced %s" % [wobble, ", ".join(taken)]
+			).is_equal("E")
+
+
+func test_a_diagonal_does_not_stall_between_steps() -> void:
+	# Alternating changes direction every step, and a change of direction
+	# normally restarts the flick clock. If it did here, the walk would stop
+	# halfway through every second step.
+	var straight: int = _steps_over(Vector2(1, 0), 60).size()
+	var diagonal: int = _steps_over(_diagonal(), 60).size()
+
+	assert_int(diagonal).override_failure_message(
+		"a diagonal took %d steps against %d for a straight walk" % [diagonal, straight]
+	).is_equal(straight)
+
+
+func test_the_alternation_only_moves_when_a_step_is_taken() -> void:
+	# The quantiser says what is wanted every frame and only the caller knows
+	# which of those became a step. Alternating per frame would spin on the spot.
+	var held: VltStepIntent.Held = _held()
+	var first: VltFacing.Direction = VltStepIntent.of(_diagonal(), held, FRAME).direction
+
+	for frame: int in range(10):
+		assert_int(VltStepIntent.of(_diagonal(), held, FRAME).direction).override_failure_message(
+			"the direction changed without a step being taken"
+		).is_equal(first)
+
+
+func test_a_diagonal_is_what_it_says_it_is() -> void:
+	assert_bool(VltStepIntent.is_diagonal(Vector2(1, -1))).is_true()
+	assert_bool(VltStepIntent.is_diagonal(Vector2(0.71, 0.71))).is_true()
+	assert_bool(VltStepIntent.is_diagonal(Vector2(1, -0.3))).is_false()
+	assert_bool(VltStepIntent.is_diagonal(Vector2(1, 0))).is_false()
+	assert_bool(VltStepIntent.is_diagonal(Vector2.ZERO)).is_false()

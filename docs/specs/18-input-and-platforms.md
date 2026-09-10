@@ -47,13 +47,29 @@ There are no diagonals, because there are no diagonal steps.
 a tremor, and without this a player walking north-east zigzags one cell at a
 time. The new axis must beat the current one by a margin before it takes over.
 
-**A flick turns, a hold walks.** Pushing a new direction for less than a step
+**Both axes pushed hard is a staircase** (decision 0056). Above a floor on each
+axis separately — cleared by two keys held, and never by a tremor — the step
+alternates: east, north, east, north, one cell at a time and with no pause
+between them. Every one is an ordinary step, so there are still no diagonal
+steps and nothing below this reads it as one. The eye supplies the diagonal.
+
+The bias governs the band *below* that floor, which is where its stated reason
+lives: a tremor is a small second axis. Above it, both axes are deliberate and
+there is nothing to protect the player from.
+
+**A flick turns, a hold walks.** Pushing a **new** direction for less than a step
 turns the character without moving them — the thing grid games do that players
 never notice until it is missing, because it is how you talk to somebody standing
 beside you.
 
-The margin, the dead zone and the flick's duration are numbers, not structure.
-They are named in one place and tuned by feel; none of them is a rule.
+A push in the direction already faced is not a new direction, and walks at once.
+Applying the flick there makes every tap a turn to where the character already
+looked, which is a tap that does nothing at all however many times it is
+repeated. The rule is about turning to face something beside you; it has nothing
+to say about a direction you are already facing.
+
+The margin, the floor, the dead zone and the flick's duration are numbers, not
+structure. They are named in one place and tuned by feel; none of them is a rule.
 
 **What this buys is that section 1 stays true.** The world's `step(direction)`
 is unchanged, the overworld tests keep running on fixture maps with no input at

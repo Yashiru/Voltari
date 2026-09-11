@@ -11,6 +11,7 @@ config_version=5
 [application]
 
 config/name="Voltari"
+run/main_scene="res://game/scenes/world/world_sandbox.tscn"
 config/features=PackedStringArray("4.7", "Mobile")
 
 [debug]
@@ -23,6 +24,10 @@ gdscript/warnings/unsafe_method_access=2
 gdscript/warnings/unsafe_cast=2
 gdscript/warnings/unsafe_call_argument=2
 gdscript/warnings/return_value_discarded=1
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/placeholder_style/plugin.cfg", "res://addons/voltari_maps/plugin.cfg")
 
 [rendering]
 

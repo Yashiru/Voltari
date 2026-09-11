@@ -53,6 +53,10 @@ const TIP: Color = Color(0.42, 0.71, 0.13)
 ## drawing less than it was asked for.
 const MOST_BLADES: int = 4000000
 
+## How far up a model counts as its foot. A fifth: high enough to catch a base
+## that flares, low enough that a canopy never reaches it.
+const ANKLE: float = 0.2
+
 ## Stands for "nothing near enough to matter". Far enough that no blade can be
 ## within any clearance of it, and finite so the shader's arithmetic stays sane.
 const FAR_AWAY: Vector2 = Vector2(9999.0, 9999.0)
@@ -152,6 +156,19 @@ const BUILT: Array[String] = [
 		wind_give = clampf(value, 0.0, 2.0)
 		_rebuild()
 
+## How far the dark ground fades out past the edge of the patch, in cells.
+##
+## **The ground only.** The blades stop where the sown cells stop: a patch of
+## grass has an edge and pretending otherwise made the whole last metre look
+## half-mown. What softens is the darkening under it, so the tile's own colour
+## comes back gradually instead of at a line.
+##
+## Zero is a crisp edge.
+@export_range(0.0, 3.0, 0.05) var edge_fade: float = 0.5:
+	set(value):
+		edge_fade = maxf(value, 0.0)
+		_rebuild()
+
 ## How far grass keeps away from anything else standing on the ground, in metres.
 ##
 ## Nothing grows right up against a rock or a fence post: there is a bare ring,
@@ -211,6 +228,10 @@ const BUILT: Array[String] = [
 ## spots texture and the box are built from the same list the count came from.
 var _filled: Array[Vector3i] = []
 
+## How wide each item is at its foot, by item id. Cleared whenever the patch is
+## rebuilt, because a library rebuild can change a model under the same id.
+var _feet: Dictionary[int, float] = {}
+
 var _scatter: ShaderMaterial = null
 var _blade: ShaderMaterial = null
 var _mat: MeshInstance3D = null
@@ -262,6 +283,8 @@ func _rebuild() -> void:
 	if scatter_shader == null or blade_shader == null:
 		push_warning("no turf shaders — this patch stays bare")
 		return
+
+	_feet.clear()
 
 	# The cells are the grid's, so the patch is put where the grid is and
 	# everything below is measured in the grid's own space. The same thing
@@ -449,6 +472,7 @@ func _lay_mat(grid: GridMap) -> void:
 		_mat_paint = ShaderMaterial.new()
 	_mat_paint.shader = mat_shader
 	_mat_paint.set_shader_parameter("albedo", colour)
+	_mat_paint.set_shader_parameter("edge_fade", 1.0 if edge_fade > 0.0 else 0.0)
 	_mat_paint.set_shader_parameter("key_follows_camera", 0.0)
 	_mat_paint.set_shader_parameter("shape_round", 0.0)
 	var look: Dictionary[String, Variant] = CreatureView.preset_values(
@@ -500,7 +524,7 @@ func _mat_mesh(grid: GridMap) -> ArrayMesh:
 			points.append(Vector3(at.x + float(dx) * half_x, up, at.z + float(dz) * half_z))
 			normals.append(Vector3.UP)
 			uvs.append(Vector2(0.5, 0.0))
-			var cover: float = _cover_at(sown, cell, dx, dz)
+			var cover: float = _fade_at(sown, cell, dx, dz)
 			shades.append(Color(cover, cover, cover, 1.0))
 		faces.append_array([first, first + 2, first + 1])
 		faces.append_array([first + 1, first + 2, first + 3])
@@ -518,21 +542,33 @@ func _mat_mesh(grid: GridMap) -> ArrayMesh:
 	return mat
 
 
-## How solid the mat is at one corner of one cell: 1 where all four cells touching
-## it were sown, 0 where only this one was.
+## How solid the mat is at one corner of one cell.
 ##
-## Three in the denominator and not four, because a corner always has at least the
-## cell it belongs to — so a lone cell fades to nothing at every corner rather
-## than to a quarter.
-static func _cover_at(
+## From how far that corner is, in cells, from the nearest ground nobody sowed —
+## so `edge_fade` is a width the author sets rather than a shape baked in here. A
+## corner deeper than the fade is fully solid; one touching bare ground is gone.
+func _fade_at(
 	sown: Dictionary[Vector3i, bool], cell: Vector3i, dx: int, dz: int
 ) -> float:
-	var touching: int = 0
-	for step_x: int in [0, dx]:
-		for step_z: int in [0, dz]:
-			if sown.has(cell + Vector3i(step_x, 0, step_z)):
-				touching += 1
-	return float(touching - 1) / 3.0
+	if edge_fade <= 0.0:
+		return 1.0
+
+	var reach: int = ceili(edge_fade) + 1
+	var corner: Vector2 = Vector2(float(cell.x) + float(dx) * 0.5, float(cell.z) + float(dz) * 0.5)
+	var nearest: float = INF
+	for step_x: int in range(-reach, reach + 1):
+		for step_z: int in range(-reach, reach + 1):
+			var near: Vector3i = cell + Vector3i(step_x, 0, step_z)
+			if sown.has(near):
+				continue
+			nearest = minf(
+				nearest, corner.distance_to(Vector2(float(near.x), float(near.z)))
+			)
+	if nearest == INF:
+		return 1.0
+	# Half a cell is the closest a corner can be to the middle of a bare one, so
+	# that is where the fade starts from rather than from zero.
+	return clampf((nearest - 0.5) / edge_fade, 0.0, 1.0)
 
 
 ## Every sown cell's own origin, as a texture the scatter reads by index.
@@ -541,21 +577,11 @@ static func _cover_at(
 ## and an array has a ceiling written into the shader. One texel per cell,
 ## unfiltered, so what is read back is what was written.
 func _spots(grid: GridMap) -> ImageTexture:
-	var sown: Dictionary[Vector3i, bool] = {}
-	for cell: Vector3i in _filled:
-		sown[cell] = true
-
-	var spots: Image = Image.create(maxi(_filled.size(), 1), 1, false, Image.FORMAT_RGBAF)
+	var spots: Image = Image.create(maxi(_filled.size(), 1), 1, false, Image.FORMAT_RGBF)
 	for index: int in range(_filled.size()):
 		var cell: Vector3i = _filled[index]
 		var at: Vector3 = grid.map_to_local(cell)
-		# The fourth channel is how surrounded this cell is, which the scatter
-		# spends on thinning and shortening the blades near the edge. Without it
-		# the mat fades and the grass does not, and a soft ground under a hard
-		# fringe of blades reads worse than no fade at all.
-		spots.set_pixel(index, 0, Color(
-			at.x, _surface_of(grid, cell), at.z, _cover_of(sown, cell)
-		))
+		spots.set_pixel(index, 0, Color(at.x, _surface_of(grid, cell), at.z))
 	return ImageTexture.create_from_image(spots)
 
 
@@ -571,78 +597,144 @@ func _spots(grid: GridMap) -> ImageTexture:
 ## be within the clearance of it. Cheaper than a flag, and there is no branch in
 ## the shader to get wrong.
 func _near(grid: GridMap) -> ImageTexture:
-	var away: Array[Vector2] = _obstacles(grid)
-	var near: Image = Image.create(maxi(_filled.size(), 1), 1, false, Image.FORMAT_RGF)
+	var away: Array[Vector3] = _obstacles(grid)
+	var near: Image = Image.create(maxi(_filled.size(), 1), 1, false, Image.FORMAT_RGBF)
 
 	for index: int in range(_filled.size()):
 		var centre: Vector3 = grid.map_to_local(_filled[index])
 		var here: Vector2 = Vector2(centre.x, centre.z)
 		var closest: Vector2 = FAR_AWAY
+		var wide: float = 0.0
 		var closest_at: float = INF
-		for other: Vector2 in away:
-			var gap: float = here.distance_to(other)
+		for other: Vector3 in away:
+			# Nearest by its edge, not by its middle: a wide thing beats a nearer
+			# narrow one when it is the wide one a blade would be standing in.
+			var gap: float = here.distance_to(Vector2(other.x, other.y)) - other.z
 			if gap < closest_at:
 				closest_at = gap
-				closest = other - here
-		near.set_pixel(index, 0, Color(closest.x, closest.y, 0.0, 1.0))
+				closest = Vector2(other.x, other.y) - here
+				wide = other.z
+		near.set_pixel(index, 0, Color(closest.x, closest.y, wide, 1.0))
 
 	return ImageTexture.create_from_image(near)
 
 
 ## Everything on this map the grass has to keep away from, in the grid's own
-## space, flattened to the ground plane.
+## space: where it is, flattened to the ground, and how wide it is.
 ##
-## Two sources because the editor offers two ways to put an object down: a cell
-## painted on a layer above the one being sown, and a prop node standing beside
-## the grid. An author should not have to remember which they used.
-func _obstacles(grid: GridMap) -> Array[Vector2]:
-	var away: Array[Vector2] = []
-	if clearance <= 0.0:
+## **Every layer, not only the sown one.** A map is three `GridMap`s — terrain,
+## blocking, decor — and a tree is painted on one of the other two. Looking only
+## at the layer being sown found nothing, which is why the grass grew against the
+## trunks.
+##
+## Above the sown floor, strictly: a second terrain layer at the same height is
+## ground, not an obstacle, and treating it as one would kill every blade.
+##
+## The width is the model's own, so `clearance` means *from the edge of the thing*
+## rather than from the middle of its cell. A trunk fills most of a metre, and a
+## clearance measured from the cell centre is a clearance already spent.
+func _obstacles(grid: GridMap) -> Array[Vector3]:
+	var away: Array[Vector3] = []
+	if clearance <= 0.0 or _filled.is_empty():
 		return away
 
 	var sown: Dictionary[Vector3i, bool] = {}
 	for cell: Vector3i in _filled:
 		sown[cell] = true
+	var floor_y: float = grid.map_to_local(_filled[0]).y
 
-	for cell: Vector3i in grid.get_used_cells():
-		# Above the sown ground, not on it: the tile a blade stands on is not
-		# something it has to avoid.
-		if sown.has(cell):
-			continue
-		var under: Vector3i = Vector3i(cell.x, cell.y - 1, cell.z)
-		if not sown.has(under):
-			continue
-		var at: Vector3 = grid.map_to_local(cell)
-		away.append(Vector2(at.x, at.z))
+	for layer_grid: GridMap in _layers(grid):
+		for cell: Vector3i in layer_grid.get_used_cells():
+			if layer_grid == grid and sown.has(cell):
+				continue
+			var at: Vector3 = grid.to_local(
+				layer_grid.to_global(layer_grid.map_to_local(cell))
+			)
+			if at.y <= floor_y + 0.01:
+				continue
+			away.append(Vector3(at.x, at.z, _footprint(layer_grid, cell)))
 
 	var beside: Node = grid.get_parent()
 	if beside == null:
 		return away
 	for node: Node in beside.get_children():
-		if node == grid or node == self:
+		if node == self or node is GridMap:
 			continue
 		var shown: VisualInstance3D = node as VisualInstance3D
 		if shown == null:
 			continue
 		var where: Vector3 = grid.to_local(shown.global_position)
-		away.append(Vector2(where.x, where.z))
+		if where.y <= floor_y + 0.01:
+			continue
+		var box: AABB = shown.get_aabb()
+		away.append(Vector3(
+			where.x, where.z, maxf(box.size.x, box.size.z) * 0.5
+		))
 
 	return away
 
 
-## How surrounded a cell is, from the nine cells of its own neighbourhood.
+## Every `GridMap` of the map this patch belongs to, the sown one included.
+static func _layers(grid: GridMap) -> Array[GridMap]:
+	var found: Array[GridMap] = []
+	var beside: Node = grid.get_parent()
+	if beside == null:
+		return [grid] as Array[GridMap]
+	for node: Node in beside.get_children():
+		var layer_grid: GridMap = node as GridMap
+		if layer_grid != null:
+			found.append(layer_grid)
+	return found if not found.is_empty() else [grid] as Array[GridMap]
+
+
+## How wide the model in a cell is **where it meets the ground**, as a radius.
 ##
-## One inside a sown area, about a half along a straight edge, less at a corner.
-## Measured over three by three rather than over the four cells that share a
-## corner, because this thins a whole cell's worth of blades and wants to know
-## about the cell beyond the one next door.
-static func _cover_of(sown: Dictionary[Vector3i, bool], cell: Vector3i) -> float:
-	var near: int = 0
-	for step_x: int in range(-1, 2):
-		for step_z: int in range(-1, 2):
-			if sown.has(cell + Vector3i(step_x, 0, step_z)):
-				near += 1
-	return float(near) / 9.0
+## Measured from the vertices in the bottom fifth of the model rather than from
+## its bounding box, and that is the whole point: a palm's box is its canopy, and
+## a clearance taken from it carves a crater three metres across around a trunk
+## you could put both hands round. What the grass has to avoid is the foot.
+##
+## A crate's foot is its whole box, so nothing is lost on the things where the box
+## was already right.
+##
+## Cached per item: a patch asks for the same handful of models once per cell, and
+## reading a mesh's vertices is the one expensive thing in this file.
+func _footprint(grid: GridMap, cell: Vector3i) -> float:
+	if grid.mesh_library == null:
+		return 0.0
+	var item: int = grid.get_cell_item(cell)
+	if item == GridMap.INVALID_CELL_ITEM:
+		return 0.0
+	if _feet.has(item):
+		return _feet[item] * grid.cell_scale
+
+	var mesh: ArrayMesh = grid.mesh_library.get_item_mesh(item) as ArrayMesh
+	if mesh == null:
+		return 0.0
+	var box: AABB = mesh.get_aabb()
+	var ankle: float = box.position.y + box.size.y * ANKLE
+	var middle: Vector2 = Vector2(
+		box.position.x + box.size.x * 0.5, box.position.z + box.size.z * 0.5
+	)
+
+	var widest: float = 0.0
+	for surface: int in range(mesh.get_surface_count()):
+		var arrays: Array = mesh.surface_get_arrays(surface)
+		if typeof(arrays[Mesh.ARRAY_VERTEX]) != TYPE_PACKED_VECTOR3_ARRAY:
+			continue
+		@warning_ignore("unsafe_cast")
+		var points: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array
+		for point: Vector3 in points:
+			if point.y > ankle:
+				continue
+			widest = maxf(widest, middle.distance_to(Vector2(point.x, point.z)))
+
+	# Nothing down there at all — a floating model. Its box is the best guess left.
+	if widest <= 0.0:
+		widest = maxf(box.size.x, box.size.z) * 0.5
+
+	_feet[item] = widest
+	return widest * grid.cell_scale
 
 
 ## The height of the top of whatever is drawn in a cell, in the grid's space.

@@ -305,6 +305,38 @@ silhouettes, which is a brief for the artist and not a runtime toggle. Named
 variations of it (`comic-noir` and the like) are sets of numbers for the same
 shader, not separate looks.
 
+### It is worn by every surface, not only by creatures
+
+**Settled by decision 0062.** The look was applied to creatures alone, so a
+creature stood on ground drawn by a different set of rules — a printed drawing on
+a photograph. It now covers the tiles, the props, the grass and the character.
+
+The look itself lives once, in `comic_look.gdshaderinc`. Two shaders include it:
+`comic.gdshader` for everything still, and `grass_parting.gdshader` for grass,
+which needs `cull_disabled` and carries the wind of decisions 0059 to 0061. **The
+wind is deliberately not shared** — grass moves and almost nothing else does.
+
+Three consequences are worth knowing before writing anything that draws:
+
+- **The project has no lights and cannot have any.** The look is `unshaded` and
+  lights itself from `light_direction`; the screentone has to be laid out in
+  screen space against the same value that picks the tone, which Godot's `light()`
+  stage cannot see. A `DirectionalLight3D` added to a scene will do nothing.
+- **A subject is relit, a set is not.** `key_follows_camera` is 0.7 on creatures
+  so their form always reads, and 0 on the world so the shading does not slide
+  across the terrain as the player turns.
+- **Switching the look is a rebuild for the map.** The tile library bakes the
+  style's uniforms into the `MeshLibrary`; creatures and the character read the
+  style file when they load. All three read the same two files.
+
+**Known limitation.** A creature keeps screentone off its face by raising
+`face_flat` on the surfaces that carry the eye and mouth sheets. The character's
+face is painted into its body texture and has no surface of its own, so the coarse
+screen falls across it wherever the face is in shadow. Visible on a close-up, not
+at the distance the overworld camera sits. Fixing it means either a separate face
+surface on the model or no tone on the character at all, and that is an art
+decision, not a runtime one.
+
 ## 10. A creature is never still
 
 **Settled by decision 0055**, which closes the open point about how the runtime

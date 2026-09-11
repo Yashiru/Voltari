@@ -678,9 +678,17 @@ func _footprints(grid: GridMap) -> Array[PackedVector2Array]:
 				continue
 			var here: Vector2 = Vector2(at.x, at.z)
 			var scale: float = layer_grid.cell_scale
+			# **Turned the way the cell is turned.** A `GridMap` stores one of
+			# twenty-four orientations per cell, and a fence painted sideways has a
+			# footprint that is long the other way. Reading the shape and not the
+			# turn gave a clearance at right angles to the thing it was for.
+			var facing: Basis = layer_grid.get_basis_with_orthogonal_index(
+				layer_grid.get_cell_item_orientation(cell)
+			)
 			var placed: PackedVector2Array = PackedVector2Array()
 			for corner: Vector2 in shape:
-				placed.append(here + corner * scale)
+				var turned: Vector3 = facing * Vector3(corner.x, 0.0, corner.y)
+				placed.append(here + Vector2(turned.x, turned.z) * scale)
 			stamps.append(placed)
 
 	var beside: Node = grid.get_parent()

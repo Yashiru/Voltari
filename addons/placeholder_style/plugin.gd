@@ -54,6 +54,7 @@ var _panel: VBoxContainer = null
 var _picker: OptionButton = null
 var _reach: Label = null
 var _controls: VBoxContainer = null
+var _naming: LineEdit = null
 var _sliders: Dictionary[String, HSlider] = {}
 var _labels: Dictionary[String, Label] = {}
 var _pickers: Dictionary[String, ColorPickerButton] = {}
@@ -103,14 +104,38 @@ func _enter_tree() -> void:
 
 	var keep: Button = Button.new()
 	keep.text = "Keep"
-	keep.tooltip_text = ("Write the controls into style_presets.json under this "
-		+ "name. Until you do, they are a trial and nothing outside this editor "
-		+ "session sees them.")
+	keep.tooltip_text = ("Merge the controls into style_presets.json under the "
+		+ "name above. Until you do, they are a trial and nothing outside this "
+		+ "editor session sees them.")
 	@warning_ignore("return_value_discarded")
 	keep.pressed.connect(_keep)
 	_panel.add_child(keep)
 
+	_naming = LineEdit.new()
+	_naming.placeholder_text = "new look name"
+	_panel.add_child(_naming)
+
+	var fork: Button = Button.new()
+	fork.text = "Keep as"
+	fork.tooltip_text = ("Write everything the surfaces are currently set to as a "
+		+ "new look under that name, on the same quantiser, and wear it.\n"
+		+ "Keep merges into an existing look; this one makes another.")
+	@warning_ignore("return_value_discarded")
+	fork.pressed.connect(_keep_as)
+	_panel.add_child(fork)
+
 	add_control_to_dock(DOCK_SLOT_RIGHT_BL, _panel)
+
+	# **Put the scene into the recorded look before showing anything.**
+	#
+	# Nothing else does. A `MeshLibrary` carries whatever the tile library baked
+	# into it when it was built, and a preset edited since then reaches the game at
+	# map entry and reaches the editor viewport never — so a Keep looked like it had
+	# not been taken: reopen Godot and the old numbers are back on screen and, worse,
+	# back on the panel, which reads the surfaces on purpose.
+	@warning_ignore("return_value_discarded")
+	scene_changed.connect(_scene_opened)
+	_dress()
 	_rebuild()
 
 
@@ -123,6 +148,7 @@ func _exit_tree() -> void:
 	_picker = null
 	_reach = null
 	_controls = null
+	_naming = null
 	_sliders.clear()
 	_labels.clear()
 	_pickers.clear()
@@ -297,6 +323,35 @@ func _push(name: String, value: Variant) -> void:
 	_show_reach()
 
 
+## Put the open scene into the look that is recorded, and ask any creature in it
+## to rebuild.
+##
+## Called when the dock opens and whenever a scene is opened, because **nothing
+## else applies a preset in the editor**. The world does it on load and the tile
+## library does it at build time; between those two the viewport shows whatever was
+## baked into the `MeshLibrary`, which is why an edited preset used not to survive
+## closing Godot.
+##
+## It does mean opening a map scene marks its library modified. That is honest —
+## the library really is carrying different numbers now — and saving it is how the
+## bake catches up with the file.
+func _dress() -> void:
+	var root: Node = EditorInterface.get_edited_scene_root()
+	if root == null:
+		return
+	@warning_ignore("return_value_discarded")
+	Look.wear(root, _picked())
+	_ask_creatures(root)
+
+
+func _scene_opened(_root: Node) -> void:
+	if _panel == null:
+		return
+	_trial.clear()
+	_dress()
+	_rebuild()
+
+
 func _choose(_index: int) -> void:
 	var wanted: String = _picked()
 	var wrote: Error = Look.choose(wanted)
@@ -345,25 +400,88 @@ func _keep() -> void:
 	@warning_ignore("unsafe_cast")
 	var fields: Dictionary = uniforms as Dictionary
 	for name: String in _trial:
-		var value: Variant = _trial[name]
-		# A colour is written the way the file spells one, so a Keep produces a
-		# preset somebody can read and edit by hand like the ones already there.
-		if typeof(value) == TYPE_COLOR:
-			@warning_ignore("unsafe_cast")
-			fields[name] = "#" + (value as Color).to_html(false)
-		else:
-			fields[name] = value
+		fields[name] = _written(_trial[name])
 
+	if not _write(presets):
+		return
+	_trial.clear()
+	print("look: kept %s" % wanted)
+
+
+## Writes what the surfaces are currently set to as a **new** look, and wears it.
+##
+## Where **Keep** merges a trial into a look that exists, this makes another one —
+## on the same quantiser, because a new set of numbers is a new look and a new way
+## of stepping the light would be a new branch of the shader.
+##
+## It writes everything that differs from the shader's own defaults rather than
+## only what was moved this session. A new preset has to stand on its own: `wear`
+## resets the vocabulary before applying one, so a fork that carried only the trial
+## would come back wearing `comic`'s defaults for everything else.
+func _keep_as() -> void:
+	var wanted: String = _naming.text.strip_edges()
+	if wanted.is_empty():
+		push_warning("name the new look first")
+		return
+	if wanted.begins_with("_"):
+		push_warning("a leading underscore marks prose in that file, not a look")
+		return
+	var presets: Dictionary = CreatureView.presets()
+	if presets.has(wanted) or wanted == PLAIN:
+		push_warning("%s already exists — use Keep to write into it" % wanted)
+		return
+	var root: Node = EditorInterface.get_edited_scene_root()
+	if root == null or Look.worn_under(root).is_empty():
+		push_warning("nothing in this scene wears the look, so there is nothing to "
+			+ "read a new one off")
+		return
+
+	var fields: Dictionary = {}
+	var settings: Dictionary[String, Variant] = Look.settings_under(root)
+	for name: String in settings:
+		fields[name] = _written(settings[name])
+	presets[wanted] = {
+		"shader": _quantiser(),
+		"_note": "Kept from the panel.",
+		"uniforms": fields,
+	}
+	if not _write(presets):
+		return
+
+	# Offered and worn immediately: a look you have just named and cannot then
+	# select is the same dead end as one you could not save.
+	_picker.clear()
+	for name: String in _styles():
+		_picker.add_item(name)
+	_picker.select(maxi(_index_of(wanted), 0))
+	_naming.text = ""
+	_trial.clear()
+	@warning_ignore("return_value_discarded")
+	Look.choose(wanted)
+	_rebuild()
+	print("look: kept %s as a new look, %d value(s)" % [wanted, fields.size()])
+
+
+## A value as the preset file spells it: a colour as `#rrggbb`, anything else as
+## itself, so a kept look reads like the ones written by hand.
+static func _written(value: Variant) -> Variant:
+	if typeof(value) == TYPE_COLOR:
+		@warning_ignore("unsafe_cast")
+		return "#" + (value as Color).to_html(false)
+	return value
+
+
+## The preset file, or a warning saying why not.
+func _write(presets: Dictionary) -> bool:
 	var path: String = CreatureView.SHARED + CreatureView.PRESET_FILE
 	var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
 	if file == null:
 		push_warning("cannot write %s: %s"
 			% [path, error_string(FileAccess.get_open_error())])
-		return
+		return false
 	file.store_string(JSON.stringify(presets, "\t"))
 	file.close()
-	_trial.clear()
-	print("look: kept %s" % wanted)
+	return true
 
 
 ## Says what the panel is actually reaching, rather than implying it reached

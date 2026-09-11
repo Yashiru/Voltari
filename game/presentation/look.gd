@@ -331,6 +331,49 @@ static func held_value(root: Node, name: String) -> Variant:
 	return RenderingServer.shader_get_parameter_default(material.shader.get_rid(), name)
 
 
+## What the surfaces under `root` are set to, spelled the way a preset spells it:
+## every look value that differs from the shader's own default, and nothing else.
+##
+## **That is a complete preset, not a partial one.** `wear` puts the whole
+## vocabulary back to the defaults before applying one, so a value left out here is
+## the default rather than whatever the previous look left behind — which means
+## naming only the differences says exactly as much as naming all sixty-eight, and
+## produces a file somebody can read.
+static func settings_under(root: Node) -> Dictionary[String, Variant]:
+	var settings: Dictionary[String, Variant] = {}
+	var worn: Array[ShaderMaterial] = worn_under(root)
+	if worn.is_empty():
+		return settings
+	var material: ShaderMaterial = worn[0]
+	for name: String in vocabulary():
+		var held: Variant = material.get_shader_parameter(name)
+		if held == null:
+			continue
+		var fallback: Variant = RenderingServer.shader_get_parameter_default(
+			material.shader.get_rid(), name
+		)
+		if not _same(held, fallback):
+			settings[name] = held
+	return settings
+
+
+## Whether two shader values are the same number or the same colour.
+##
+## `==` on a float that has been through a slider and back is never true, so a
+## comparison by identity would call every value different and write a preset of
+## sixty-eight lines every time.
+static func _same(left: Variant, right: Variant) -> bool:
+	if typeof(left) != typeof(right):
+		return false
+	if typeof(left) == TYPE_COLOR:
+		@warning_ignore("unsafe_cast")
+		return (left as Color).is_equal_approx(right as Color)
+	if typeof(left) == TYPE_FLOAT or typeof(left) == TYPE_INT:
+		@warning_ignore("unsafe_cast")
+		return is_equal_approx(float(left as float), float(right as float))
+	return left == right
+
+
 ## The look the game is wearing.
 static func chosen() -> String:
 	return CreatureView.roster_style()

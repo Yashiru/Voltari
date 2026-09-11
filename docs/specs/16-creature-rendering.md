@@ -305,26 +305,34 @@ silhouettes, which is a brief for the artist and not a runtime toggle. Named
 variations of it (`comic-noir` and the like) are sets of numbers for the same
 shader, not separate looks.
 
-### It is worn by every surface, not only by creatures
+### It is worn by every surface, and it is lit
 
-**Settled by decision 0062.** The look was applied to creatures alone, so a
+**Settled by decisions 0062 and 0064.** The look was applied to creatures alone, so a
 creature stood on ground drawn by a different set of rules — a printed drawing on
 a photograph. It now covers the tiles, the props, the grass and the character.
 
-The look itself lives once, in `comic_look.gdshaderinc`. Two shaders include it:
-`comic.gdshader` for everything still, and `grass_parting.gdshader` for grass,
-which needs `cull_disabled` and carries the wind of decisions 0059 to 0061. **The
-wind is deliberately not shared** — grass moves and almost nothing else does.
+The look itself lives once, in `comic_look.gdshaderinc`. Every shader that draws
+includes it: `comic.gdshader` for everything still, and the grass, turf, turf mat
+and foliage shaders, which each need a `render_mode` of their own. **The wind is
+deliberately not shared** — grass moves and almost nothing else does.
 
-Three consequences are worth knowing before writing anything that draws:
+**It reads `ATTENUATION`, so it has cast shadows.** A thrown shadow is snapped to
+a hard edge, filled with the same screen as a dark side, held at the first shadow
+step rather than the core, and given the same stroke along its own edge. A thrown
+shadow and an attached one are one visual language, not two.
 
-- **The project has no lights and cannot have any.** The look is `unshaded` and
-  lights itself from `light_direction`; the screentone has to be laid out in
-  screen space against the same value that picks the tone, which Godot's `light()`
-  stage cannot see. A `DirectionalLight3D` added to a scene will do nothing.
-- **A subject is relit, a set is not.** `key_follows_camera` is 0.7 on creatures
-  so their form always reads, and 0 on the world so the shading does not slide
-  across the terrain as the player turns.
+**`ALBEDO` is white and the finished colour is written in `light()`.** Measured:
+this project's Forward Mobile renderer multiplies `DIFFUSE_LIGHT` by `ALBEDO`, and
+a multiply can only darken — which cannot produce a shadow that cools and
+saturates. The surface declares itself white so the look keeps full control.
+
+Two consequences are worth knowing before writing anything that draws:
+
+- **Every scene needs exactly one `DirectionalLight3D`, and a scene with none
+  renders black.** The look is lit (decision 0064) and writes the whole surface
+  itself, so nothing else writes anything. `Daylight` is the node that supplies
+  the sun and the paper behind it; a second directional light would count the
+  shadow tone twice. Lamps and other lights add a warm pool and never re-shade.
 - **Switching the look is a rebuild for the map.** The tile library bakes the
   style's uniforms into the `MeshLibrary`; creatures and the character read the
   style file when they load. All three read the same two files.
@@ -500,15 +508,22 @@ size, and density is one number rather than a bake.
 It reads the same wind as the tufts, from `wind.gdshaderinc`, so a gust crosses
 both as one thing.
 
-**Two boundaries, one line** (decision 0066). A patch stops at the edge of the
-cells somebody sowed and again at a bare ring around anything standing on them —
-a distance to each obstacle's own base triangles, merged, so the ring follows a
-contour and two things that overlap leave the room left by both. Both boundaries
-are distances in metres, measured once, handed to the blades and to the ground
-under them, and displaced by one world-space noise so neither reads as a drawn
-line. The blades **cut** at that line, at both boundaries; only the darkened
-ground under them fades, over a width of its own, on the inside of it. A cell wall
-between two sown cells is neither boundary and draws nothing.
+**Two boundaries, one line** (decisions 0066 and 0068). A patch stops at the edge
+of the cells somebody sowed and again at a bare ring around anything standing on
+them — a distance to each obstacle's own base triangles, merged, so the ring
+follows a contour and two things that overlap leave the room left by both.
+
+Both are measured the **same way on the same grid**: one field at eight texels a
+metre, carrying how far from an obstacle a texel is, and how far inside or outside
+the grass. They come back as distances in metres, displaced by one world-space
+noise so neither reads as a drawn line. The blades **cut** at that line, at both
+boundaries; only the darkened ground under them fades, over a width of its own, on
+the inside of it. A cell wall between two sown cells is neither boundary and draws
+nothing.
+
+Measured in a grid rather than counted in cells because **a boundary counted in
+cells can only run along cell walls**, and a patch is meant to become something
+painted.
 
 Within a patch, blades sit on a sub-grid per cell and are jittered off it by one
 dial. At zero that grid is what is drawn; at one each blade fills its own square

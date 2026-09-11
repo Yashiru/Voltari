@@ -42,19 +42,17 @@ render_mode disable_force, disable_velocity, keep_data;
 
 group_uniforms patch;
 
-// Every sown cell, two texels tall: its own origin on the top row, and on the
-// bottom one how far each of its four corners is from the nearest ground nobody
-// sowed, in metres.
+// Every sown cell's own origin, one texel per cell, written by `turf_patch.gd`.
 //
 // A texture and not an array, because a patch may carry hundreds of cells and an
 // array's ceiling would have to be written into this file. Unfiltered and
 // unrepeated: what is read back has to be exactly what was written, and a cell
 // index past the end is a mistake, not a wrap.
 //
-// **The four corners are the same four numbers the mat's own vertices carry**,
-// from the same call in `turf_patch.gd`. A blade interpolates them exactly as the
-// rasteriser interpolates them across the mat's quad, so both arrive at the same
-// distance at the same point and the grass and its dark ground stop together.
+// It carried a second row of corner distances until the edge of the patch moved
+// into the field, where it is measured at texel resolution instead of at cell
+// resolution — so a blade now reads it at its own feet, exactly as it already
+// read the room around an obstacle.
 uniform sampler2D cell_spots : filter_nearest, repeat_disable, hint_default_black;
 uniform float cell_count = 1.0;
 
@@ -128,9 +126,7 @@ void process() {
 	float slot = min(floor(float(INDEX) / max(per_cell, 1.0)), max(cell_count - 1.0, 0.0));
 	float within = float(INDEX) - slot * max(per_cell, 1.0);
 
-	float column = (slot + 0.5) / max(cell_count, 1.0);
-	vec3 middle = texture(cell_spots, vec2(column, 0.25)).rgb;
-	vec4 corners = texture(cell_spots, vec2(column, 0.75));
+	vec3 middle = texture(cell_spots, vec2((slot + 0.5) / max(cell_count, 1.0), 0.5)).rgb;
 
 	// A sub-grid inside the cell, then pushed off it. The grid is what makes the
 	// coverage even; the scatter is what stops it reading as a grid.
@@ -195,13 +191,7 @@ void process() {
 	// a centimetre or two inside where a straight edge would have been, which is
 	// the right trade for an edge that does not read as cut with scissors.
 	float bite = turf_bite(out_there.xz);
-	vec2 in_cell = clamp(spot / vec2(cell_width, cell_depth) + 0.5, vec2(0.0), vec2(1.0));
-	float from_bare = mix(
-		mix(corners.x, corners.y, in_cell.x),
-		mix(corners.z, corners.w, in_cell.x),
-		in_cell.y
-	);
-	float inside = min(turf_room(here.xz, bite), turf_edge(from_bare, bite));
+	float inside = min(turf_room(here.xz, bite), turf_inside(here.xz, bite));
 	tall *= step(0.0, inside);
 
 	float wide = tall * blade_width;

@@ -73,7 +73,7 @@ const SLICE_BELOW: float = 0.06
 ## Sixteen is a little over six centimetres, which is finer than any clearance
 ## anybody would set and far finer than a blade is wide. The cap is the usual
 ## guard against a patch sized by accident.
-const FIELD_DETAIL: float = 16.0
+const FIELD_DETAIL: float = 8.0
 const FIELD_MOST: int = 1024
 
 ## How far above the surface the mat is laid, in metres.
@@ -331,14 +331,14 @@ var _filled: Array[Vector3i] = []
 ## change a model under the same id.
 var _feet: Dictionary[String, PackedVector2Array] = {}
 
-## How far each corner of the sown area is from the nearest ground nobody sowed,
-## in metres, keyed by the corner's own place on the grid.
-##
-## **Once per corner and not once per cell that touches it.** Four cells meet at a
-## corner, and the mat's four quads have to agree there exactly or the alpha cracks
-## along the seam. Measured once and looked up settles that by construction, and it
-## is also what lets the blades read the same number the mat does.
-var _corners: Dictionary[Vector2i, float] = {}
+## The field the shaders read, and the ground it covers. Kept after it is built
+## because the mat's own mesh has to be told the same distances the blades get,
+## and asking the field is how they agree by construction rather than by two
+## calculations happening to match.
+var _ground: Image = null
+var _ground_area: Rect2 = Rect2()
+var _ground_reach: float = 1.0
+
 
 var _scatter: ShaderMaterial = null
 var _blade: ShaderMaterial = null
@@ -470,7 +470,6 @@ func _rebuild() -> void:
 		_lay_mat(null)
 		return
 	_filled = filled
-	_measure_corners(grid)
 
 	var per_cell: int = blades_per_cell()
 	var wanted: int = clampi(filled.size() * per_cell, 1, MOST_BLADES)
@@ -486,7 +485,12 @@ func _rebuild() -> void:
 	_scatter.shader = scatter_shader
 	_scatter.set_shader_parameter("cell_spots", _spots(grid))
 	var area: Rect2 = _field_area(grid)
-	var room: ImageTexture = _room(grid)
+	# Built once and handed to both materials. It used to be built here and again
+	# in `_lay_mat`, which is the most expensive thing this file does, done twice.
+	_ground = _field(grid)
+	_ground_area = area
+	_ground_reach = _field_reach(grid)
+	var room: ImageTexture = ImageTexture.create_from_image(_ground)
 	_scatter.set_shader_parameter("room_field", room)
 	_scatter.set_shader_parameter("field_origin", area.position)
 	_scatter.set_shader_parameter("field_size", area.size)
@@ -666,7 +670,9 @@ func _lay_mat(grid: GridMap) -> void:
 	# The same field the blades read, and the same wander laid over it, so the dark
 	# ground stops exactly where the grass does — including the ring around anything
 	# standing on it, and including where that ring is nibbled.
-	_mat_paint.set_shader_parameter("room_field", _room(grid))
+	_mat_paint.set_shader_parameter(
+		"room_field", ImageTexture.create_from_image(_ground)
+	)
 	var area: Rect2 = _field_area(grid)
 	_mat_paint.set_shader_parameter("field_origin", area.position)
 	_mat_paint.set_shader_parameter("field_size", area.size)
@@ -732,7 +738,9 @@ func _mat_mesh(grid: GridMap) -> ArrayMesh:
 			points.append(Vector3(at.x + float(dx) * half_x, up, at.z + float(dz) * half_z))
 			normals.append(Vector3.UP)
 			uvs.append(Vector2(0.5, 0.0))
-			edges.append(Vector2(_edge_at(cell, dx, dz), 0.0))
+			edges.append(Vector2(_inside_at(Vector2(
+				at.x + float(dx) * half_x, at.z + float(dz) * half_z
+			)), 0.0))
 		faces.append_array([first, first + 2, first + 1])
 		faces.append_array([first + 1, first + 2, first + 3])
 
@@ -749,139 +757,162 @@ func _mat_mesh(grid: GridMap) -> ArrayMesh:
 	return mat
 
 
-## How far every corner of the sown area is from the nearest ground nobody sowed,
-## in metres.
-##
-## **One number per corner, not one per corner of each cell.** Four cells meet at a
-## corner and all four want that distance: the mat's quads for their vertices and
-## the blades standing in any of them for their own cut. Measuring once and looking
-## it up is what makes those agree exactly rather than nearly — and nearly is a
-## crack in the mat and a halo round the grass.
-##
-## In metres rather than in cells because that is what both shaders work in: the
-## wander is a distance on the ground and a cell is only a metre wide on a grid
-## whose spacing is one.
-func _measure_corners(grid: GridMap) -> void:
-	_corners.clear()
-
-	var sown: Dictionary[Vector3i, bool] = {}
-	for cell: Vector3i in _filled:
-		sown[cell] = true
-
-	var span: float = absf(grid.cell_size.x)
-	# Far enough to cover both the fade and the wander, so a corner inside the band
-	# either boundary can reach always has a real distance rather than the cap.
-	var reach: int = ceili(maxf(edge_fade, edge_jitter / maxf(span, 0.0001))) + 1
-	var farthest: float = float(reach) * span
-
-	for cell: Vector3i in _filled:
-		for corner: int in range(4):
-			var dx: int = -1 if corner % 2 == 0 else 1
-			var dz: int = -1 if corner < 2 else 1
-			var key: Vector2i = Vector2i(cell.x * 2 + dx, cell.z * 2 + dz)
-			if _corners.has(key):
-				continue
-			var at: Vector2 = Vector2(
-				float(cell.x) + float(dx) * 0.5, float(cell.z) + float(dz) * 0.5
-			)
-			var nearest: float = INF
-			for step_x: int in range(-reach, reach + 1):
-				for step_z: int in range(-reach, reach + 1):
-					var near: Vector3i = cell + Vector3i(step_x, 0, step_z)
-					if sown.has(near):
-						continue
-					nearest = minf(nearest, _out_of(at, near))
-			if nearest == INF:
-				_corners[key] = farthest
-				continue
-			_corners[key] = clampf(nearest * span, 0.0, farthest)
-
-
-## How far a point on the grid is from a cell's square, in cells.
-##
-## **To the square, not to its middle.** A cell is a square metre of bare ground,
-## not a point in it, and the difference is exactly the case the grass is drawn
-## along: the outer corner of a sown cell is 0.71 cells from the middle of the bare
-## one diagonally across from it and 0 cells from that cell's actual edge, which is
-## where the grass in fact stops. Measured to the middle, every outside corner of a
-## patch came out a fifth of a cell inside the grass, the fade never reached the
-## ground's own colour, and nothing could nibble an edge it believed was elsewhere.
-static func _out_of(at: Vector2, cell: Vector3i) -> float:
-	var away: Vector2 = Vector2(
-		absf(at.x - float(cell.x)), absf(at.y - float(cell.z))
-	) - Vector2(0.5, 0.5)
-	return Vector2(maxf(away.x, 0.0), maxf(away.y, 0.0)).length()
-
-
-## One of those distances, or zero for a corner nobody measured — which cannot
-## happen for a sown cell and is a floor under a race rather than a case.
-func _edge_at(cell: Vector3i, dx: int, dz: int) -> float:
-	var key: Vector2i = Vector2i(cell.x * 2 + dx, cell.z * 2 + dz)
-	if not _corners.has(key):
-		return 0.0
-	return _corners[key]
-
-
-## Every sown cell's own origin and its four corner distances, as a texture the
-## scatter reads by index.
+## Every sown cell's own origin, as a texture the scatter reads by index.
 ##
 ## A texture and not an array uniform because a patch may carry hundreds of cells
-## and an array has a ceiling written into the shader. Two texels per cell,
+## and an array has a ceiling written into the shader. One texel per cell,
 ## unfiltered, so what is read back is what was written.
 ##
-## The second row is **the same four numbers the mat's vertices carry**, and a
-## blade interpolates them across its cell exactly as the rasteriser interpolates
-## them across the mat's quad. That is the whole of why the grass and its dark
-## ground stop on the same line.
+## It used to carry a second row of corner distances as well, which is how a blade
+## knew where the edge of the patch was. The edge is in the field now, at texel
+## resolution rather than at cell resolution, so a blade reads it at its own feet
+## exactly as it already read the room around an obstacle.
 func _spots(grid: GridMap) -> ImageTexture:
-	var spots: Image = Image.create(maxi(_filled.size(), 1), 2, false, Image.FORMAT_RGBAF)
+	var spots: Image = Image.create(maxi(_filled.size(), 1), 1, false, Image.FORMAT_RGBF)
 	for index: int in range(_filled.size()):
 		var cell: Vector3i = _filled[index]
 		var at: Vector3 = grid.map_to_local(cell)
-		spots.set_pixel(index, 0, Color(at.x, _surface_of(grid, cell), at.z, 0.0))
-		spots.set_pixel(index, 1, Color(
-			_edge_at(cell, -1, -1),
-			_edge_at(cell, 1, -1),
-			_edge_at(cell, -1, 1),
-			_edge_at(cell, 1, 1)
-		))
+		spots.set_pixel(index, 0, Color(at.x, _surface_of(grid, cell), at.z))
 	return ImageTexture.create_from_image(spots)
 
 
-## How much room there is on the ground, everywhere under the patch, as a texture.
+## Everything the shaders have to know about the ground under this patch, in one
+## texture read once per blade and once per fragment.
+##
+## | | |
+## |---|---|
+## | **R** | how far from the nearest obstacle, 0 inside one |
+## | **G** | how far inside the grass, 0 anywhere outside it |
+## | **B** | how far outside the grass, 0 anywhere inside it |
+##
+## G and B are one signed distance in two unsigned channels, because an eight-bit
+## texture cannot hold a negative and the sign is what says which side of the edge
+## a blade is on. Their difference is the answer.
+##
+## **The edge of the grass is measured, not counted.** It used to be worked out per
+## corner of each cell, in cells, which could only ever describe a boundary that
+## ran along cell walls. Measured here it is a distance like the other one, on the
+## same grid, at texel resolution — so the same code will describe a boundary
+## painted freehand without knowing that anything changed.
 ##
 ## **A distance to the shape of a thing, not to a circle around it.** A radius put
 ## a round bare ring around a square platform; what an author means by "keep half
 ## a metre away" is half a metre from its *edge*, so the grass follows a corner
 ## round a corner and a straight edge in a straight line.
 ##
-## The obstacles' base triangles are stamped into a grid, and then every texel is
-## told how far it is from the nearest stamped one. Both are ordinary work done
-## once when the patch is built; the shader reads one texel per blade and is done.
-##
 ## Stored as a share of `_field_reach` rather than in metres, so a texel is the
 ## same size whatever the clearance and the shader multiplies once to get metres
-## back. White — as far as the field can see — is the default, so a missing texture
-## grows grass everywhere rather than nowhere.
-func _room(grid: GridMap) -> ImageTexture:
+## back.
+func _field(grid: GridMap) -> Image:
 	var area: Rect2 = _field_area(grid)
 	var wide: int = clampi(roundi(area.size.x * FIELD_DETAIL), 1, FIELD_MOST)
 	var deep: int = clampi(roundi(area.size.y * FIELD_DETAIL), 1, FIELD_MOST)
-	var room: Image = Image.create(wide, deep, false, Image.FORMAT_RF)
-	room.fill(Color(1.0, 1.0, 1.0, 1.0))
+	var reach: float = _field_reach(grid)
 
-	if clearance <= 0.0:
-		return ImageTexture.create_from_image(room)
+	# Texels the obstacles cover. Zero room there, and the seed of the first
+	# distance. Skipped entirely when nothing is kept away from anything.
+	var room: PackedFloat32Array = PackedFloat32Array()
+	if clearance > 0.0:
+		var blocked: PackedByteArray = PackedByteArray()
+		blocked.resize(wide * deep)
+		for print_of: PackedVector2Array in _footprints(grid):
+			_stamp(blocked, wide, deep, area, print_of)
+		room = _gap(blocked, wide, deep, area, reach)
 
-	# Texels the obstacles cover. Zero room there, and the seed of everything
-	# below.
-	var taken: PackedByteArray = PackedByteArray()
-	taken.resize(wide * deep)
-	for print_of: PackedVector2Array in _footprints(grid):
-		_stamp(taken, wide, deep, area, print_of)
+	var grown: PackedByteArray = _grass(grid, wide, deep, area)
+	var bare: PackedByteArray = PackedByteArray()
+	bare.resize(wide * deep)
+	for index: int in range(wide * deep):
+		bare[index] = 0 if grown[index] == 1 else 1
 
-	_spread(room, taken, wide, deep, area, _field_reach(grid))
-	return ImageTexture.create_from_image(room)
+	# Two sweeps of the same measurement from opposite stencils: how far this texel
+	# is from the nearest bare one, and how far from the nearest grassy one. One of
+	# the two is always zero, which is what makes the difference a signed distance.
+	var into: PackedFloat32Array = _gap(bare, wide, deep, area, reach)
+	var out_of: PackedFloat32Array = _gap(grown, wide, deep, area, reach)
+
+	# **Half a texel off every distance.** A chamfer measures from texel centre to
+	# texel centre, so the texel just inside a boundary comes back a whole texel
+	# from the one just outside it and the boundary itself is nowhere — the field
+	# steps from plus a texel to minus a texel with nothing between. Taking half a
+	# texel off both sides puts the zero where the edge actually is.
+	var half: float = (area.size.x / float(wide) + area.size.y / float(deep)) * 0.25
+
+	var field: Image = Image.create(wide, deep, false, Image.FORMAT_RGBA8)
+	for y: int in range(deep):
+		for x: int in range(wide):
+			var index: int = y * wide + x
+			var free: float = 1.0
+			if not room.is_empty():
+				free = clampf((room[index] - half) / reach, 0.0, 1.0)
+			field.set_pixel(x, y, Color(
+				free,
+				clampf((into[index] - half) / reach, 0.0, 1.0),
+				clampf((out_of[index] - half) / reach, 0.0, 1.0),
+				1.0
+			))
+	return field
+
+
+## Which texels have grass on them.
+##
+## One byte per texel rather than a coverage, because what follows is a distance
+## and a distance needs a boundary to start from, not a gradient. A texel belongs
+## to the grass when its middle lies in a sown cell.
+##
+## Filled cell by cell rather than texel by texel: a patch is a few hundred cells
+## and a hundred thousand texels, and asking each texel which cell it is in would
+## be the same answer arrived at the expensive way.
+func _grass(grid: GridMap, wide: int, deep: int, area: Rect2) -> PackedByteArray:
+	var grown: PackedByteArray = PackedByteArray()
+	grown.resize(wide * deep)
+
+	var half: Vector2 = Vector2(absf(grid.cell_size.x), absf(grid.cell_size.z)) * 0.5
+	for cell: Vector3i in _filled:
+		var at: Vector3 = grid.map_to_local(cell)
+		var low: Vector2 = Vector2(at.x, at.z) - half
+		var high: Vector2 = Vector2(at.x, at.z) + half
+		var from_x: int = clampi(
+			ceili((low.x - area.position.x) / area.size.x * float(wide) - 0.5), 0, wide - 1
+		)
+		var to_x: int = clampi(
+			floori((high.x - area.position.x) / area.size.x * float(wide) - 0.5), 0, wide - 1
+		)
+		var from_y: int = clampi(
+			ceili((low.y - area.position.y) / area.size.y * float(deep) - 0.5), 0, deep - 1
+		)
+		var to_y: int = clampi(
+			floori((high.y - area.position.y) / area.size.y * float(deep) - 0.5), 0, deep - 1
+		)
+		for y: int in range(from_y, to_y + 1):
+			for x: int in range(from_x, to_x + 1):
+				grown[y * wide + x] = 1
+	return grown
+
+
+## How far inside the grass a point on the ground is, in metres, read out of the
+## field the blades read.
+##
+## **Asked of the field rather than worked out again.** The mat and the blades have
+## to stop on the same line, and two calculations that agree today are two
+## calculations that can stop agreeing. One of them is the answer and the other
+## reads it.
+##
+## Sampled at the nearest texel: the mat's own vertices land on cell corners, which
+## the field grid is aligned to, so there is nothing between texels to interpolate.
+func _inside_at(at: Vector2) -> float:
+	if _ground == null:
+		return 0.0
+	var wide: int = _ground.get_width()
+	var deep: int = _ground.get_height()
+	var x: int = clampi(floori(
+		(at.x - _ground_area.position.x) / _ground_area.size.x * float(wide)
+	), 0, wide - 1)
+	var y: int = clampi(floori(
+		(at.y - _ground_area.position.y) / _ground_area.size.y * float(deep)
+	), 0, deep - 1)
+	var found: Color = _ground.get_pixel(x, y)
+	return (found.g - found.b) * _ground_reach
 
 
 ## The longest distance the room field can express, in metres.
@@ -1217,9 +1248,9 @@ static func _stamp(
 ## Two sweeps of a chamfer, forwards then backwards, which is the ordinary way to
 ## get a distance out of a stencil without measuring every pair. Exact enough: the
 ## error is under a texel, and a texel here is a few centimetres.
-func _spread(
-	room: Image, taken: PackedByteArray, wide: int, deep: int, area: Rect2, reach: float
-) -> void:
+func _gap(
+	taken: PackedByteArray, wide: int, deep: int, area: Rect2, reach: float
+) -> PackedFloat32Array:
 	var step_x: float = area.size.x / float(wide)
 	var step_y: float = area.size.y / float(deep)
 	var across: float = sqrt(step_x * step_x + step_y * step_y)
@@ -1254,10 +1285,7 @@ func _spread(
 			if x > 0 and y + 1 < deep:
 				gap[here] = minf(gap[here], gap[here + wide - 1] + across)
 
-	for y: int in range(deep):
-		for x: int in range(wide):
-			var share: float = clampf(gap[y * wide + x] / maxf(reach, 0.0001), 0.0, 1.0)
-			room.set_pixel(x, y, Color(share, share, share, 1.0))
+	return gap
 
 
 ## The height of the top of whatever is drawn in a cell, in the grid's space.

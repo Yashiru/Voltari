@@ -76,44 +76,68 @@ func _mat_points(patch: TurfPatch) -> PackedVector3Array:
 	return points
 
 
-## The four corner distances the blades read, one texel per cell.
-func _blade_edges(patch: TurfPatch) -> Array[Color]:
+## The field both shaders read, and where it covers.
+func _field(patch: TurfPatch) -> Image:
 	var placing: ShaderMaterial = patch.process_material as ShaderMaterial
 	assert_object(placing).is_not_null()
 	# Through a typed variable rather than a cast: the strict warnings refuse a cast
 	# off a Variant, and an assignment carries the same check.
-	var carried: Variant = placing.get_shader_parameter("cell_spots")
-	var spots: ImageTexture = carried
-	assert_object(spots).is_not_null()
-	var image: Image = spots.get_image()
-	var found: Array[Color] = []
-	for index: int in range(image.get_width()):
-		found.append(image.get_pixel(index, 1))
+	var carried: Variant = placing.get_shader_parameter("room_field")
+	var found: ImageTexture = carried
+	assert_object(found).is_not_null()
+	return found.get_image()
+
+
+## How far inside the grass a point on the ground is, in metres, read the way the
+## shaders read it: the two unsigned channels subtracted.
+func _inside(patch: TurfPatch, at: Vector2) -> float:
+	var image: Image = _field(patch)
+	var placing: ShaderMaterial = patch.process_material as ShaderMaterial
+	var held: Variant = placing.get_shader_parameter("field_reach")
+	var reach: float = held
+	var origin: Variant = placing.get_shader_parameter("field_origin")
+	var corner: Vector2 = origin
+	var sized: Variant = placing.get_shader_parameter("field_size")
+	var span: Vector2 = sized
+
+	var x: int = clampi(floori(
+		(at.x - corner.x) / span.x * float(image.get_width())
+	), 0, image.get_width() - 1)
+	var y: int = clampi(floori(
+		(at.y - corner.y) / span.y * float(image.get_height())
+	), 0, image.get_height() - 1)
+	var texel: Color = image.get_pixel(x, y)
+	return (texel.g - texel.b) * reach
+
+
+## How wide the mat takes to fade out, in metres.
+func _mat_width(patch: TurfPatch) -> float:
+	var mat: MeshInstance3D = patch.get_node_or_null("Mat") as MeshInstance3D
+	var paint: ShaderMaterial = mat.material_override as ShaderMaterial
+	var carried: Variant = paint.get_shader_parameter("edge_width")
+	var found: float = carried
 	return found
 
 
 # --- the two shaders are handed the same boundary -----------------------------
 
 
-func test_the_blades_and_the_mat_read_the_same_distances() -> void:
-	# The invariant the whole feature rests on. Written twice — into a texture for
-	# the particles and into a vertex attribute for the quad — because the two
-	# stages have no other way to be told anything, and a boundary they disagree
-	# about is a dark halo around the grass.
+func test_the_mat_carries_what_the_field_says() -> void:
+	# The invariant the whole feature rests on. The blades read the boundary out of
+	# the field at their own feet; the mat is handed it per vertex. A boundary the
+	# two disagree about is a dark halo around the grass, so the mat's number is
+	# read out of the same field rather than worked out a second way.
 	var cells: Array[Vector3i] = _block(4)
 	var patch: TurfPatch = _patch(cells, cells)
 
 	var mat: PackedVector2Array = _mat_edges(patch)
-	var blades: Array[Color] = _blade_edges(patch)
-	assert_int(blades.size()).is_equal(cells.size())
+	var points: PackedVector3Array = _mat_points(patch)
 	assert_int(mat.size()).is_equal(cells.size() * 4)
 
-	for index: int in range(cells.size()):
-		var corners: Color = blades[index]
-		assert_float(mat[index * 4].x).is_equal_approx(corners.r, 0.0001)
-		assert_float(mat[index * 4 + 1].x).is_equal_approx(corners.g, 0.0001)
-		assert_float(mat[index * 4 + 2].x).is_equal_approx(corners.b, 0.0001)
-		assert_float(mat[index * 4 + 3].x).is_equal_approx(corners.a, 0.0001)
+	for index: int in range(points.size()):
+		assert_float(mat[index].x).is_equal_approx(
+			_inside(patch, Vector2(points[index].x, points[index].z)), 0.0001
+		)
 
 
 func test_a_corner_four_cells_share_carries_one_distance() -> void:
@@ -148,9 +172,17 @@ func test_the_outside_of_a_lone_cell_is_the_edge_itself() -> void:
 	var patch: TurfPatch = _patch(cells, cells)
 
 	# Every corner of a single sown cell touches bare ground, so the grass ends
-	# exactly there and there is nothing for the fade to run over.
+	# there — to within half a texel of the field it is measured on.
+	#
+	# **Half a diagonal texel at a corner**, which is where a chamfer is at its
+	# worst: it measures from texel centre to texel centre, and the nearest grassy
+	# centre to an outside corner lies across the diagonal. A straight edge comes
+	# back exact. It is under a tenth of a metre either way, the wander moves the
+	# boundary by more than that on purpose, and once the mask is painted rather
+	# than made of cells the texel grid is the truth and there is no squarer answer
+	# to be closer to.
 	for carried: Vector2 in _mat_edges(patch):
-		assert_float(carried.x).is_equal_approx(0.0, 0.0001)
+		assert_float(carried.x).is_between(-0.13, 0.13)
 
 
 func test_the_middle_of_a_block_is_further_in_than_its_border() -> void:
@@ -164,12 +196,14 @@ func test_the_middle_of_a_block_is_further_in_than_its_border() -> void:
 	# The inner corners of a three by three block are a cell and a bit from the
 	# nearest bare ground; its outer ones are on it.
 	assert_float(deepest).is_greater(0.5)
-	assert_float(edges[0].x).is_equal_approx(0.0, 0.0001)
+	assert_float(edges[0].x).is_between(-0.13, 0.13)
 
 
-func test_the_distances_grow_with_the_grid() -> void:
-	# Cells are measured in metres, not in cells: a grid with two-metre spacing is
-	# twice as far across, and a fade set in cells has to come out twice as wide.
+func test_the_fade_is_set_in_cells_and_applied_in_metres() -> void:
+	# `edge_fade` is authored in cells and the shaders work in metres, so a grid
+	# with two-metre spacing has to come out with twice the fade. Asserted on the
+	# uniform rather than on the field, which saturates at its own reach and
+	# therefore cannot show a difference this far inside the grass.
 	var cells: Array[Vector3i] = _block(3)
 	var narrow: TurfPatch = _patch(cells, cells)
 	var wide: TurfPatch = _patch(cells, cells)
@@ -177,13 +211,7 @@ func test_the_distances_grow_with_the_grid() -> void:
 	grid.cell_size = Vector3(2.0, 2.0, 2.0)
 	wide.cells = cells
 
-	var one: float = 0.0
-	for carried: Vector2 in _mat_edges(narrow):
-		one = maxf(one, carried.x)
-	var two: float = 0.0
-	for carried: Vector2 in _mat_edges(wide):
-		two = maxf(two, carried.x)
-	assert_float(two).is_equal_approx(one * 2.0, 0.0001)
+	assert_float(_mat_width(wide)).is_equal_approx(_mat_width(narrow) * 2.0, 0.0001)
 
 
 # --- it notices the map changing under it -------------------------------------

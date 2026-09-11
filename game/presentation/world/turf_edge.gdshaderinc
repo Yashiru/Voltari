@@ -32,8 +32,20 @@
 
 group_uniforms room;
 
-// How much room there is on the ground, everywhere under the patch, as a share of
-// the clearance: 0 inside something, 1 well clear of everything.
+// Everything there is to know about the ground under the patch, in one texture.
+//
+//   R  how far from the nearest obstacle, 0 inside one
+//   G  how far inside the grass, 0 anywhere outside it
+//   B  how far outside the grass, 0 anywhere inside it
+//
+// All three as a share of `field_reach`. G and B are one signed distance carried
+// in two unsigned channels, because an eight-bit texture cannot hold a negative
+// and the sign is the whole of what says which side of the edge a blade is on.
+//
+// **The edge of the grass is measured on this grid, not counted in cells.** It
+// used to arrive per corner of each cell, which could only describe a boundary
+// running along cell walls. Here it is a distance like the other one, at texel
+// resolution — so a boundary painted freehand needs nothing new to be read.
 //
 // **A distance to the shape of a thing, not to a circle around it.** A radius put
 // a round bare ring around a square platform; what an author means by "keep half a
@@ -114,6 +126,14 @@ float turf_bite(vec2 world_xz) {
 }
 
 
+// Where a point on the ground sits in the field, 0 to 1. Written once because
+// both readings below take it and a texture read at the wrong place is the kind
+// of mistake that looks like a shader bug for an hour.
+vec2 turf_on_field(vec2 on_ground) {
+	return (on_ground - field_origin) / max(field_size, vec2(0.0001));
+}
+
+
 // How far inside the grass this point is, in metres, counting from the bare ring
 // around whatever is standing on the ground. Negative is inside the ring.
 //
@@ -134,22 +154,34 @@ float turf_bite(vec2 world_xz) {
 // the bite by the room already there means the boundary can move freely out in
 // the open and cannot move at all against the object itself.
 float turf_room(vec2 on_ground, float bite) {
-	float gap = texture(
-		room_field, (on_ground - field_origin) / max(field_size, vec2(0.0001))
-	).r * field_reach;
+	float gap = texture(room_field, turf_on_field(on_ground)).r * field_reach;
 	gap -= bite * smoothstep(0.0, abs(bite) + 1e-4, gap);
 	return gap - clearance;
 }
 
 
-// How far inside the sown area this point is, after the wander, in metres.
+// How far inside the grass this point is, after the wander, in metres.
 //
 // Negative is outside. The same quantity `turf_room` returns, measured against the
-// other boundary — so whatever reads them can simply take the smaller.
+// other boundary — so whatever reads them can simply take the smaller, and one
+// fade over one width serves both.
 //
-// One line, and a function anyway: the sign convention is the thing two shaders
-// have to agree on, and a convention written twice is a convention that gets
-// flipped once.
+// The two channels are subtracted rather than either being read alone: one of
+// them is always zero, so the difference is the signed distance and the sign is
+// which side of the edge this is.
+float turf_inside(vec2 on_ground, float bite) {
+	vec4 found = texture(room_field, turf_on_field(on_ground));
+	return (found.g - found.b) * field_reach - bite;
+}
+
+
+// The same answer, for a caller that was handed the distance instead of looking
+// it up. The mat's vertices carry it in their second UV set.
+//
+// **Transitional.** The number they carry is now read out of this very field by
+// `turf_patch.gd`, so the two agree — but the mat interpolates it across a whole
+// cell, which is fine for a boundary that runs along cell walls and will not be
+// once one can be painted. The mat moves to `turf_inside` when it does.
 float turf_edge(float from_bare, float bite) {
 	return from_bare - bite;
 }

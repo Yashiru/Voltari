@@ -95,6 +95,26 @@ extends MeshInstance3D
 		lift = value
 		_regrow()
 
+@export_group("wind")
+
+## How much this foliage answers the one wind, and where a leaf is held.
+##
+## **The wind itself is not a patch's to set.** Its direction, its gust and its
+## breath are the world's, shared with the grass and the turf, and global by
+## decision 0061. What a patch says is how hard *its* leaves answer: a sheltered
+## bush barely stirs, a crown on a ridge sweeps, and zero is perfectly still.
+@export_range(0.0, 60.0, 0.5) var sway: float = 10.0:
+	set(value):
+		sway = value
+		_regrow()
+
+@export_range(0.0, 0.6, 0.01) var stem_hold: float = 0.15:
+	set(value):
+		stem_hold = value
+		_regrow()
+
+@export_group("sowing")
+
 ## How large a surface must be against the model's largest to be sown at all.
 ## Keeps leaves off a palm's trunk; drop it to zero to sow everything.
 @export_range(0.0, 1.0, 0.01) var dominant_share: float = 0.5:
@@ -133,6 +153,8 @@ func settings() -> VltFoliage.Settings:
 	wanted.dominant_share = dominant_share
 	wanted.colour = colour
 	wanted.colour_amount = colour_amount
+	wanted.sway = sway
+	wanted.stem_hold = stem_hold
 	return wanted
 
 

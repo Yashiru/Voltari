@@ -244,3 +244,29 @@ func test_a_share_of_the_colour_lands_between_the_two() -> void:
 
 	var sown: Mesh = VltFoliage.sown(_painted(branch), SEED, settings)
 	assert_float(_leaf_albedo(sown).r).is_equal_approx(0.5, 0.001)
+
+
+# --- how hard this foliage answers the wind ----------------------------------
+
+
+func test_the_patch_says_how_much_the_leaves_answer_the_wind() -> void:
+	# The wind itself is the world's — direction, gust and breath live in
+	# wind.gdshaderinc and are global by decision 0061. What a sowing carries is
+	# how hard *its* leaves answer it.
+	var settings: VltFoliage.Settings = _settings()
+	settings.sway = 24.0
+	settings.stem_hold = 0.4
+
+	var sown: Mesh = VltFoliage.sown(_painted(Color(0.2, 0.5, 0.3)), SEED, settings)
+	var leaf: ShaderMaterial = sown.surface_get_material(1) as ShaderMaterial
+	assert_float(leaf.get_shader_parameter("leaf_sway")).is_equal_approx(24.0, 0.001)
+	assert_float(leaf.get_shader_parameter("stem_hold")).is_equal_approx(0.4, 0.001)
+
+
+func test_a_still_sowing_is_asked_for_with_zero() -> void:
+	var settings: VltFoliage.Settings = _settings()
+	settings.sway = 0.0
+
+	var sown: Mesh = VltFoliage.sown(_painted(Color(0.2, 0.5, 0.3)), SEED, settings)
+	var leaf: ShaderMaterial = sown.surface_get_material(1) as ShaderMaterial
+	assert_float(leaf.get_shader_parameter("leaf_sway")).is_equal(0.0)

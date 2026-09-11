@@ -100,6 +100,24 @@ class Settings:
 	var colour: Color = Color(0.42, 0.72, 0.34)
 	var colour_amount: float = 0.0
 
+	## How far a leaf's tip swings, as a multiple of what the one wind asks for.
+	##
+	## **Not a wind of its own.** The direction, the gust and the breath are the
+	## world's, shared with the grass and the turf through `wind.gdshaderinc` and
+	## global by decision 0061 — a patch with its own direction would be a second
+	## wind in the same field. What a patch says is how much *this* foliage answers
+	## the one there is: a sheltered bush barely stirs, a crown on a ridge sweeps.
+	## At zero it is as still as the model it grew on.
+	##
+	## Ten rather than one because the wind's scale was set on grass, where a blade
+	## is most of a metre; a leaf is a few centimetres and the same fraction is
+	## sub-pixel. See `foliage_leaf.gdshader` for what was measured.
+	var sway: float = 10.0
+
+	## How much of a leaf is held rather than free, so it pivots at its stem
+	## instead of sliding off the branch.
+	var stem_hold: float = 0.15
+
 	## Sowings produced per item, each with its own seed.
 	##
 	## A `GridMap` stamps one item over many cells, so a single sowing would be
@@ -205,6 +223,12 @@ static func _coloured(source: Material, settings: Settings) -> Material:
 		copy.set_shader_parameter(
 			"albedo", branch.lerp(settings.colour, clampf(settings.colour_amount, 0.0, 1.0))
 		)
+
+	# Always written, so the patch is the one place these are said. The shader's
+	# own defaults are the same numbers and exist for a leaf built by something
+	# other than a patch — of which there is nothing today.
+	copy.set_shader_parameter("leaf_sway", settings.sway)
+	copy.set_shader_parameter("stem_hold", settings.stem_hold)
 	return copy
 
 

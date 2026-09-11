@@ -75,6 +75,7 @@ var _panel: VBoxContainer = null
 var _picker: OptionButton = null
 var _reach: Label = null
 var _sliders: Dictionary[String, HSlider] = {}
+var _labels: Dictionary[String, Label] = {}
 var _trial: Dictionary[String, Variant] = {}
 
 
@@ -118,6 +119,7 @@ func _enter_tree() -> void:
 	_panel.add_child(keep)
 
 	add_control_to_dock(DOCK_SLOT_RIGHT_BL, _panel)
+	_reread()
 	_show_reach()
 
 
@@ -130,6 +132,7 @@ func _exit_tree() -> void:
 	_picker = null
 	_reach = null
 	_sliders.clear()
+	_labels.clear()
 
 
 ## One labelled slider, reading the look's current value for its starting point.
@@ -150,6 +153,7 @@ func _knob(name: String, low: float, high: float) -> Control:
 	row.add_child(slider)
 
 	_sliders[name] = slider
+	_labels[name] = label
 	label.text = "%s  %.3f" % [name, slider.value]
 	return row
 
@@ -171,14 +175,44 @@ func _picked() -> String:
 	return _picker.get_item_text(_picker.selected)
 
 
-## Where a slider starts: the chosen look's value for it, or the middle of its
-## range when the look says nothing. Reading the shader's own default would be
-## better and there is no way to ask for one without a material to hand.
+## Where a slider starts: **what the surfaces actually carry.**
+##
+## It used to be the preset's value, or the middle of the range when the preset
+## said nothing — and every preset says nothing about most of these. So a slider
+## showed 1.25 while the material was on 1.0, and the first nudge jumped the value
+## instead of adjusting it, which is what "the control does not really work" looks
+## like from the outside.
+##
+## Falls back to the preset, and then to the middle, only when there is no scene to
+## read — which is the one case where no true answer exists.
 func _starting(name: String, low: float, high: float) -> float:
+	var root: Node = EditorInterface.get_edited_scene_root()
+	if root != null:
+		var held: float = Look.reading(root, name)
+		if not is_nan(held):
+			return clampf(held, low, high)
 	var values: Dictionary[String, Variant] = CreatureView.preset_values(_picked())
 	if values.has(name) and typeof(values[name]) != TYPE_COLOR:
 		return clampf(float(values[name]), low, high)
 	return (low + high) * 0.5
+
+
+## Puts every slider back onto what the scene now carries. Called after the look
+## changes, and after a scene is opened, so the panel never shows a number the
+## surfaces are not on.
+func _reread() -> void:
+	for name: String in _sliders:
+		var slider: HSlider = _sliders[name]
+		slider.set_block_signals(true)
+		slider.value = _starting(name, slider.min_value, slider.max_value)
+		slider.set_block_signals(false)
+		_relabel(name)
+
+
+func _relabel(name: String) -> void:
+	if not _labels.has(name):
+		return
+	_labels[name].text = "%s  %.3f" % [name, _sliders[name].value]
 
 
 func _pushed(value: float, name: String, label: Label) -> void:
@@ -202,12 +236,6 @@ func _choose(_index: int) -> void:
 		return
 
 	_trial.clear()
-	for name: String in _sliders:
-		var slider: HSlider = _sliders[name]
-		slider.set_block_signals(true)
-		slider.value = _starting(name, slider.min_value, slider.max_value)
-		slider.set_block_signals(false)
-
 	var root: Node = EditorInterface.get_edited_scene_root()
 	if root != null:
 		@warning_ignore("return_value_discarded")
@@ -215,6 +243,9 @@ func _choose(_index: int) -> void:
 		# A creature holds its own materials and rebuilds them rather than being
 		# written to, so it is asked rather than dressed.
 		_ask_creatures(root)
+	# After the change, not before: the sliders are meant to show what the surfaces
+	# now carry, and before the change that is the previous look's values.
+	_reread()
 	_show_reach()
 
 

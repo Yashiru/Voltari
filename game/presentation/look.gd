@@ -102,6 +102,42 @@ static func _ramp() -> Texture2D:
 	return _strip
 
 
+## What a value actually is on the surfaces under `root`, rather than what a file
+## says it ought to be.
+##
+## A control that starts its sliders from a preset is lying whenever the preset is
+## silent — and every preset is silent about most of the forty uniforms. The
+## answer wanted is the one the shader will use, which is the material's own value
+## when it has one and the shader's declared default when it does not.
+##
+## `NAN` when nothing under `root` wears the look, which a caller must handle: a
+## slider cannot be placed against an answer that does not exist.
+static func reading(root: Node, name: String) -> float:
+	var worn: Array[ShaderMaterial] = worn_under(root)
+	if worn.is_empty():
+		return NAN
+	var material: ShaderMaterial = worn[0]
+	var held: Variant = material.get_shader_parameter(name)
+	if typeof(held) == TYPE_FLOAT:
+		@warning_ignore("unsafe_cast")
+		return held as float
+	if typeof(held) == TYPE_INT:
+		@warning_ignore("unsafe_cast")
+		return float(held as int)
+	# Unset on the material, so the shader's own default is what will be used.
+	# There is no way to read one off a `Shader`; the server holds them.
+	var fallback: Variant = RenderingServer.shader_get_parameter_default(
+		material.shader.get_rid(), name
+	)
+	if typeof(fallback) == TYPE_FLOAT:
+		@warning_ignore("unsafe_cast")
+		return fallback as float
+	if typeof(fallback) == TYPE_INT:
+		@warning_ignore("unsafe_cast")
+		return float(fallback as int)
+	return NAN
+
+
 ## The look the game is wearing.
 static func chosen() -> String:
 	return CreatureView.roster_style()

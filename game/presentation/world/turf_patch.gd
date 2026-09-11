@@ -57,9 +57,13 @@ const MOST_BLADES: int = 4000000
 ## that flares, low enough that a canopy never reaches it.
 const ANKLE: float = 0.2
 
-## Stands for "nothing near enough to matter". Far enough that no blade can be
-## within any clearance of it, and finite so the shader's arithmetic stays sane.
-const FAR_AWAY: Vector2 = Vector2(9999.0, 9999.0)
+## Texels a metre in the room field, and the most a side may have.
+##
+## Sixteen is a little over six centimetres, which is finer than any clearance
+## anybody would set and far finer than a blade is wide. The cap is the usual
+## guard against a patch sized by accident.
+const FIELD_DETAIL: float = 16.0
+const FIELD_MOST: int = 1024
 
 ## How far above the surface the mat is laid, in metres.
 ##
@@ -228,9 +232,10 @@ const BUILT: Array[String] = [
 ## spots texture and the box are built from the same list the count came from.
 var _filled: Array[Vector3i] = []
 
-## How wide each item is at its foot, by item id. Cleared whenever the patch is
-## rebuilt, because a library rebuild can change a model under the same id.
-var _feet: Dictionary[int, float] = {}
+## Each item's footprint, flattened to the ground in its own space, by item id.
+## Cleared whenever the patch is rebuilt, because a library rebuild can change a
+## model under the same id.
+var _feet: Dictionary[int, PackedVector2Array] = {}
 
 var _scatter: ShaderMaterial = null
 var _blade: ShaderMaterial = null
@@ -317,7 +322,10 @@ func _rebuild() -> void:
 		_scatter = ShaderMaterial.new()
 	_scatter.shader = scatter_shader
 	_scatter.set_shader_parameter("cell_spots", _spots(grid))
-	_scatter.set_shader_parameter("cell_near", _near(grid))
+	var area: Rect2 = _field_area(grid)
+	_scatter.set_shader_parameter("room_field", _room(grid))
+	_scatter.set_shader_parameter("field_origin", area.position)
+	_scatter.set_shader_parameter("field_size", area.size)
 	_scatter.set_shader_parameter("clearance", clearance)
 	_scatter.set_shader_parameter("cell_count", float(filled.size()))
 	_scatter.set_shader_parameter("per_cell", float(per_cell))
@@ -585,58 +593,64 @@ func _spots(grid: GridMap) -> ImageTexture:
 	return ImageTexture.create_from_image(spots)
 
 
-## Where the nearest thing to keep away from is, per cell, as an offset from that
-## cell's own centre.
+## How much room there is on the ground, everywhere under the patch, as a texture.
 ##
-## An offset and not a distance, so the shader can measure from **each blade**
-## rather than from the cell it stands in. A distance per cell would carve square
-## holes on a one-metre grid; an offset lets a blade work out its own room and the
-## bare ring comes out round.
+## **A distance to the shape of a thing, not to a circle around it.** A radius put
+## a round bare ring around a square platform; what an author means by "keep half
+## a metre away" is half a metre from its *edge*, so the grass follows a corner
+## round a corner and a straight edge in a straight line.
 ##
-## The sentinel for "nothing near" is an offset far enough away that no blade can
-## be within the clearance of it. Cheaper than a flag, and there is no branch in
-## the shader to get wrong.
-func _near(grid: GridMap) -> ImageTexture:
-	var away: Array[Vector3] = _obstacles(grid)
-	var near: Image = Image.create(maxi(_filled.size(), 1), 1, false, Image.FORMAT_RGBF)
+## The obstacles' base triangles are stamped into a grid, and then every texel is
+## told how far it is from the nearest stamped one. Both are ordinary work done
+## once when the patch is built; the shader reads one texel per blade and is done.
+##
+## Stored as a share of the clearance rather than in metres, so the shader needs
+## no scale and a texel never means something different from one patch to the
+## next. White — wide open — is the default, so a missing texture grows grass
+## everywhere rather than nowhere.
+func _room(grid: GridMap) -> ImageTexture:
+	var area: Rect2 = _field_area(grid)
+	var wide: int = clampi(roundi(area.size.x * FIELD_DETAIL), 1, FIELD_MOST)
+	var deep: int = clampi(roundi(area.size.y * FIELD_DETAIL), 1, FIELD_MOST)
+	var room: Image = Image.create(wide, deep, false, Image.FORMAT_RF)
+	room.fill(Color(1.0, 1.0, 1.0, 1.0))
 
-	for index: int in range(_filled.size()):
-		var centre: Vector3 = grid.map_to_local(_filled[index])
-		var here: Vector2 = Vector2(centre.x, centre.z)
-		var closest: Vector2 = FAR_AWAY
-		var wide: float = 0.0
-		var closest_at: float = INF
-		for other: Vector3 in away:
-			# Nearest by its edge, not by its middle: a wide thing beats a nearer
-			# narrow one when it is the wide one a blade would be standing in.
-			var gap: float = here.distance_to(Vector2(other.x, other.y)) - other.z
-			if gap < closest_at:
-				closest_at = gap
-				closest = Vector2(other.x, other.y) - here
-				wide = other.z
-		near.set_pixel(index, 0, Color(closest.x, closest.y, wide, 1.0))
+	if clearance <= 0.0:
+		return ImageTexture.create_from_image(room)
 
-	return ImageTexture.create_from_image(near)
+	# Texels the obstacles cover. Zero room there, and the seed of everything
+	# below.
+	var taken: PackedByteArray = PackedByteArray()
+	taken.resize(wide * deep)
+	for print_of: PackedVector2Array in _footprints(grid):
+		_stamp(taken, wide, deep, area, print_of)
+
+	_spread(room, taken, wide, deep, area)
+	return ImageTexture.create_from_image(room)
 
 
-## Everything on this map the grass has to keep away from, in the grid's own
-## space: where it is, flattened to the ground, and how wide it is.
+## The ground this field covers: the sown cells, grown by the clearance so the
+## ring around an obstacle at the very edge is not cut off.
+func _field_area(grid: GridMap) -> Rect2:
+	var box: Rect2 = Rect2(Vector2(grid.map_to_local(_filled[0]).x, grid.map_to_local(_filled[0]).z), Vector2.ZERO)
+	var half: Vector2 = Vector2(absf(grid.cell_size.x), absf(grid.cell_size.z)) * 0.5
+	for cell: Vector3i in _filled:
+		var at: Vector3 = grid.map_to_local(cell)
+		box = box.expand(Vector2(at.x, at.z) - half)
+		box = box.expand(Vector2(at.x, at.z) + half)
+	return box.grow(clearance + 0.5)
+
+
+## Every obstacle's footprint, as triangles on the ground in the grid's space.
 ##
-## **Every layer, not only the sown one.** A map is three `GridMap`s — terrain,
-## blocking, decor — and a tree is painted on one of the other two. Looking only
-## at the layer being sown found nothing, which is why the grass grew against the
-## trunks.
-##
-## Above the sown floor, strictly: a second terrain layer at the same height is
-## ground, not an obstacle, and treating it as one would kill every blade.
-##
-## The width is the model's own, so `clearance` means *from the edge of the thing*
-## rather than from the middle of its cell. A trunk fills most of a metre, and a
-## clearance measured from the cell centre is a clearance already spent.
-func _obstacles(grid: GridMap) -> Array[Vector3]:
-	var away: Array[Vector3] = []
-	if clearance <= 0.0 or _filled.is_empty():
-		return away
+## Taken from the model's own base triangles — those wholly in its bottom fifth —
+## so the shape is the thing's, not its bounding box's. Cached per item, because
+## a patch meets the same handful of models over and over and walking a mesh is
+## the one expensive thing in this file.
+func _footprints(grid: GridMap) -> Array[PackedVector2Array]:
+	var stamps: Array[PackedVector2Array] = []
+	if _filled.is_empty():
+		return stamps
 
 	var sown: Dictionary[Vector3i, bool] = {}
 	for cell: Vector3i in _filled:
@@ -652,11 +666,19 @@ func _obstacles(grid: GridMap) -> Array[Vector3]:
 			)
 			if at.y <= floor_y + 0.01:
 				continue
-			away.append(Vector3(at.x, at.z, _footprint(layer_grid, cell)))
+			var shape: PackedVector2Array = _base_of(layer_grid, cell)
+			if shape.is_empty():
+				continue
+			var here: Vector2 = Vector2(at.x, at.z)
+			var scale: float = layer_grid.cell_scale
+			var placed: PackedVector2Array = PackedVector2Array()
+			for corner: Vector2 in shape:
+				placed.append(here + corner * scale)
+			stamps.append(placed)
 
 	var beside: Node = grid.get_parent()
 	if beside == null:
-		return away
+		return stamps
 	for node: Node in beside.get_children():
 		if node == self or node is GridMap:
 			continue
@@ -666,15 +688,23 @@ func _obstacles(grid: GridMap) -> Array[Vector3]:
 		var where: Vector3 = grid.to_local(shown.global_position)
 		if where.y <= floor_y + 0.01:
 			continue
+		# A prop node is not in a palette, so there is no item to cache against
+		# and no cell scale to apply. Its own box is the best shape available.
 		var box: AABB = shown.get_aabb()
-		away.append(Vector3(
-			where.x, where.z, maxf(box.size.x, box.size.z) * 0.5
-		))
-
-	return away
+		var half: Vector2 = Vector2(box.size.x, box.size.z) * 0.5
+		var middle: Vector2 = Vector2(where.x, where.z)
+		stamps.append(PackedVector2Array([
+			middle - half, middle + Vector2(half.x, -half.y), middle + half,
+			middle - half, middle + half, middle + Vector2(-half.x, half.y),
+		]))
+	return stamps
 
 
 ## Every `GridMap` of the map this patch belongs to, the sown one included.
+##
+## Every layer, not only the sown one: a map is three of them — terrain, blocking,
+## decor — and a tree is painted on one of the other two. Looking only at the
+## layer being sown found nothing, which is why the grass grew against the trunks.
 static func _layers(grid: GridMap) -> Array[GridMap]:
 	var found: Array[GridMap] = []
 	var beside: Node = grid.get_parent()
@@ -687,54 +717,150 @@ static func _layers(grid: GridMap) -> Array[GridMap]:
 	return found if not found.is_empty() else [grid] as Array[GridMap]
 
 
-## How wide the model in a cell is **where it meets the ground**, as a radius.
+## One item's base triangles, flattened to the ground in the model's own space.
 ##
-## Measured from the vertices in the bottom fifth of the model rather than from
-## its bounding box, and that is the whole point: a palm's box is its canopy, and
-## a clearance taken from it carves a crater three metres across around a trunk
-## you could put both hands round. What the grass has to avoid is the foot.
-##
-## A crate's foot is its whole box, so nothing is lost on the things where the box
-## was already right.
-##
-## Cached per item: a patch asks for the same handful of models once per cell, and
-## reading a mesh's vertices is the one expensive thing in this file.
-func _footprint(grid: GridMap, cell: Vector3i) -> float:
+## A triangle counts when all three of its corners are in the bottom fifth of the
+## model: high enough to catch a base that flares, low enough that a canopy never
+## reaches it. An item with nothing down there — something floating — falls back
+## to its own box, which is the only shape left to use.
+func _base_of(grid: GridMap, cell: Vector3i) -> PackedVector2Array:
 	if grid.mesh_library == null:
-		return 0.0
+		return PackedVector2Array()
 	var item: int = grid.get_cell_item(cell)
 	if item == GridMap.INVALID_CELL_ITEM:
-		return 0.0
+		return PackedVector2Array()
 	if _feet.has(item):
-		return _feet[item] * grid.cell_scale
+		return _feet[item]
 
 	var mesh: ArrayMesh = grid.mesh_library.get_item_mesh(item) as ArrayMesh
 	if mesh == null:
-		return 0.0
+		return PackedVector2Array()
 	var box: AABB = mesh.get_aabb()
 	var ankle: float = box.position.y + box.size.y * ANKLE
-	var middle: Vector2 = Vector2(
-		box.position.x + box.size.x * 0.5, box.position.z + box.size.z * 0.5
-	)
 
-	var widest: float = 0.0
+	var flat: PackedVector2Array = PackedVector2Array()
 	for surface: int in range(mesh.get_surface_count()):
 		var arrays: Array = mesh.surface_get_arrays(surface)
 		if typeof(arrays[Mesh.ARRAY_VERTEX]) != TYPE_PACKED_VECTOR3_ARRAY:
 			continue
+		if typeof(arrays[Mesh.ARRAY_INDEX]) != TYPE_PACKED_INT32_ARRAY:
+			continue
 		@warning_ignore("unsafe_cast")
 		var points: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array
-		for point: Vector3 in points:
-			if point.y > ankle:
+		@warning_ignore("unsafe_cast")
+		var faces: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] as PackedInt32Array
+		var corner: int = 0
+		while corner + 2 < faces.size():
+			var a: Vector3 = points[faces[corner]]
+			var b: Vector3 = points[faces[corner + 1]]
+			var c: Vector3 = points[faces[corner + 2]]
+			corner += 3
+			if a.y > ankle or b.y > ankle or c.y > ankle:
 				continue
-			widest = maxf(widest, middle.distance_to(Vector2(point.x, point.z)))
+			flat.append(Vector2(a.x, a.z))
+			flat.append(Vector2(b.x, b.z))
+			flat.append(Vector2(c.x, c.z))
 
-	# Nothing down there at all — a floating model. Its box is the best guess left.
-	if widest <= 0.0:
-		widest = maxf(box.size.x, box.size.z) * 0.5
+	if flat.is_empty():
+		var half: Vector2 = Vector2(box.size.x, box.size.z) * 0.5
+		var middle: Vector2 = Vector2(
+			box.position.x + box.size.x * 0.5, box.position.z + box.size.z * 0.5
+		)
+		flat = PackedVector2Array([
+			middle - half, middle + Vector2(half.x, -half.y), middle + half,
+			middle - half, middle + half, middle + Vector2(-half.x, half.y),
+		])
 
-	_feet[item] = widest
-	return widest * grid.cell_scale
+	_feet[item] = flat
+	return flat
+
+
+## Marks every texel a footprint covers.
+##
+## Plain barycentric coverage over each triangle's own bounding box. Nothing
+## clever: the grids are a couple of hundred texels across and this runs when a
+## patch is edited, not when it is drawn.
+static func _stamp(
+	taken: PackedByteArray, wide: int, deep: int, area: Rect2, shape: PackedVector2Array
+) -> void:
+	var corner: int = 0
+	while corner + 2 < shape.size():
+		var a: Vector2 = shape[corner]
+		var b: Vector2 = shape[corner + 1]
+		var c: Vector2 = shape[corner + 2]
+		corner += 3
+
+		var low: Vector2 = Vector2(minf(a.x, minf(b.x, c.x)), minf(a.y, minf(b.y, c.y)))
+		var high: Vector2 = Vector2(maxf(a.x, maxf(b.x, c.x)), maxf(a.y, maxf(b.y, c.y)))
+		var from_x: int = clampi(floori((low.x - area.position.x) / area.size.x * float(wide)), 0, wide - 1)
+		var to_x: int = clampi(ceili((high.x - area.position.x) / area.size.x * float(wide)), 0, wide - 1)
+		var from_y: int = clampi(floori((low.y - area.position.y) / area.size.y * float(deep)), 0, deep - 1)
+		var to_y: int = clampi(ceili((high.y - area.position.y) / area.size.y * float(deep)), 0, deep - 1)
+
+		var turn: float = (b - a).cross(c - a)
+		if absf(turn) < 1e-9:
+			continue
+
+		for y: int in range(from_y, to_y + 1):
+			for x: int in range(from_x, to_x + 1):
+				var at: Vector2 = Vector2(
+					area.position.x + (float(x) + 0.5) / float(wide) * area.size.x,
+					area.position.y + (float(y) + 0.5) / float(deep) * area.size.y
+				)
+				var one: float = (b - a).cross(at - a) / turn
+				var two: float = (c - b).cross(at - b) / turn
+				var three: float = (a - c).cross(at - c) / turn
+				if one >= 0.0 and two >= 0.0 and three >= 0.0:
+					taken[y * wide + x] = 1
+
+
+## Fills in how far every texel is from the nearest covered one, as a share of the
+## clearance.
+##
+## Two sweeps of a chamfer, forwards then backwards, which is the ordinary way to
+## get a distance out of a stencil without measuring every pair. Exact enough: the
+## error is under a texel, and a texel here is a few centimetres.
+func _spread(
+	room: Image, taken: PackedByteArray, wide: int, deep: int, area: Rect2
+) -> void:
+	var step_x: float = area.size.x / float(wide)
+	var step_y: float = area.size.y / float(deep)
+	var across: float = sqrt(step_x * step_x + step_y * step_y)
+	var far: float = clearance * 4.0
+
+	var gap: PackedFloat32Array = PackedFloat32Array()
+	gap.resize(wide * deep)
+	for index: int in range(wide * deep):
+		gap[index] = 0.0 if taken[index] == 1 else far
+
+	for y: int in range(deep):
+		for x: int in range(wide):
+			var here: int = y * wide + x
+			if x > 0:
+				gap[here] = minf(gap[here], gap[here - 1] + step_x)
+			if y > 0:
+				gap[here] = minf(gap[here], gap[here - wide] + step_y)
+			if x > 0 and y > 0:
+				gap[here] = minf(gap[here], gap[here - wide - 1] + across)
+			if x + 1 < wide and y > 0:
+				gap[here] = minf(gap[here], gap[here - wide + 1] + across)
+
+	for y: int in range(deep - 1, -1, -1):
+		for x: int in range(wide - 1, -1, -1):
+			var here: int = y * wide + x
+			if x + 1 < wide:
+				gap[here] = minf(gap[here], gap[here + 1] + step_x)
+			if y + 1 < deep:
+				gap[here] = minf(gap[here], gap[here + wide] + step_y)
+			if x + 1 < wide and y + 1 < deep:
+				gap[here] = minf(gap[here], gap[here + wide + 1] + across)
+			if x > 0 and y + 1 < deep:
+				gap[here] = minf(gap[here], gap[here + wide - 1] + across)
+
+	for y: int in range(deep):
+		for x: int in range(wide):
+			var share: float = clampf(gap[y * wide + x] / maxf(clearance, 0.0001), 0.0, 1.0)
+			room.set_pixel(x, y, Color(share, share, share, 1.0))
 
 
 ## The height of the top of whatever is drawn in a cell, in the grid's space.

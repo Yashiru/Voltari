@@ -55,10 +55,19 @@ uniform float cell_count = 1.0;
 // place within the cell by the remainder.
 uniform float per_cell = 300.0;
 
-// Where the nearest thing to keep away from is, per cell, as an offset from that
-// cell's centre. Read per blade rather than per cell, so the bare ring around a
-// rock comes out round instead of square.
-uniform sampler2D cell_near : filter_nearest, repeat_disable, hint_default_black;
+// How much room there is on the ground, everywhere under the patch, as a share of
+// the clearance: 0 inside something, 1 well clear of everything.
+//
+// **A distance to the shape of a thing, not to a circle around it.** Built by
+// `turf_patch.gd` from the obstacles' own base triangles, stamped into one grid
+// and measured once — so where two things overlap, the room is the room left by
+// both, and a blade is never near either. A radius could not do that: the nearest
+// centre wins and the second object is not consulted at all.
+//
+// Sampled smoothly, so the ring reads as a curve rather than as the texels it is.
+uniform sampler2D room_field : filter_linear, repeat_disable, hint_default_white;
+uniform vec2 field_origin;
+uniform vec2 field_size;
 
 // How far grass keeps away from it, in metres. At zero nothing is kept away from
 // and the whole thing costs one smoothstep that always returns one.
@@ -151,18 +160,16 @@ void process() {
 	// business. Thinning the blades as well made the last metre read as
 	// half-mown.
 	//
-	// What they do give way to is whatever else is standing here. Measured from
-	// this blade's own position and from the *edge* of the obstacle rather than
-	// its middle, so the bare ring comes out round and a wide trunk pushes the
-	// grass back further than a thin post.
+	// What they do give way to is whatever else is standing here — read at this
+	// blade's own feet, from a field that already knows the shape of everything
+	// on the ground and where those shapes overlap.
 	//
 	// Folded into the size rather than returned early: a particle shader forbids
 	// `return` in `process`, and a blade scaled to nothing is a degenerate
 	// triangle — rasterised as no pixels at all, which is the cheapest way there
 	// is to not draw something.
-	vec3 obstacle = texture(cell_near, vec2((slot + 0.5) / max(cell_count, 1.0), 0.5)).rgb;
-	float room = length(spot - obstacle.xy) - obstacle.z;
-	tall *= smoothstep(0.0, max(clearance, 0.0001), room);
+	vec2 on_field = (here.xz - field_origin) / max(field_size, vec2(0.0001));
+	tall *= smoothstep(0.0, 1.0, texture(room_field, on_field).r);
 
 	float wide = tall * blade_width;
 

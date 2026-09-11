@@ -42,6 +42,13 @@ uniform float leaf_sway : hint_range(0.0, 60.0) = 10.0;
 // leaf pivots at its stem instead of sliding off the branch.
 uniform float stem_hold : hint_range(0.0, 0.6) = 0.15;
 
+// How much darker the darkest leaf is than the branch it grew on.
+//
+// Which tone a leaf drew is baked per leaf by the generator, snapped to a few
+// flat levels — see `VltFoliage.Settings.tone_spread`. Darkening only: a leaf
+// brighter than the lit side of its own branch reads as a hole.
+uniform float tone_spread : hint_range(0.0, 1.0) = 0.30;
+
 
 void vertex() {
 	// Baked per vertex by the generator: how far up its own leaf this point sits,
@@ -74,5 +81,11 @@ void vertex() {
 }
 
 void fragment() {
-	ALBEDO = comic_shade(comic_paint(UV), SCREEN_UV * VIEWPORT_SIZE, INV_VIEW_MATRIX);
+	// The leaf's own tone, before the print rather than over it — the same order
+	// the grain uses, so the saturation treats it as a colour of its own instead
+	// of as a film laid on top.
+	float tone = mix(1.0 - tone_spread, 1.0, COLOR.b);
+	ALBEDO = comic_shade(
+		comic_paint(UV) * tone, SCREEN_UV * VIEWPORT_SIZE, INV_VIEW_MATRIX
+	);
 }

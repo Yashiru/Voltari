@@ -327,3 +327,58 @@ func test_leaves_grow_out_of_the_surface_and_not_into_it() -> void:
 	assert_float(highest).override_failure_message(
 		"no leaf reached above the surface, so they grew into it"
 	).is_greater(0.0)
+
+
+# --- leaves are not all the same tone ----------------------------------------
+
+
+func _tones(sprigs: ArrayMesh) -> Dictionary:
+	# One tone per leaf, so reading the first vertex of each is enough.
+	@warning_ignore("unsafe_cast")
+	var carried: PackedColorArray = (
+		sprigs.surface_get_arrays(0)[Mesh.ARRAY_COLOR] as PackedColorArray
+	)
+	var seen: Dictionary = {}
+	var leaf: int = 0
+	while leaf < carried.size():
+		seen[snappedf(carried[leaf].b, 0.01)] = true
+		leaf += VltFoliage.OUTLINE.size()
+	return seen
+
+
+func test_the_leaves_are_spread_across_several_tones() -> void:
+	var settings: VltFoliage.Settings = _settings()
+	settings.tone_steps = 3
+	var sprigs: ArrayMesh = VltFoliage.leaves(_box(), SEED, settings)
+
+	assert_int(_tones(sprigs).size()).override_failure_message(
+		"every leaf drew the same tone, so the blob has no volume to find"
+	).is_equal(3)
+
+
+func test_one_tone_is_how_the_variation_is_turned_off() -> void:
+	var settings: VltFoliage.Settings = _settings()
+	settings.tone_steps = 1
+	assert_int(_tones(VltFoliage.leaves(_box(), SEED, settings)).size()).is_equal(1)
+
+
+func test_a_leaf_keeps_one_tone_across_all_its_points() -> void:
+	# A leaf is a flat shape; shading half of it differently would read as two.
+	var sprigs: ArrayMesh = VltFoliage.leaves(_box(), SEED, _settings())
+	@warning_ignore("unsafe_cast")
+	var carried: PackedColorArray = (
+		sprigs.surface_get_arrays(0)[Mesh.ARRAY_COLOR] as PackedColorArray
+	)
+	var leaf: int = 0
+	while leaf + VltFoliage.OUTLINE.size() <= carried.size():
+		for point: int in range(1, VltFoliage.OUTLINE.size()):
+			assert_float(carried[leaf + point].b).is_equal_approx(carried[leaf].b, 0.005)
+		leaf += VltFoliage.OUTLINE.size()
+
+
+func test_the_spread_reaches_the_material() -> void:
+	var settings: VltFoliage.Settings = _settings()
+	settings.tone_spread = 0.55
+	var sown: Mesh = VltFoliage.sown(_painted(Color(0.2, 0.5, 0.3)), SEED, settings)
+	var leaf: ShaderMaterial = sown.surface_get_material(1) as ShaderMaterial
+	assert_float(leaf.get_shader_parameter("tone_spread")).is_equal_approx(0.55, 0.001)

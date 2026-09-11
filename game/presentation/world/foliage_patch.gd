@@ -73,6 +73,19 @@ extends MeshInstance3D
 		colour_amount = value
 		_regrow()
 
+## How much darker a leaf may come out than its branch, and across how many flat
+## tones. What gives a sown blob its volume: every leaf sharing one fill reads as
+## one mass, and a few tones apart lets the eye find the depth.
+@export_range(0.0, 1.0, 0.01) var tone_spread: float = 0.22:
+	set(value):
+		tone_spread = value
+		_regrow()
+
+@export_range(1, 6, 1) var tone_steps: int = 3:
+	set(value):
+		tone_steps = value
+		_regrow()
+
 ## Leaf length as a share of the model's own height, so one setting suits a palm
 ## and a cactus alike.
 @export_range(0.005, 0.5, 0.005) var smallest: float = 0.05:
@@ -155,6 +168,8 @@ func settings() -> VltFoliage.Settings:
 	wanted.colour_amount = colour_amount
 	wanted.sway = sway
 	wanted.stem_hold = stem_hold
+	wanted.tone_spread = tone_spread
+	wanted.tone_steps = tone_steps
 	return wanted
 
 

@@ -145,6 +145,22 @@ reverted by accident along with an unrelated rework; it is back with two tests
 holding it — one on a mesh whose winding contradicts its normals, one that the
 leaves reach above the surface rather than inside it.
 
+### Leaves are spread across a few flat tones
+
+What gives a sown blob volume. Every leaf taking exactly the colour of its
+support means a thousand leaves in one flat fill, and the only thing separating
+them is the terminator — a hard step on this look, so most of them read as one
+mass.
+
+A tone is drawn per leaf and written to all six of its points, in the blue channel
+beside the two the wind already rides in. One surface, no extra draw call, no
+material per tone.
+
+Snapped to three levels rather than continuous, for the reason the grain is
+snapped (decision 0063): a gradient across a flat fill is the polish this look
+avoids, and patches of flat tone are what a screentone is. **Darkening only** —
+a leaf brighter than the lit side of its own branch reads as a hole.
+
 ### Only the surface that is the foliage
 
 The first render settled this: sown on every surface, a palm's **trunk grew brown

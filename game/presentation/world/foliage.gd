@@ -100,6 +100,24 @@ class Settings:
 	var colour: Color = Color(0.42, 0.72, 0.34)
 	var colour_amount: float = 0.0
 
+	## How much darker a leaf may come out than the branch it grew on, and across
+	## how many flat tones.
+	##
+	## **This is what gives a sown blob volume.** Every leaf taking exactly the
+	## colour of its support means a thousand leaves in one flat fill, and the only
+	## thing separating them is the terminator — which on this look is a hard step,
+	## so most of them read as one mass. A few tones apart and the eye finds the
+	## depth on its own.
+	##
+	## Snapped rather than continuous, and to three by default, for the reason the
+	## grain is snapped (decision 0063): a gradient across a flat fill is the polish
+	## this look exists to avoid, and patches of flat tone are what a screentone is.
+	##
+	## Darkening only. Lightening would have to clip somewhere, and a leaf brighter
+	## than the lit side of its own branch reads as a hole rather than as a leaf.
+	var tone_spread: float = 0.30
+	var tone_steps: int = 3
+
 	## How far a leaf's tip swings, as a multiple of what the one wind asks for.
 	##
 	## **Not a wind of its own.** The direction, the gust and the breath are the
@@ -229,6 +247,7 @@ static func _coloured(source: Material, settings: Settings) -> Material:
 	# other than a patch — of which there is nothing today.
 	copy.set_shader_parameter("leaf_sway", settings.sway)
 	copy.set_shader_parameter("stem_hold", settings.stem_hold)
+	copy.set_shader_parameter("tone_spread", settings.tone_spread)
 	return copy
 
 
@@ -414,6 +433,14 @@ static func _grow(
 	var up: Vector3 = upwards * cos(spin) - sideways * sin(spin)
 
 	var size: float = lerpf(settings.smallest, settings.largest, scatter.randf()) * span
+
+	# One tone for the whole leaf, drawn once and written to all six of its
+	# points — a leaf is a flat shape and shading half of it differently would
+	# make it read as two.
+	var steps: int = maxi(settings.tone_steps, 1)
+	var tone: float = 1.0
+	if steps > 1:
+		tone = float(scatter.randi() % steps) / float(steps - 1)
 	var stem: Vector3 = root + out * (size * settings.lift)
 	var first: int = grown.size()
 
@@ -425,7 +452,7 @@ static func _grow(
 		# In the colour channel rather than the UVs, because the UVs are what the
 		# shared look samples a texture with — a leaf would then read its branch's
 		# artwork at coordinates that mean something else entirely.
-		hinge.append(Color(point.y, size, 0.0, 1.0))
+		hinge.append(Color(point.y, size, tone, 1.0))
 		# **The surface's normal, not the leaf's.** See the class comment: this
 		# one line is the difference between a bush and a heap of flakes.
 		facing.append(out)

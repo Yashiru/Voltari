@@ -58,6 +58,19 @@ var _turf: Dictionary[int, int] = {}
 var _restless: Dictionary[int, bool] = {}
 var _looked: float = 0.0
 
+## The blocking layer being watched, and what an author had painted on it the last
+## time it was looked at: cell to item, for the cells holding a model rather than
+## a blocker this filled in.
+##
+## One layer rather than a table of them, because a map scene has one root and one
+## blocking layer, and a table keyed by instance id would be a second thing to
+## keep in step for a case that does not arise.
+##
+## The item matters as much as the cell: swapping a bush for a house on the same
+## cell changes the footprint, and a set of cells alone would call that no change.
+var _watched: int = 0
+var _hosts: Dictionary[Vector3i, int] = {}
+
 
 func _enter_tree() -> void:
 	_gizmos = VltMapGizmos.new()
@@ -139,8 +152,62 @@ func _process(delta: float) -> void:
 	if _looked < SETTLE:
 		return
 	_looked = 0.0
+	_reblock(root as VltWorldMap)
 	for patch: TurfPatch in _turf_patches(root):
 		_follow(patch)
+
+
+## Fills in the footprint of anything painted on the blocking layer, and takes it
+## back when that thing goes.
+##
+## **A cell is one question and a house is five cells wide.** Painting one blocked
+## the cell it stands on and left the player walking through the rest of it, and
+## the answer has to be automatic or it is a chore nobody does for the twentieth
+## house.
+##
+## On the same settle timer as the turf and for the same reason: a brush dragged
+## across ten cells is ten changes, and computing footprints under a moving brush
+## would make painting unusable.
+##
+## **Not through the undo manager**, which is how the placed nodes are moved a few
+## lines above. An action per frame would bury the author's own history under
+## bookkeeping. The consequence is real and worth knowing: undoing a paint removes
+## the model, this notices and takes its blockers back — but undoing further does
+## not put them back, because they were never on the stack. They are cells like
+## any other and can be painted over.
+func _reblock(map: VltWorldMap) -> void:
+	if map == null or map.blocking == null:
+		return
+
+	var grid: GridMap = map.blocking
+	if VltMapBlocking.blocker_item(grid) == GridMap.INVALID_CELL_ITEM:
+		# A palette built before the invisible item existed. Nothing is said: the
+		# author rebuilds the library and the cells start filling in.
+		return
+
+	var now: Dictionary[Vector3i, int] = {}
+	for cell: Vector3i in VltMapBlocking.hosts(grid):
+		now[cell] = grid.get_cell_item(cell)
+
+	if _watched != grid.get_instance_id():
+		# First sight of this layer. What is painted is what the author meant —
+		# filling it in now would rewrite a map that has been played as it is, on
+		# nothing more than having opened it.
+		_watched = grid.get_instance_id()
+		_hosts = now
+		return
+
+	var before: Dictionary[Vector3i, int] = _hosts
+	_hosts = now
+
+	# Taken back before filled in, so a model replaced by a smaller one on the same
+	# cell releases what it held before the new one claims what it needs.
+	for cell: Vector3i in before:
+		if not now.has(cell) or now[cell] != before[cell]:
+			VltMapBlocking.clear(grid, cell, VltMapBlocking.REACH, before[cell])
+	for cell: Vector3i in now:
+		if not before.has(cell) or before[cell] != now[cell]:
+			VltMapBlocking.fill(grid, cell)
 
 
 ## Regrows one patch of turf if the map under it has changed and then settled.

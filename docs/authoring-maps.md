@@ -167,6 +167,38 @@ Nothing detects a wall you can walk through. Painting a wall mesh into `decor`,
 or terrain with no `blocking` under a rock, produces exactly that, and no test
 will ever fail because of it. It is a visual mistake and you are the only check.
 
+### A model in `blocking` blocks what it covers
+
+A cell is one question and a house is five cells wide. Paint one into `blocking`
+and the plugin fills in the rest of its footprint a moment later, with `_blocked`
+— an invisible item the tile library keeps in every palette. Erase the house and
+those cells come back, except any a second model still covers.
+
+**The footprint is what the model occupies below two metres**, which is roughly
+the character: the question is what they would walk into. A canopy, an eave, an
+arch or a balcony is something you walk under and takes no cells. It is measured
+from the geometry in that band and not from the bounding box, which for a palm
+would block the whole clearing it shades.
+
+A cell counts as covered once the model takes more than a twentieth of it, so a
+wall overhanging its neighbour by a millimetre does not take that neighbour, and a
+corridor drawn exactly two cells wide still admits somebody.
+
+**They are ordinary painted cells, so correct them freely.** Erase one to leave a
+doorway through a house the model does not have; paint `_blocked` by hand
+anywhere you want something stopped that no model stands on. Nothing is derived
+at runtime — the map stays the authority on itself, and the validator goes on
+reading it. What you changed sticks until you touch that model again.
+
+Two things worth knowing. Only an *empty* cell is ever filled in: a cell already
+holding something is one you put there, and losing your tile is worse than
+noticing a gap. And this does not go through undo — undoing a paint removes the
+model and its blockers go with it, but undoing past that will not bring them
+back. They are cells like any other; paint over them.
+
+A palette built before `_blocked` existed simply does nothing here. Rebuild the
+tile library and the cells start filling in.
+
 ## 5. Place what the map carries
 
 Add these as **direct children of the map root**. Not under a grouping node: the

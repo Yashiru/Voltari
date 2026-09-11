@@ -137,5 +137,13 @@ textured sphere under the `comic-manga` preset still renders byte for byte
 identical to before. Its latent crawl at a grazing angle is real, is recorded, and
 is somebody's separate change.
 
-**A fragment is greedy.** `Chest` also matches `Bone_ChestA`. The report is the
-defence and there is no second mechanism.
+**A fragment is greedy.** `Chest` also matches `Bone_ChestA`, and `Platform`
+matches the ground tile a map is paved with. The report is the defence and there
+is no second mechanism.
+
+**Do not put it on a ground.** The fade means the grain exists near the camera and
+is gone at distance. On a prop that is invisible — the whole object crosses one
+band. On a floor of two and a half thousand identical cells it is a **disc of
+texture centred on the player**, moving with them, which is worse than no texture
+at all. The layer is for objects; the grain of decision 0063 is what a ground gets,
+and it does not fade for exactly this reason.

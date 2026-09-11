@@ -87,6 +87,25 @@ const WORLD_LOOK: Dictionary[String, float] = {
 	"contact_shade": 0.22,
 }
 
+## What the roughcast adds on top of the shared look, on the items asked for and
+## on no others.
+##
+## Layered over `WORLD_LOOK` rather than replacing it: a rendered wall is still a
+## printed wall, and it still wants the grain, the contact and the terminator it
+## shares with everything else. This is a material, not a second art direction.
+##
+## Tuned by rendering four different models at two distances and looking at them,
+## which is the only way a shader is judged here (decision 0059). The amount is
+## far above the chatter's because a chatter is a line quality and this is a
+## surface: it has to survive being stepped.
+## Only the switch. The grain's size, its threshold and how much of it survives in
+## full light are art direction and live in the shader's own defaults, where every
+## other look value lives — this dictionary exists to turn the layer on, not to
+## hold a second copy of its settings.
+const STUCCO_LOOK: Dictionary[String, float] = {
+	"stucco_amount": 0.32,
+}
+
 
 ## What one run did. Returned rather than printed so a caller can show it, and
 ## so a test can read it.
@@ -112,6 +131,9 @@ class Report:
 	## Items whose material was swapped for the printed look.
 	var printed: PackedStringArray = PackedStringArray()
 
+	## Items that were additionally given the roughcast.
+	var stucco: PackedStringArray = PackedStringArray()
+
 	## The named look everything was dressed in, for a caller that wants to show
 	## which one a library is wearing — it is baked in, so it is worth saying.
 	var look: String = ""
@@ -127,7 +149,9 @@ class Report:
 
 
 ## Reads `folder`, writes `output`, and says what it did.
-static func build(folder: String, output: String, parting: String = "") -> Report:
+static func build(
+	folder: String, output: String, parting: String = "", rough: String = ""
+) -> Report:
 	var report: Report = Report.new()
 	report.output = output
 
@@ -167,7 +191,7 @@ static func build(folder: String, output: String, parting: String = "") -> Repor
 		if not produced.has(item_name):
 			report.orphaned.append(item_name)
 
-	_dress_all(library, by_name, parting, report)
+	_dress_all(library, by_name, parting, rough, report)
 
 	_bake_previews(library)
 
@@ -377,18 +401,34 @@ static func _next_id(library: MeshLibrary) -> int:
 # --- the look everything wears ------------------------------------------------
 
 
-## Puts the printed look on every item, and the wind on the ones that are grass.
+## Whether an item's name matches any of a comma-separated list of fragments.
 ##
-## Grass is picked by name, and by a fragment the author types rather than one
-## written here. A rule guessed from the geometry would be a rule nobody could
-## correct; a list in the dock is a decision somebody made and can see. With no
-## fragment given, nothing is grass and everything is simply printed.
+## By name, and by fragments the author types rather than a rule written here. A
+## rule guessed from the geometry would be a rule nobody could correct; a list in
+## the dock is a decision somebody made and can see. An empty list matches nothing,
+## which is what makes every one of these opt-in: a library built without asking
+## comes out exactly as it did before.
 ##
-## One pass and not two, because `_imported` refuses to re-read a `ShaderMaterial`
-## it cannot introspect: a second pass over an already-dressed surface would drop
-## the colour on the floor rather than leaving it alone.
+## A list rather than one fragment, so a name can be an exact one when nothing
+## shorter would do. `Wall_Tile` is a family; `Chest,Safe,Stump` is three choices.
+static func _named(item_name: String, fragments: String) -> bool:
+	var lowered: String = item_name.to_lower()
+	for fragment: String in fragments.split(",", false):
+		var needle: String = fragment.strip_edges().to_lower()
+		if not needle.is_empty() and lowered.contains(needle):
+			return true
+	return false
+
+
+## Puts the printed look on every item, the wind on the ones that are grass, and
+## the roughcast on the ones that were asked for.
+##
+## One pass and not three, because `_imported` refuses to re-read a
+## `ShaderMaterial` it cannot introspect: a second pass over an already-dressed
+## surface would drop the colour on the floor rather than leaving it alone.
 static func _dress_all(
-	library: MeshLibrary, by_name: Dictionary[String, int], wanted: String, report: Report
+	library: MeshLibrary, by_name: Dictionary[String, int], wanted: String,
+	rough: String, report: Report
 ) -> void:
 	var comic: Shader = ResourceLoader.load(COMIC_SHADER, "Shader") as Shader
 	if comic == null:
@@ -396,7 +436,7 @@ static func _dress_all(
 		return
 
 	var parting: Shader = null
-	if not wanted.is_empty():
+	if not wanted.strip_edges().is_empty():
 		parting = ResourceLoader.load(PARTING_SHADER, "Shader") as Shader
 		if parting == null:
 			report.problems.append("no shader at %s" % PARTING_SHADER)
@@ -404,13 +444,25 @@ static func _dress_all(
 
 	report.look = CreatureView.roster_style()
 	var look: Dictionary[String, Variant] = _look(report.look)
-	var needle: String = wanted.to_lower()
 
 	for item_name: String in by_name:
-		var grass: bool = parting != null and item_name.to_lower().contains(needle)
+		var grass: bool = parting != null and _named(item_name, wanted)
 		var shader: Shader = parting if grass else comic
-		if not _dress(library.get_item_mesh(by_name[item_name]), shader, look):
+
+		# The roughcast is a per-item addition to the same look, not a look of its
+		# own — so it is layered onto the shared values rather than replacing them,
+		# and grass could wear it too if anybody ever asked for a rough blade.
+		var dressing: Dictionary[String, Variant] = look
+		var roughcast: bool = _named(item_name, rough)
+		if roughcast:
+			dressing = look.duplicate()
+			for name: String in STUCCO_LOOK:
+				dressing[name] = STUCCO_LOOK[name]
+
+		if not _dress(library.get_item_mesh(by_name[item_name]), shader, dressing):
 			continue
+		if roughcast:
+			report.stucco.append(item_name)
 		if grass:
 			report.parting.append(item_name)
 		else:

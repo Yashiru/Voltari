@@ -85,7 +85,6 @@ const WORLD_LOOK: Dictionary[String, float] = {
 	"shape_round": 0.0,
 	"grain_amount": 0.26,
 	"contact_shade": 0.22,
-	"cavity_shade": 0.45,
 }
 
 
@@ -148,7 +147,6 @@ static func build(folder: String, output: String, parting: String = "") -> Repor
 		if mesh == null:
 			report.skipped.append(path)
 			continue
-		mesh = _with_cavity(mesh)
 
 		produced[item_name] = true
 		if by_name.has(item_name):
@@ -374,138 +372,6 @@ static func _next_id(library: MeshLibrary) -> int:
 	for id: int in library.get_item_list():
 		highest = maxi(highest, id)
 	return highest + 1
-
-
-# --- how open each corner is --------------------------------------------------
-
-
-## Positions within a millimetre are the same corner. The pack is authored in
-## metres and its vertices land on clean values, so this is generous.
-const WELD: float = 1000.0
-
-## How concave a vertex has to be to count as fully closed, on the dot product of
-## its normal with the direction to its neighbours' middle.
-##
-## A flat surface reads about 0, a right-angled inner corner about 0.7. Half is
-## where a crease is unmistakable and a gentle undulation is still open.
-const CAVITY_REACH: float = 0.5
-
-
-## Writes how open each corner is into the mesh's colour channel.
-##
-## **This is not ambient occlusion and does not pretend to be.** It knows nothing
-## about what else is in the scene, or even about the rest of the same model: a
-## trunk under its own canopy gets nothing. What it does know is where the model
-## folds into itself, and on low-poly work that is most of what occlusion buys —
-## the gap between two leaves of the ground tile, the inside of a corner, the seam
-## where a roof meets a wall.
-##
-## Computed here rather than baked in Blender for one reason, learned the hard
-## way: every route that rewrites an FBX damages it. Exporting FBX to FBX divides
-## the model by a hundred, because Godot renormalises on the unit header and the
-## scale is applied twice; going through glTF bakes a second axis conversion and
-## the tile comes back lying on its side. Both were tried, measured and reverted.
-## Nothing here touches a model file.
-##
-## **Welded by position first.** Godot splits a vertex wherever the shading breaks,
-## so on a flat-shaded model a corner is three or four separate vertices, each
-## knowing only the triangles of its own smoothing group. Measured unwelded, a box
-## corner has no neighbours across the edge and reads as flat. The normal is taken
-## from the welded triangles too, not from the mesh's own: a flat-shaded normal
-## describes a face, and what is wanted here is the shape of the surface.
-##
-## Rebuilds the mesh, so blend shapes and levels of detail would be lost. These
-## models carry neither, and the item that grows one will need this revisited.
-static func _with_cavity(mesh: Mesh) -> Mesh:
-	var source: ArrayMesh = mesh as ArrayMesh
-	if source == null:
-		return mesh
-
-	var baked: ArrayMesh = ArrayMesh.new()
-	for surface: int in range(source.get_surface_count()):
-		var arrays: Array = source.surface_get_arrays(surface)
-		baked.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, _openness_into(arrays))
-		baked.surface_set_material(
-			baked.get_surface_count() - 1, source.surface_get_material(surface)
-		)
-	return baked
-
-
-## One surface's arrays, with the colour channel filled in.
-##
-## Returns them untouched when there is nothing to work from — an unindexed
-## surface has no adjacency to read, and guessing one would be worse than leaving
-## the colour white, which the shader reads as "wide open".
-static func _openness_into(arrays: Array) -> Array:
-	if typeof(arrays[Mesh.ARRAY_VERTEX]) != TYPE_PACKED_VECTOR3_ARRAY:
-		return arrays
-	if typeof(arrays[Mesh.ARRAY_INDEX]) != TYPE_PACKED_INT32_ARRAY:
-		return arrays
-	@warning_ignore("unsafe_cast")
-	var points: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array
-	@warning_ignore("unsafe_cast")
-	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] as PackedInt32Array
-	if points.is_empty() or indices.size() < 3:
-		return arrays
-
-	# Weld: every vertex that shares a position is one corner.
-	var corners: Dictionary[Vector3i, int] = {}
-	var corner_of: PackedInt32Array = PackedInt32Array()
-	var spots: PackedVector3Array = PackedVector3Array()
-	corner_of.resize(points.size())
-	for index: int in range(points.size()):
-		var key: Vector3i = Vector3i((points[index] * WELD).round())
-		if not corners.has(key):
-			corners[key] = spots.size()
-			spots.append(points[index])
-		corner_of[index] = corners[key]
-
-	# One pass over the triangles: an area-weighted normal per corner, and the
-	# sum of where its neighbours are.
-	var normals: PackedVector3Array = PackedVector3Array()
-	var pull: PackedVector3Array = PackedVector3Array()
-	var seen: PackedInt32Array = PackedInt32Array()
-	normals.resize(spots.size())
-	pull.resize(spots.size())
-	seen.resize(spots.size())
-	var triangle: int = 0
-	while triangle + 2 < indices.size():
-		var a: int = corner_of[indices[triangle]]
-		var b: int = corner_of[indices[triangle + 1]]
-		var c: int = corner_of[indices[triangle + 2]]
-		triangle += 3
-		# Not normalised: the cross product's length is twice the triangle's area,
-		# so a big face counts for more than a sliver, which is what stops a fan of
-		# tiny triangles from out-voting the surface they sit on.
-		var face: Vector3 = (spots[b] - spots[a]).cross(spots[c] - spots[a])
-		normals[a] += face
-		normals[b] += face
-		normals[c] += face
-		pull[a] += spots[b] + spots[c]
-		pull[b] += spots[a] + spots[c]
-		pull[c] += spots[a] + spots[b]
-		seen[a] += 2
-		seen[b] += 2
-		seen[c] += 2
-
-	var openness: PackedColorArray = PackedColorArray()
-	openness.resize(points.size())
-	for index: int in range(points.size()):
-		var corner: int = corner_of[index]
-		var open: float = 1.0
-		if seen[corner] > 0 and normals[corner].length_squared() > 1e-12:
-			var middle: Vector3 = pull[corner] / float(seen[corner]) - spots[corner]
-			if middle.length_squared() > 1e-12:
-				# Positive when the neighbours sit on the same side as the normal,
-				# which is what a valley is. Negative on a convex corner, and those
-				# are left wide open — an outer edge catches light, it does not
-				# lose it.
-				var concave: float = normals[corner].normalized().dot(middle.normalized())
-				open = 1.0 - clampf(concave / CAVITY_REACH, 0.0, 1.0)
-		openness[index] = Color(open, open, open, 1.0)
-
-	arrays[Mesh.ARRAY_COLOR] = openness
-	return arrays
 
 
 # --- the look everything wears ------------------------------------------------

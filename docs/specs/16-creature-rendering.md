@@ -329,19 +329,17 @@ Three consequences are worth knowing before writing anything that draws:
   style's uniforms into the `MeshLibrary`; creatures and the character read the
   style file when they load. All three read the same two files.
 
-### Three layers break the flat fill
+### Two layers break the flat fill
 
 **Settled by decision 0063.** These models carry one colour per surface, no
-texture, no vertex colour, and — on the ground tile — no UVs. Three layers sit in
-the shared look, all off by default and all raised on the world only:
+texture, no vertex colour, and — on the ground tile — no UVs. Two layers sit in
+the shared look, both off by default and both raised on the world only:
 
 - a **grain**, a world-space noise snapped to three tones. World space because the
   ground has no UVs, and because the pattern then ignores tile edges, which is what
   stops a floor of identical tiles reading as one.
 - a **contact** band where a model meets the ground, measured up the model's own
   height so it is right on any layer.
-- a **cavity** term, baked into the mesh's colour channel by the tile library.
-  Not ambient occlusion: it knows where a model folds into itself and nothing else.
 
 The grain is raised on the world and nowhere else. It is fixed to world space, so
 on anything that moves the patches would swim across the surface.

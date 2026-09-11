@@ -35,7 +35,7 @@
 //       round_normal = world_here - comic_point(shape_centre, MODEL_MATRIX);
 //   }
 //   void fragment() {
-//       ALBEDO = comic_shade(comic_paint(UV, COLOR), SCREEN_UV * VIEWPORT_SIZE,
+//       ALBEDO = comic_shade(comic_paint(UV), SCREEN_UV * VIEWPORT_SIZE,
 //               INV_VIEW_MATRIX);
 //   }
 //
@@ -243,19 +243,6 @@ group_uniforms contact;
 uniform float contact_shade : hint_range(0.0, 0.8) = 0.0;
 uniform float contact_reach : hint_range(0.01, 0.5) = 0.10;
 
-group_uniforms cavity;
-// How dark the deepest fold of a model goes.
-//
-// Reads the mesh's own colour channel, where the tile library writes how open
-// each corner is — 1 in the open, 0 in a crease. A mesh that carries no colour
-// reads as white everywhere, so this is inert on anything that was not baked.
-//
-// This is the one thing here that is *not* stepped, and the exception is
-// deliberate. The ban on smooth ramps is about a gradient laid across a broad
-// fill, which reads as polish; a fold is narrow by definition, so its falloff
-// reads as a drawn line thickening rather than as a sheen.
-uniform float cavity_shade : hint_range(0.0, 1.0) = 0.0;
-
 varying vec3 world_normal;
 varying vec3 round_normal;
 varying vec3 world_here;
@@ -399,9 +386,9 @@ float comic_contact() {
 // Both go in before `enrich`, so they are part of the paint rather than something
 // laid on top of it — a patch that the saturation then treats as a colour of its
 // own, which is what stops it reading as a dirty overlay.
-vec3 comic_paint(vec2 uv, vec4 baked) {
+vec3 comic_paint(vec2 uv) {
 	vec3 sampled = texture(albedo_tex, fract(uv + uv_offset)).rgb * albedo.rgb;
-	sampled *= comic_grain(world_here) * comic_contact() * mix(1.0, baked.r, cavity_shade);
+	sampled *= comic_grain(world_here) * comic_contact();
 	return posterise(enrich(sampled));
 }
 

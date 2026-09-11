@@ -15,6 +15,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # The guard reads history, not file contents. Pulling 1.7 GB of LFS
+          # objects to look at path names would be the slowest job in the matrix
+          # for no reason.
+          lfs: false
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -25,6 +29,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Text only — this job never opens a binary, so there is no reason to
+          # pull 1.7 GB of LFS objects to run it.
+          lfs: false
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -35,6 +43,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Text only — this job never opens a binary, so there is no reason to
+          # pull 1.7 GB of LFS objects to run it.
+          lfs: false
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -52,6 +64,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Binaries are LFS pointers by default on checkout, and the model
+          # fixture the tests read is one of them.
+          lfs: true
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -72,6 +88,8 @@ jobs:
       GDUNIT4_VERSION: "6.2.1"
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - name: Install Godot
         run: |

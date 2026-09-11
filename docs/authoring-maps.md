@@ -18,16 +18,21 @@ editor state and this repository does not commit changes to it on your behalf.
 
 ## 1. Get models in
 
-Models are **third-party until they are not**, and third-party assets never enter
-this repository (decision 0027). Put them in the quarantine:
+Tile packs are **third-party until they are not**, and a third-party asset never
+enters this repository (decision 0027). A licence to use one in a game is not a
+licence to redistribute it, and a repository redistributes. Put them here:
 
 ```
-game/assets/species/<pack-name>/
+game/assets/species/brawl_arena/
 ```
 
-That path is git-ignored and guarded on the index, the tree, the whole history
-and every export preset. Never stage anything under it, and prefer path-scoped
-`git add` over `-A` at the repository root.
+That path and the `.meshlib` built from it are git-ignored and guarded on the
+index, the tree, the whole history and every export preset. Never stage anything
+under them, and prefer path-scoped `git add` over `-A` at the repository root.
+
+The creature models beside them are the project's own and *are* committed, through
+LFS (decision 0071). A pack you made yourself belongs there too, outside the two
+guarded paths, and `.gitattributes` will send its binaries to LFS on its own.
 
 Godot 4.7 imports `.fbx` natively — there is nothing to install. Drop the files
 in and let the editor import them.

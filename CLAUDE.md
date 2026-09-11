@@ -173,10 +173,17 @@ should not be reintroduced from older notes). A pipeline outside the repository
 takes a rigged FBX to a ready-to-instance `.tscn`; spec 16 describes the contract
 it produces.
 
-**Third-party species models are quarantined** by decision 0027, enforced by
-a guard on the index, the tree, the whole history and every export preset. Never
-stage anything under `game/assets/species/`, and prefer path-scoped
-`git add` over `-A` at the repository root.
+**The creature models are committed, through LFS.** 897 of them under
+`game/assets/species/`, with `.gitattributes` sending every binary to LFS — a
+`.glb` is already compressed, so an ordinary commit of one is the whole file
+again, kept forever (decision 0071, which supersedes half of 0027).
+
+**The tile pack is still quarantined.** `game/assets/species/brawl_arena/` and
+the `.meshlib` built from it are Unity Asset Store packs: licensed to use in a
+game, not to redistribute, and a repository redistributes. The guard of decision
+0027 now watches those two paths and refuses them in the index, the tree, the
+whole history and every export preset. Never stage anything under them, and
+prefer path-scoped `git add` over `-A` at the repository root.
 
 **Presentation lives in `game/presentation/`**, not in the addon: it carries this
 game's art direction, so it is not the reusable engine (decision 0046). The
@@ -189,9 +196,11 @@ any presentation manifest — the overworld is tested on fixture maps built in
 code, the presentation on a generated `.glb` fixture, and `game/maps/` and
 `content/presentation/` are both empty on purpose.
 
-Requires Godot 4.7.2 and Node 22. gdUnit4 is not vendored — install it into
-`addons/gdUnit4/` before running tests locally. CI installs it automatically at
-the version pinned in `.github/workflows/ci.yml`.
+Requires Godot 4.7.2, Node 22 and **Git LFS** — the creature models are 1.7 GB of
+LFS objects, and a clone without it gets 130-byte pointer files that Godot cannot
+import. gdUnit4 is not vendored — install it into `addons/gdUnit4/` before running
+tests locally. CI installs it automatically at the version pinned in
+`.github/workflows/ci.yml`.
 
 Core purity lint:
 

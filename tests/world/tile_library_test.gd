@@ -231,8 +231,7 @@ func test_an_item_is_stood_on_the_middle_of_its_base() -> void:
 	var library: MeshLibrary = _library()
 
 	for id: int in library.get_item_list():
-		var mesh: Mesh = library.get_item_mesh(id)
-		var stood: AABB = library.get_item_mesh_transform(id) * mesh.get_aabb()
+		var stood: AABB = library.get_item_mesh(id).get_aabb()
 		var item_name: String = library.get_item_name(id)
 
 		assert_float(stood.position.y).override_failure_message(
@@ -246,20 +245,46 @@ func test_an_item_is_stood_on_the_middle_of_its_base() -> void:
 		).is_equal_approx(0.0, 0.001)
 
 
-func test_the_mesh_itself_is_left_where_the_artist_put_it() -> void:
-	# The offset is the item's transform, not moved geometry. The mesh in the
-	# library is the imported one, shared with anything that instances the model
-	# directly, and the shader reads `model_base` off its own box.
+func test_the_offset_is_in_the_geometry_and_not_in_the_item() -> void:
+	# One truth, and the reason this is not an item transform. A `MeshLibrary` can
+	# carry one, and it moves only what the `GridMap` draws — everything else that
+	# measures the mesh goes on reading the artist's coordinates. The grass parted
+	# around a footprint 37 m from the model that cast it, which is how this was
+	# found.
 	_sorted()
 	var library: MeshLibrary = _library()
 
 	for id: int in library.get_item_list():
-		if library.get_item_name(id) != "Props/offset":
-			continue
-		var box: AABB = library.get_item_mesh(id).get_aabb()
-		assert_vector(box.get_center()).override_failure_message(
-			"the geometry was moved instead of the item: the mesh now measures %s" % box
-		).is_equal_approx(Vector3(3.0, 2.0, -4.0), Vector3.ONE * 0.001)
+		assert_bool(
+			library.get_item_mesh_transform(id).is_equal_approx(Transform3D.IDENTITY)
+		).override_failure_message(
+			"\"%s\" carries an item transform: a second place the offset lives, and"
+			% library.get_item_name(id)
+			+ " anything measuring the mesh instead of the item is wrong by it"
+		).is_true()
+
+
+func test_a_transform_left_by_an_older_build_is_cleared() -> void:
+	# A MeshLibrary remembers. One build put the standing offset in the item's
+	# transform; the next put it in the geometry and left the old one sitting
+	# there, so the two added up and every tile was drawn the whole offset away
+	# from the cell it was painted on. Deleting the code that wrote a field does
+	# not unwrite the field.
+	var stale: MeshLibrary = MeshLibrary.new()
+	stale.create_item(0)
+	stale.set_item_name(0, "Props/offset")
+	stale.set_item_mesh(0, BoxMesh.new())
+	stale.set_item_mesh_transform(0, Transform3D(Basis.IDENTITY, Vector3(9.0, 0.0, -9.0)))
+	ResourceSaver.save(stale, OUT)
+
+	_sorted()
+
+	assert_bool(
+		_library().get_item_mesh_transform(0).is_equal_approx(Transform3D.IDENTITY)
+	).override_failure_message(
+		"a transform written by an older build survived: it is added to a mesh that"
+		+ " already stands on its origin, so the tile is drawn twice as far off"
+	).is_true()
 
 
 # --- one copy of the library, not two ----------------------------------------

@@ -227,7 +227,7 @@ static func build(
 		if not produced.has(item_name):
 			report.orphaned.append(item_name)
 
-	_stand_all(library, by_name)
+	_disown_transforms(library)
 	_dress_all(library, by_name, parting, grain, contact, rough, report)
 
 	_bake_previews(library)
@@ -322,17 +322,61 @@ static func _combine(root: Node) -> Mesh:
 	if parts.is_empty():
 		return null
 
+	var stand: Transform3D = Transform3D(Basis.IDENTITY, _standing(root, parts))
+
 	var first: MeshInstance3D = parts[0]
-	if parts.size() == 1 and _relative_to(root, first).is_equal_approx(Transform3D.IDENTITY):
-		# The ordinary case, and taking the mesh whole keeps whatever the
-		# importer produced — compression, LODs, shadow meshes and all.
+	if (
+		parts.size() == 1
+		and stand.is_equal_approx(Transform3D.IDENTITY)
+		and _relative_to(root, first).is_equal_approx(Transform3D.IDENTITY)
+	):
+		# A model already standing on its own origin, in one piece: taking it whole
+		# keeps whatever the importer produced — compression, LODs, shadow meshes
+		# and all. None of the two packs here qualifies, and a pack authored at the
+		# origin would.
 		return first.mesh
 
 	var out: ArrayMesh = ArrayMesh.new()
 	for part: MeshInstance3D in parts:
-		_append(out, part, _relative_to(root, part))
+		# Folded into each part's own placement rather than applied in a second
+		# pass: the mesh is built once, and there is no moment where a half-moved
+		# copy exists.
+		_append(out, part, stand * _relative_to(root, part))
 
 	return out if out.get_surface_count() > 0 else null
+
+
+## What the model has to be moved by to stand on its own origin: the middle of
+## its base at (0, 0, 0).
+##
+## **A model does not arrive there.** A finished pack is authored as scenes, so
+## each piece carries the spot it stood on in the one it was cut from — a house in
+## the Town Islands pack is 37 m east and 28 m north of its own origin. A `GridMap`
+## cell places an item's origin, so painted as-is the model appears a block away
+## from the cell that was clicked.
+##
+## **Moved geometry and not an item transform**, which is the second answer and was
+## the wrong one. A `MeshLibrary` can carry a transform per item, and it only moves
+## what the `GridMap` draws: everything else that measures the mesh — the grass
+## working out what footprint to part around, the foliage looking for the top of a
+## tile — goes on reading the artist's coordinates and is wrong by the whole
+## offset. The mesh is where the mesh is, and then there is nothing to remember.
+##
+## It costs the importer's whole-mesh fast path above. Measured before it was
+## taken: none of the 303 models in the two packs here reaches that path anyway,
+## because the offset they carry *is* a node transform and a transformed part is
+## already rebuilt.
+static func _standing(root: Node, parts: Array[MeshInstance3D]) -> Vector3:
+	var box: AABB = AABB()
+	var started: bool = false
+
+	for part: MeshInstance3D in parts:
+		var at: AABB = _relative_to(root, part) * part.mesh.get_aabb()
+		box = at if not started else box.merge(at)
+		started = true
+
+	var middle: Vector3 = box.get_center()
+	return Vector3(-middle.x, -box.position.y, -middle.z)
 
 
 static func _meshes_under(node: Node, into: Array[MeshInstance3D]) -> void:
@@ -369,9 +413,17 @@ static func _relative_to(root: Node, node: Node3D) -> Transform3D:
 ## uniformly grey props.
 static func _append(into: ArrayMesh, part: MeshInstance3D, at: Transform3D) -> void:
 	var source: Mesh = part.mesh
+	# Only an `ArrayMesh` answers what a surface's primitive is. Asking anything
+	# else used to be a crash rather than a refusal, and a `.tscn` holding a
+	# `BoxMesh` is a source this reads by declaration. A primitive builds triangles
+	# and nothing else, so there is nothing to skip.
+	var built: ArrayMesh = source as ArrayMesh
 
 	for surface: int in range(source.get_surface_count()):
-		if source.surface_get_primitive_type(surface) != Mesh.PRIMITIVE_TRIANGLES:
+		if (
+			built != null
+			and built.surface_get_primitive_type(surface) != Mesh.PRIMITIVE_TRIANGLES
+		):
 			continue
 
 		var arrays: Array = source.surface_get_arrays(surface)
@@ -468,6 +520,22 @@ static func _index(library: MeshLibrary) -> Dictionary[String, int]:
 	return by_name
 
 
+## Puts every item's transform back to identity.
+##
+## **A `MeshLibrary` remembers.** A build once put the standing offset here rather
+## than in the geometry, and a library saved in that hour still carries it — now
+## added on top of a mesh that already stands on its own origin, which draws the
+## model the whole offset away from the cell it was painted on. Deleting the code
+## that wrote it does not unwrite it.
+##
+## The same lesson `_disown` records for shader values, and it cost the same
+## afternoon twice: the file on disk is the authority on what it holds, so a tool
+## that stops using a field has to say so in the file.
+static func _disown_transforms(library: MeshLibrary) -> void:
+	for id: int in library.get_item_list():
+		library.set_item_mesh_transform(id, Transform3D.IDENTITY)
+
+
 ## One past the highest id in use. Never a gap left by a removed item: reusing an
 ## id is the one thing that rewrites a painted map.
 static func _next_id(library: MeshLibrary) -> int:
@@ -475,44 +543,6 @@ static func _next_id(library: MeshLibrary) -> int:
 	for id: int in library.get_item_list():
 		highest = maxi(highest, id)
 	return highest + 1
-
-
-# --- standing every item on its own origin -----------------------------------
-
-
-## Puts every item's origin at the middle of the bottom of its mesh.
-##
-## **A model does not arrive there.** These packs are authored as finished scenes,
-## so a house carries the spot it stood on in the island it was cut from — 37 m
-## east and 28 m north, in one case. Painted on a grid, a cell would place the
-## model's *origin* and the model itself would appear a block away. The middle of
-## the base is the only origin that means anything to a tile: it is the point the
-## cell is actually asking about.
-##
-## Applied to every item and not only to new ones, so a rebuild straightens a
-## palette that was built before this existed.
-static func _stand_all(library: MeshLibrary, by_name: Dictionary[String, int]) -> void:
-	for item_name: String in by_name:
-		var id: int = by_name[item_name]
-		var mesh: Mesh = library.get_item_mesh(id)
-		if mesh == null:
-			continue
-		library.set_item_mesh_transform(id, Transform3D(Basis.IDENTITY, _standing(mesh)))
-
-
-## Where a mesh has to be moved to stand on the origin.
-##
-## Carried as the item's transform rather than baked into the vertices, for three
-## reasons. The mesh in the library is the *imported* one, shared with anything
-## that instances the model directly, and moving its vertices would move it there
-## too. The shader reads `model_base` and `model_height` off the mesh's own box,
-## so the artist's coordinates have to stay the artist's. And a transform is one
-## number to look at when a tile sits wrong, where baked geometry is a mesh nobody
-## can tell has been touched.
-static func _standing(mesh: Mesh) -> Vector3:
-	var box: AABB = mesh.get_aabb()
-	var middle: Vector3 = box.get_center()
-	return Vector3(-middle.x, -box.position.y, -middle.z)
 
 
 # --- the look everything wears ------------------------------------------------

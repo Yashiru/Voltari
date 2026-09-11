@@ -68,13 +68,21 @@ the Town Islands pack sits 37 m east and 28 m north of its own origin. A cell
 places an item's *origin*, so painted as-is the model would appear a block away
 from the cell you clicked.
 
-The build gives every item a transform putting the middle of its base on the
-origin. The geometry is not touched: the mesh keeps the artist's coordinates,
-which is what anything instancing the model directly still sees, and what the
-shader measures its height against.
+The build moves the geometry so the middle of its base is on the origin. Every
+build, so rebuilding straightens a palette made before this existed — and moves
+every cell already painted with one.
 
-It applies to every item on every build, so rebuilding straightens a palette
-built before this existed — and moves every cell already painted with one.
+**In the geometry, not in the item.** A `MeshLibrary` can carry a transform per
+item, and that only moves what the `GridMap` draws. Everything else that measures
+the mesh — the grass working out what footprint to part around, the foliage
+looking for the top of a tile — would go on reading the artist's coordinates and
+be wrong by the whole offset. The mesh is where the mesh is, and then there is
+nothing to remember.
+
+The cost is the importer's whole-mesh shortcut, which keeps LODs and shadow
+meshes for a model taken in one piece. It still applies to a model that already
+stands on its origin; none of the 303 here does, because the offset they carry is
+a node transform and a transformed part was already being rebuilt.
 
 **Turn off `Cell > Center Y` on each layer.** A `GridMap` centres on all three
 axes by default, so a cell's origin is half a cell *above* the grid plane. Now

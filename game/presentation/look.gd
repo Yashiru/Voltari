@@ -24,7 +24,14 @@ extends RefCounted
 ##
 ## Checked by name rather than by comparing shader paths, because five shaders
 ## include the look and the list would have to be kept in step with them by hand.
-const MARK: String = "terminator"
+##
+## **It has to be a name nothing else uses, and most are not.** `terminator` was
+## the first choice and it is wrong: `bd` and `typelit` declare one too, so both
+## were being counted as wearing the shared look and handed values meant for it.
+## `ink` is no better — `bd` has that as well. `cast_screen` is only ever declared
+## by the shared look, and it says the right thing: this is a surface that knows
+## what to do with a thrown shadow.
+const MARK: String = "cast_screen"
 
 ## Where the chosen look is recorded, and what it falls back to.
 ##

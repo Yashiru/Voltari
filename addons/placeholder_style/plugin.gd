@@ -32,12 +32,25 @@ extends EditorPlugin
 ## `project.godot`, and that file carries the maintainer's editor state. The name
 ## is a wart, not a scope.
 
-## Looks offered, in order. A comic preset restyles the whole game; the others are
-## separate creature shaders and the world has no variant of them, so picking one
-## leaves the world on plain `comic` rather than dressing it in a shader that does
-## not exist.
-const LOOKS: PackedStringArray = ["comic", "comic-clear", "comic-manga", "comic-noir",
-	"comic-newsprint", "comic-sunday", "toon", "bd", "vinyl", "ramp", "typelit"]
+## Looks that dress the **whole game**: the shared look, and named settings of it.
+const WHOLE: PackedStringArray = ["comic", "comic-clear", "comic-manga", "comic-noir",
+	"comic-newsprint", "comic-sunday"]
+
+## Looks that dress **creatures only**, and why they cannot do more.
+##
+## Each is a separate shader that predates the shared look. Two things stop them
+## reaching the world, and neither is an oversight:
+##
+## - **None of them has a flat `albedo` colour**, only a texture. The world's
+##   models carry their colour in their material and have no texture at all, so a
+##   tile wearing one of these would come out white.
+## - **All of them are `unshaded`** and light themselves from a direction uniform.
+##   A world wearing one would lose every cast shadow it has — which is the thing
+##   decision 0064 existed to get.
+##
+## They are offered anyway, because trying a look on a creature is what they are
+## for. The panel says which case you are in rather than appearing to fail.
+const CREATURES: PackedStringArray = ["toon", "bd", "vinyl", "ramp", "typelit"]
 
 ## What the sliders offer, grouped the way the shader groups them.
 ##
@@ -77,11 +90,15 @@ func _enter_tree() -> void:
 	_panel.name = "Look"
 
 	_picker = OptionButton.new()
-	_picker.tooltip_text = ("The look the whole game wears.\n"
-		+ "Written to style.txt, which is what the game reads on load.")
-	for name: String in LOOKS:
+	_picker.tooltip_text = ("The look the game wears.\n"
+		+ "Written to style.txt, which is what the game reads on load.\n"
+		+ "The entries below the line dress creatures only.")
+	for name: String in WHOLE:
 		_picker.add_item(name)
-	_picker.select(maxi(LOOKS.find(Look.chosen()), 0))
+	_picker.add_separator("creatures only")
+	for name: String in CREATURES:
+		_picker.add_item(name)
+	_picker.select(maxi(_index_of(Look.chosen()), 0))
 	@warning_ignore("return_value_discarded")
 	_picker.item_selected.connect(_choose)
 	_panel.add_child(_picker)
@@ -100,7 +117,7 @@ func _enter_tree() -> void:
 		_panel.add_child(_knob(str(knob[1]), float(knob[2]), float(knob[3])))
 
 	var keep: Button = Button.new()
-	keep.text = "Keep as " + LOOKS[_picker.selected]
+	keep.text = "Keep"
 	keep.tooltip_text = ("Write the sliders into style_presets.json under this "
 		+ "name. Until you do, they are a trial and nothing outside this editor "
 		+ "session sees them.")
@@ -145,13 +162,28 @@ func _knob(name: String, low: float, high: float) -> Control:
 	return row
 
 
+## Which item of the picker carries a name, separator included. `get_item_text`
+## rather than an index sum, so adding a look to either list cannot silently shift
+## the other one.
+func _index_of(style: String) -> int:
+	for index: int in range(_picker.item_count):
+		if _picker.get_item_text(index) == style:
+			return index
+	return -1
+
+
+## The name the picker is showing, or empty when it is sitting on the separator.
+func _picked() -> String:
+	if _picker.selected < 0 or _picker.is_item_separator(_picker.selected):
+		return ""
+	return _picker.get_item_text(_picker.selected)
+
+
 ## Where a slider starts: the chosen look's value for it, or the middle of its
 ## range when the look says nothing. Reading the shader's own default would be
 ## better and there is no way to ask for one without a material to hand.
 func _starting(name: String, low: float, high: float) -> float:
-	var values: Dictionary[String, Variant] = CreatureView.preset_values(
-		LOOKS[_picker.selected]
-	)
+	var values: Dictionary[String, Variant] = CreatureView.preset_values(_picked())
 	if values.has(name) and typeof(values[name]) != TYPE_COLOR:
 		return clampf(float(values[name]), low, high)
 	return (low + high) * 0.5
@@ -168,10 +200,10 @@ func _pushed(value: float, name: String, label: Label) -> void:
 	_show_reach()
 
 
-func _choose(index: int) -> void:
-	if index < 0 or index >= LOOKS.size():
+func _choose(_index: int) -> void:
+	var wanted: String = _picked()
+	if wanted.is_empty():
 		return
-	var wanted: String = LOOKS[index]
 	var wrote: Error = Look.choose(wanted)
 	if wrote != OK:
 		push_warning("cannot record the look: %s" % error_string(wrote))
@@ -202,7 +234,7 @@ func _keep() -> void:
 	if _trial.is_empty():
 		push_warning("nothing to keep — no slider has been moved")
 		return
-	var wanted: String = LOOKS[_picker.selected]
+	var wanted: String = _picked()
 	var presets: Dictionary = CreatureView.presets()
 	if not presets.has(wanted):
 		push_warning("%s is a shader, not a preset — nothing to write to" % wanted)
@@ -235,6 +267,13 @@ func _keep() -> void:
 ## everything. Zero is the honest and common answer: a scene that builds its world
 ## at run time has nothing to dress until it runs.
 func _show_reach() -> void:
+	var wanted: String = _picked()
+	if CREATURES.has(wanted):
+		_reach.text = ("%s dresses creatures only — it has no flat colour and no "
+			+ "lighting, so the world would come out white and lose its shadows. "
+			+ "The world stays on comic.") % wanted
+		return
+
 	var root: Node = EditorInterface.get_edited_scene_root()
 	if root == null:
 		_reach.text = "no scene open — nothing to push onto"

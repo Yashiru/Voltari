@@ -49,7 +49,13 @@ extends MeshInstance3D
 @export_group("sowing")
 
 ## Leaves per square unit of the model's own space — see `VltFoliage.Settings`.
-@export_range(0.0, 40.0, 0.1) var density: float = 3.0:
+##
+## `or_greater`, so the slider is a useful range and not a ceiling: nothing in the
+## generator caps this, and the two numbers it was pinned at before were both
+## picked out of the air. What it does cost is linear — a palm's canopy is about
+## 126 square units, so every point of density is another 126 leaves on every cell
+## carrying one, and a leaf is six vertices and eight triangles.
+@export_range(0.0, 200.0, 0.1, "or_greater") var density: float = 3.0:
 	set(value):
 		density = value
 		_regrow()

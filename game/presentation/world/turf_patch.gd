@@ -1014,7 +1014,7 @@ func _footprints(grid: GridMap) -> Array[PackedVector2Array]:
 	if beside == null:
 		return stamps
 	for node: Node in beside.get_children():
-		if node == self or node is GridMap:
+		if node is GridMap or _grows_cover(node):
 			continue
 		var shown: VisualInstance3D = node as VisualInstance3D
 		if shown == null:
@@ -1024,14 +1024,36 @@ func _footprints(grid: GridMap) -> Array[PackedVector2Array]:
 			continue
 		# A prop node is not in a palette, so there is no item to cache against
 		# and no cell scale to apply. Its own box is the best shape available.
-		var box: AABB = shown.get_aabb()
-		var half: Vector2 = Vector2(box.size.x, box.size.z) * 0.5
-		var middle: Vector2 = Vector2(where.x, where.z)
+		#
+		# **Where the box is, not where the node is.** The two are not the same
+		# place. A box carries its own offset from the node that holds it, and a
+		# model instanced from a finished pack keeps the spot it stood on in the
+		# scene it was cut from — tens of metres, in the Town Islands pack. Taking
+		# the *size* from the box and the *middle* from the node stamped a
+		# rectangle as big as the model onto the origin of the map: a bald patch
+		# with nothing standing in it, and the thing itself still growing grass
+		# through its feet.
+		var box: AABB = (
+			grid.global_transform.affine_inverse() * shown.global_transform
+		) * shown.get_aabb()
+		var low: Vector2 = Vector2(box.position.x, box.position.z)
+		var high: Vector2 = low + Vector2(box.size.x, box.size.z)
 		stamps.append(PackedVector2Array([
-			middle - half, middle + Vector2(half.x, -half.y), middle + half,
-			middle - half, middle + half, middle + Vector2(-half.x, half.y),
+			low, Vector2(high.x, low.y), high,
+			low, high, Vector2(low.x, high.y),
 		]))
 	return stamps
+
+
+## Whether a node beside the grid is itself something that grows ground cover.
+##
+## The rule used to be `node == self`, which said the right thing about one node
+## and nothing at all about its neighbours. A patch is not an obstacle to a patch:
+## turf does not have to make way for turf, and foliage is leaves sitting on
+## models whose own cells are stamped a few lines above — clearing a second time
+## around them eats exactly the lawn they were put there to stand in.
+static func _grows_cover(node: Node) -> bool:
+	return node is TurfPatch or node is VltFoliagePatch
 
 
 ## The height of the grass directly under an obstacle, which is the height its

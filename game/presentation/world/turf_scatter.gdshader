@@ -41,17 +41,25 @@ render_mode disable_force, disable_velocity, keep_data;
 
 group_uniforms patch;
 
-// How large the patch is, in metres. Blades are spread over exactly this.
-uniform vec2 patch_size = vec2(8.0, 8.0);
+// Every sown cell's own origin, one texel per cell, written by `turf_patch.gd`.
+//
+// A texture and not an array, because a patch may carry hundreds of cells and an
+// array's ceiling would have to be written into this file. Unfiltered and
+// unrepeated: what is read back has to be exactly what was written, and a cell
+// index past the end is a mistake, not a wrap.
+uniform sampler2D cell_spots : filter_nearest, repeat_disable, hint_default_black;
+uniform float cell_count = 1.0;
 
-// How many blades there are. Rounded up to a square grid, so the number actually
-// drawn is the next square at or above this.
-uniform float blade_count = 16000.0;
+// How many blades stand in one cell, and how wide a cell is. Together these are
+// the whole of the layout: a blade finds its cell by dividing its index, and its
+// place within the cell by the remainder.
+uniform float per_cell = 300.0;
+uniform float cell_width = 1.0;
+uniform float cell_depth = 1.0;
 
-// How far a blade may wander off its cell, as a share of the cell. At zero the
-// grid is visible as rows the moment the camera looks along one; at one a blade
-// can reach its neighbour's centre, which clumps. Most of the way is right.
-uniform float blade_jitter : hint_range(0.0, 1.0) = 0.85;
+// How far a blade may wander off its spot, as a share of the gap between spots.
+// At zero the sub-grid is visible as rows the moment the camera looks along one.
+uniform float blade_scatter : hint_range(0.0, 1.0) = 0.85;
 
 group_uniforms blade;
 
@@ -89,19 +97,28 @@ void start() {
 
 
 void process() {
-	float side = max(ceil(sqrt(max(blade_count, 1.0))), 1.0);
-	float col = mod(float(INDEX), side);
-	float row = floor(float(INDEX) / side);
+	// Which cell this blade belongs to, and which blade of that cell it is. The
+	// division is the whole reason a patch can be any shape the author selected:
+	// blades are laid out per cell, so a cell nobody chose simply has none.
+	float slot = min(floor(float(INDEX) / max(per_cell, 1.0)), max(cell_count - 1.0, 0.0));
+	float within = float(INDEX) - slot * max(per_cell, 1.0);
 
-	vec2 mine = blade_hash(vec2(col, row));
-	vec2 more = blade_hash(vec2(row, col) + 17.0);
+	vec3 middle = texture(cell_spots, vec2((slot + 0.5) / max(cell_count, 1.0), 0.5)).rgb;
 
-	// Centre of this blade's cell, then pushed off it. The grid is what makes the
-	// coverage even; the jitter is what stops it reading as a grid.
-	vec2 cell = (vec2(col, row) + 0.5) / side - 0.5;
-	vec2 spot = cell * patch_size + (mine - 0.5) * (patch_size / side) * blade_jitter;
+	// A square sub-grid inside the cell, then pushed off it. The grid is what
+	// makes the coverage even; the scatter is what stops it reading as a grid.
+	float side = max(ceil(sqrt(max(per_cell, 1.0))), 1.0);
+	float col = mod(within, side);
+	float row = floor(within / side);
 
-	vec3 here = vec3(spot.x, 0.0, spot.y);
+	vec2 mine = blade_hash(vec2(col, row) + slot * 7.0);
+	vec2 more = blade_hash(vec2(row, col) + slot * 13.0 + 17.0);
+
+	vec2 step_by = vec2(cell_width, cell_depth) / side;
+	vec2 spot = (vec2(col, row) + 0.5) * step_by - vec2(cell_width, cell_depth) * 0.5;
+	spot += (mine - 0.5) * step_by * blade_scatter;
+
+	vec3 here = middle + vec3(spot.x, 0.0, spot.y);
 
 	// Where this blade stands **in the world**, which is what the wind must be
 	// asked about. Read from the patch's own transform rather than from the

@@ -34,6 +34,7 @@ var _snap: Button = null
 var _placed: Dictionary[int, Vector3] = {}
 
 var _sow: Button = null
+var _mow: Button = null
 
 
 func _enter_tree() -> void:
@@ -61,11 +62,26 @@ func _enter_tree() -> void:
 	_sow.pressed.connect(sow_selection)
 	add_control_to_container(CONTAINER_SPATIAL_EDITOR_MENU, _sow)
 
+	# The same gesture on the same selection, for the other thing that grows: the
+	# short lawn on the ground rather than the leaves on a model. Two buttons and
+	# not one with a mode, because an author picking cells knows which of the two
+	# they mean and a mode would make them say it twice.
+	_mow = Button.new()
+	_mow.text = "Sow grass"
+	_mow.tooltip_text = ("Grow short grass on the ground of the cells selected in the GridMap editor.\n"
+		+ "Makes one patch node, whose settings and colour are its own — select it to tune them.")
+	_mow.pressed.connect(sow_grass)
+	add_control_to_container(CONTAINER_SPATIAL_EDITOR_MENU, _mow)
+
 	set_process(true)
 
 
 func _exit_tree() -> void:
 	set_process(false)
+	if _mow != null:
+		remove_control_from_container(CONTAINER_SPATIAL_EDITOR_MENU, _mow)
+		_mow.queue_free()
+		_mow = null
 	if _sow != null:
 		remove_control_from_container(CONTAINER_SPATIAL_EDITOR_MENU, _sow)
 		_sow.queue_free()
@@ -232,6 +248,47 @@ func sow_selection() -> void:
 	EditorInterface.get_selection().add_node(patch)
 	print("Sowed %d cell(s): %d leaves. Tune this patch in the inspector."
 		% [chosen.size(), patch.leaf_total()])
+
+
+## Grows short grass on the ground of the cells selected in the GridMap editor.
+##
+## The twin of `sow_selection`, and deliberately the same gesture: select cells,
+## press, get one node carrying its own settings. What differs is only what grows
+## — leaves on the surface of a model there, a lawn on the ground here.
+func sow_grass() -> void:
+	var grid: GridMap = _selected_grid()
+	if grid == null:
+		_say("Select a GridMap and some of its cells first.")
+		return
+
+	if _grid_editor() == null:
+		_say("This Godot does not expose its GridMap editor, so the selection cannot be read.")
+		return
+	var chosen: Array[Vector3i] = _selected_cells()
+	if chosen.is_empty():
+		_say("No cells are selected in the GridMap editor. Select some and press again.")
+		return
+
+	var patch: TurfPatch = TurfPatch.new()
+	patch.name = "Turf"
+
+	var scene_root: Node = EditorInterface.get_edited_scene_root()
+	var undo: EditorUndoRedoManager = get_undo_redo()
+	undo.create_action("Sow grass")
+	undo.add_do_method(grid.get_parent(), "add_child", patch)
+	undo.add_do_method(patch, "set_owner", scene_root)
+	undo.add_do_reference(patch)
+	undo.add_undo_method(grid.get_parent(), "remove_child", patch)
+	undo.commit_action()
+
+	# Both set after the node is in the tree: the path is resolved against it, and
+	# a patch that grew before it had a parent would have no grid to read.
+	patch.layer = patch.get_path_to(grid)
+	patch.cells = chosen
+	EditorInterface.get_selection().clear()
+	EditorInterface.get_selection().add_node(patch)
+	print("Sowed %d cell(s): %d blades. Tune this patch in the inspector."
+		% [chosen.size(), patch.blade_total()])
 
 
 ## The cells the GridMap editor has selected, as cells.

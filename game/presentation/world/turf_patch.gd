@@ -53,9 +53,12 @@ const TIP: Color = Color(0.42, 0.71, 0.13)
 ## drawing less than it was asked for.
 const MOST_BLADES: int = 4000000
 
-## How far up a model counts as its foot. A fifth: high enough to catch a base
-## that flares, low enough that a canopy never reaches it.
-const ANKLE: float = 0.2
+## How far below the ground the slice still looks, in metres.
+##
+## A rim flush with the grass, or a tile whose top face sits a hair under it,
+## must still count. Small: any deeper and a pit's inside walls start being
+## measured as if they were on the surface.
+const SLICE_BELOW: float = 0.06
 
 ## Texels a metre in the room field, and the most a side may have.
 ##
@@ -232,10 +235,10 @@ const BUILT: Array[String] = [
 ## spots texture and the box are built from the same list the count came from.
 var _filled: Array[Vector3i] = []
 
-## Each item's footprint, flattened to the ground in its own space, by item id.
-## Cleared whenever the patch is rebuilt, because a library rebuild can change a
-## model under the same id.
-var _feet: Dictionary[int, PackedVector2Array] = {}
+## Each item's footprint at a given height band, in its own space, keyed by item
+## and band. Cleared whenever the patch is rebuilt, because a library rebuild can
+## change a model under the same id.
+var _feet: Dictionary[String, PackedVector2Array] = {}
 
 var _scatter: ShaderMaterial = null
 var _blade: ShaderMaterial = null
@@ -673,11 +676,18 @@ func _footprints(grid: GridMap) -> Array[PackedVector2Array]:
 			)
 			if at.y <= floor_y + 0.01:
 				continue
-			var shape: PackedVector2Array = _base_of(layer_grid, cell)
+			# The slab this obstacle has to be sliced at: from a little under the
+			# ground the grass stands on, to the top of the tallest blade. In the
+			# model's own space, because that is where its vertices are — and a
+			# `GridMap` draws an item at `cell_scale` about the cell's origin.
+			var ground: float = _ground_under(grid, sown, cell, floor_y)
+			var scale: float = maxf(layer_grid.cell_scale, 0.0001)
+			var low: float = (ground - SLICE_BELOW - at.y) / scale
+			var high: float = (ground + blade_height + lift - at.y) / scale
+			var shape: PackedVector2Array = _slice_of(layer_grid, cell, low, high)
 			if shape.is_empty():
 				continue
 			var here: Vector2 = Vector2(at.x, at.z)
-			var scale: float = layer_grid.cell_scale
 			# **Turned the way the cell is turned.** A `GridMap` stores one of
 			# twenty-four orientations per cell, and a fence painted sideways has a
 			# footprint that is long the other way. Reading the shape and not the
@@ -715,6 +725,23 @@ func _footprints(grid: GridMap) -> Array[PackedVector2Array]:
 	return stamps
 
 
+## The height of the grass directly under an obstacle, which is the height its
+## footprint has to be sliced at.
+##
+## Asked of the sown cell beneath it, so a patch covering a flat tile and a raised
+## block slices what stands on each at its own ground. Falls back to the patch's
+## own floor when nothing was sown under it — an obstacle on the far side of a
+## hole still needs an answer.
+func _ground_under(
+	grid: GridMap, sown: Dictionary[Vector3i, bool], cell: Vector3i, floor_y: float
+) -> float:
+	for step: int in range(1, 4):
+		var under: Vector3i = Vector3i(cell.x, cell.y - step, cell.z)
+		if sown.has(under):
+			return _surface_of(grid, under)
+	return floor_y
+
+
 ## Every `GridMap` of the map this patch belongs to, the sown one included.
 ##
 ## Every layer, not only the sown one: a map is three of them — terrain, blocking,
@@ -732,62 +759,117 @@ static func _layers(grid: GridMap) -> Array[GridMap]:
 	return found if not found.is_empty() else [grid] as Array[GridMap]
 
 
-## One item's base triangles, flattened to the ground in the model's own space.
+## What a model looks like **at the height the grass stands**, flattened to the
+## ground, in the model's own space.
 ##
-## A triangle counts when all three of its corners are in the bottom fifth of the
-## model: high enough to catch a base that flares, low enough that a canopy never
-## reaches it. An item with nothing down there — something floating — falls back
-## to its own box, which is the only shape left to use.
-func _base_of(grid: GridMap, cell: Vector3i) -> PackedVector2Array:
+## This is the whole of the delimitation and it took three tries to get right, so
+## the reasoning is worth keeping.
+##
+## The first rule was "the bottom fifth of the model". That is a proportion of the
+## *object*, and it has nothing to do with where the grass is. Measured across the
+## placeholder pack it is wrong more often than right: `Gem_Spawner` starts 0.73 m
+## below the ground and its bottom fifth is entirely inside its own pit, so the
+## rim at ground level was never seen and grass grew over the well and into the
+## hole. `Spawn_Gem` is the same. `SpawnZone` has zero height and the rule is
+## degenerate on it. A palm worked by luck.
+##
+## The rule here instead: **the slab a blade occupies**. From a little under the
+## ground the grass stands on, to the top of the tallest blade. That is literally
+## what a blade would run into, so it is right by construction rather than by
+## being tuned — a well gives its rim, a palm gives its trunk, a crate gives its
+## whole box, a plane gives itself, and something floating overhead gives nothing
+## and lets grass grow under it.
+##
+## **Triangles are clipped to the slab, not merely tested against it.** A low-poly
+## trunk can be one triangle running from the ground to the canopy; including it
+## whole would project the canopy and carve a crater, and excluding it would leave
+## the trunk unseen. Clipping takes the part that is actually in the way.
+func _slice_of(
+	grid: GridMap, cell: Vector3i, low: float, high: float
+) -> PackedVector2Array:
 	if grid.mesh_library == null:
 		return PackedVector2Array()
 	var item: int = grid.get_cell_item(cell)
 	if item == GridMap.INVALID_CELL_ITEM:
 		return PackedVector2Array()
-	if _feet.has(item):
-		return _feet[item]
+
+	# Keyed on the band as well as the item: the same model on two different
+	# layers meets the grass at two different heights, and one cached answer for
+	# both would be wrong for at least one of them.
+	var key: String = "%d:%d:%d" % [item, roundi(low * 64.0), roundi(high * 64.0)]
+	if _feet.has(key):
+		return _feet[key]
 
 	var mesh: ArrayMesh = grid.mesh_library.get_item_mesh(item) as ArrayMesh
 	if mesh == null:
 		return PackedVector2Array()
-	var box: AABB = mesh.get_aabb()
-	var ankle: float = box.position.y + box.size.y * ANKLE
 
 	var flat: PackedVector2Array = PackedVector2Array()
 	for surface: int in range(mesh.get_surface_count()):
 		var arrays: Array = mesh.surface_get_arrays(surface)
 		if typeof(arrays[Mesh.ARRAY_VERTEX]) != TYPE_PACKED_VECTOR3_ARRAY:
 			continue
-		if typeof(arrays[Mesh.ARRAY_INDEX]) != TYPE_PACKED_INT32_ARRAY:
-			continue
 		@warning_ignore("unsafe_cast")
 		var points: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array
-		@warning_ignore("unsafe_cast")
-		var faces: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] as PackedInt32Array
+		var faces: PackedInt32Array = PackedInt32Array()
+		if typeof(arrays[Mesh.ARRAY_INDEX]) == TYPE_PACKED_INT32_ARRAY:
+			@warning_ignore("unsafe_cast")
+			faces = arrays[Mesh.ARRAY_INDEX] as PackedInt32Array
+		else:
+			# An unindexed surface is three points a triangle, in order. Handled
+			# rather than skipped: skipping one silently would leave a model with
+			# no footprint and grass growing through it.
+			for index: int in range(points.size()):
+				faces.append(index)
+
 		var corner: int = 0
 		while corner + 2 < faces.size():
-			var a: Vector3 = points[faces[corner]]
-			var b: Vector3 = points[faces[corner + 1]]
-			var c: Vector3 = points[faces[corner + 2]]
+			var whole: Array[Vector3] = [
+				points[faces[corner]], points[faces[corner + 1]], points[faces[corner + 2]]
+			]
 			corner += 3
-			if a.y > ankle or b.y > ankle or c.y > ankle:
+			var inside: Array[Vector3] = _slab(whole, low, high)
+			if inside.size() < 3:
 				continue
-			flat.append(Vector2(a.x, a.z))
-			flat.append(Vector2(b.x, b.z))
-			flat.append(Vector2(c.x, c.z))
+			# Fanned from the first corner: the clip of a triangle by two parallel
+			# planes is convex, so a fan is a correct triangulation of it.
+			for step: int in range(1, inside.size() - 1):
+				flat.append(Vector2(inside[0].x, inside[0].z))
+				flat.append(Vector2(inside[step].x, inside[step].z))
+				flat.append(Vector2(inside[step + 1].x, inside[step + 1].z))
 
-	if flat.is_empty():
-		var half: Vector2 = Vector2(box.size.x, box.size.z) * 0.5
-		var middle: Vector2 = Vector2(
-			box.position.x + box.size.x * 0.5, box.position.z + box.size.z * 0.5
-		)
-		flat = PackedVector2Array([
-			middle - half, middle + Vector2(half.x, -half.y), middle + half,
-			middle - half, middle + half, middle + Vector2(-half.x, half.y),
-		])
-
-	_feet[item] = flat
+	_feet[key] = flat
 	return flat
+
+
+## A polygon kept to the part of it between two heights.
+static func _slab(poly: Array[Vector3], low: float, high: float) -> Array[Vector3]:
+	var kept: Array[Vector3] = _cut(poly, low, true)
+	if kept.size() < 3:
+		return []
+	return _cut(kept, high, false)
+
+
+## A polygon cut by one horizontal plane, keeping the side asked for.
+##
+## Sutherland and Hodgman, on one axis. A corner on the kept side survives, and an
+## edge that crosses gains a corner where it crosses — which is what stops a
+## triangle from being all-or-nothing.
+static func _cut(poly: Array[Vector3], at: float, above: bool) -> Array[Vector3]:
+	var kept: Array[Vector3] = []
+	var count: int = poly.size()
+	for index: int in range(count):
+		var here: Vector3 = poly[index]
+		var next: Vector3 = poly[(index + 1) % count]
+		var here_in: bool = here.y >= at if above else here.y <= at
+		var next_in: bool = next.y >= at if above else next.y <= at
+		if here_in:
+			kept.append(here)
+		if here_in != next_in:
+			# Safe: the two differ, so their heights differ and this cannot divide
+			# by zero.
+			kept.append(here.lerp(next, (at - here.y) / (next.y - here.y)))
+	return kept
 
 
 ## Marks every texel a footprint covers.

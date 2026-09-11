@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cbny3hvxml23d"
-path="res://.godot/imported/pm0792_00_pm0792_00_Mouth_Col.png-f5566be399694b7540ad7978ac653973.ctex"
+path.s3tc="res://.godot/imported/pm0792_00_pm0792_00_Mouth_Col.png-f5566be399694b7540ad7978ac653973.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "f83bf5af1b9c4da8782b36d822a6086e"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://game/assets/species/pm0792_00/pm0792_00_pm0792_00_Mouth_Col.png"
-dest_files=["res://.godot/imported/pm0792_00_pm0792_00_Mouth_Col.png-f5566be399694b7540ad7978ac653973.ctex"]
+dest_files=["res://.godot/imported/pm0792_00_pm0792_00_Mouth_Col.png-f5566be399694b7540ad7978ac653973.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

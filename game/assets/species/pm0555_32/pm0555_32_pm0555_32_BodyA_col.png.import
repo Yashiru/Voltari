@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://ji5gsieliig8"
-path="res://.godot/imported/pm0555_32_pm0555_32_BodyA_col.png-0f4c02c85d612c1228267b3ce9414d63.ctex"
+path.s3tc="res://.godot/imported/pm0555_32_pm0555_32_BodyA_col.png-0f4c02c85d612c1228267b3ce9414d63.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "19d7690a19a4536b70baee26ae664485"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://game/assets/species/pm0555_32/pm0555_32_pm0555_32_BodyA_col.png"
-dest_files=["res://.godot/imported/pm0555_32_pm0555_32_BodyA_col.png-0f4c02c85d612c1228267b3ce9414d63.ctex"]
+dest_files=["res://.godot/imported/pm0555_32_pm0555_32_BodyA_col.png-0f4c02c85d612c1228267b3ce9414d63.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

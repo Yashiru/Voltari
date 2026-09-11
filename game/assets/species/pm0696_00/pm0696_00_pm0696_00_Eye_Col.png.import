@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://855s4amwh6rg"
-path="res://.godot/imported/pm0696_00_pm0696_00_Eye_Col.png-091aba10252ca8dd7174cd296283aa6d.ctex"
+path.s3tc="res://.godot/imported/pm0696_00_pm0696_00_Eye_Col.png-091aba10252ca8dd7174cd296283aa6d.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "eebb67cf9206afe7648e8c7eedcdb075"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://game/assets/species/pm0696_00/pm0696_00_pm0696_00_Eye_Col.png"
-dest_files=["res://.godot/imported/pm0696_00_pm0696_00_Eye_Col.png-091aba10252ca8dd7174cd296283aa6d.ctex"]
+dest_files=["res://.godot/imported/pm0696_00_pm0696_00_Eye_Col.png-091aba10252ca8dd7174cd296283aa6d.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bdo416w2uuqw8"
-path="res://.godot/imported/pm0590_00_pm0590_00_Eye_Col.png-0e85d96d7fc6056905c34b2ef9cf0123.ctex"
+path.s3tc="res://.godot/imported/pm0590_00_pm0590_00_Eye_Col.png-0e85d96d7fc6056905c34b2ef9cf0123.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "4ec7d5ddccef42c8a66bce4357f5eeb5"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://game/assets/species/pm0590_00/pm0590_00_pm0590_00_Eye_Col.png"
-dest_files=["res://.godot/imported/pm0590_00_pm0590_00_Eye_Col.png-0e85d96d7fc6056905c34b2ef9cf0123.ctex"]
+dest_files=["res://.godot/imported/pm0590_00_pm0590_00_Eye_Col.png-0e85d96d7fc6056905c34b2ef9cf0123.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

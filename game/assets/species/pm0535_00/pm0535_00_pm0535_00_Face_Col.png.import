@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://b6y6f4gbpyll"
-path="res://.godot/imported/pm0535_00_pm0535_00_Face_Col.png-8ab252d9c1e2198f0498ff510bcb1e92.ctex"
+path.s3tc="res://.godot/imported/pm0535_00_pm0535_00_Face_Col.png-8ab252d9c1e2198f0498ff510bcb1e92.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "e84609a33049ea94959fb6ee7ecbcc14"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://game/assets/species/pm0535_00/pm0535_00_pm0535_00_Face_Col.png"
-dest_files=["res://.godot/imported/pm0535_00_pm0535_00_Face_Col.png-8ab252d9c1e2198f0498ff510bcb1e92.ctex"]
+dest_files=["res://.godot/imported/pm0535_00_pm0535_00_Face_Col.png-8ab252d9c1e2198f0498ff510bcb1e92.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

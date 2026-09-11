@@ -674,7 +674,16 @@ func _footprints(grid: GridMap) -> Array[PackedVector2Array]:
 			var at: Vector3 = grid.to_local(
 				layer_grid.to_global(layer_grid.map_to_local(cell))
 			)
-			if at.y <= floor_y + 0.01:
+			# **The height test belongs to the sown layer alone.** On that layer it
+			# separates a second storey from the ground itself; on any other it
+			# separates nothing, because a blocking or decor layer holds only
+			# things. Applying it everywhere is what made the delimitation miss a
+			# well painted on decor at the same height as the terrain — which is
+			# where most props are painted, so it missed nearly all of them.
+			#
+			# What decides for the other layers is the slice below: a cell with no
+			# geometry at the height of a blade stamps nothing and costs a lookup.
+			if layer_grid == grid and at.y <= floor_y + 0.01:
 				continue
 			# The slab this obstacle has to be sliced at: from a little under the
 			# ground the grass stands on, to the top of the tallest blade. In the
@@ -682,7 +691,16 @@ func _footprints(grid: GridMap) -> Array[PackedVector2Array]:
 			# `GridMap` draws an item at `cell_scale` about the cell's origin.
 			var ground: float = _ground_under(grid, sown, cell, floor_y)
 			var scale: float = maxf(layer_grid.cell_scale, 0.0001)
-			var low: float = (ground - SLICE_BELOW - at.y) / scale
+			# **From where the thing stands, up to where the grass ends.**
+			#
+			# The grass surface alone is not enough, and the reason is worth
+			# keeping: a leafy ground tile's surface is the top of its own leaves —
+			# 1.13 m above the cell on the placeholder pack — while a prop is drawn
+			# at its cell's origin. Slicing only at the grass height put the slab a
+			# metre above every prop on the map, so nothing was ever stamped and the
+			# delimitation quietly did nothing at all.
+			var from_y: float = minf(ground - SLICE_BELOW, at.y)
+			var low: float = (from_y - at.y) / scale
 			var high: float = (ground + blade_height + lift - at.y) / scale
 			var shape: PackedVector2Array = _slice_of(layer_grid, cell, low, high)
 			if shape.is_empty():

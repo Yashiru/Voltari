@@ -404,8 +404,8 @@ uniform float cast_screen : hint_range(0.0, 1.5) = 0.62;
 // than as a dark patch.
 uniform float cast_line : hint_range(0.0, 1.0) = 0.30;
 
-// How far above its own terminator a surface has to be before a thrown shadow is
-// allowed to touch it.
+// How edge-on to the key a surface may be before a thrown shadow stops touching
+// it, on the raw `dot(N, L)`.
 //
 // **This is the shadow terminator problem, and it had to be answered here.** A
 // surface turning away from the key is already in its own shadow, and it is
@@ -418,10 +418,18 @@ uniform float cast_line : hint_range(0.0, 1.0) = 0.30;
 // with it on and the snap at 0.9 the same edge grows a comb. It was always there
 // and `comic` hid it under a screentone.
 //
-// So the thrown shadow is released back to nothing as the term falls to the
-// terminator, and the attached shading owns that boundary alone. Which is also the
-// right answer artistically: nobody draws a cast shadow onto a face that is
-// already in shade.
+// So the thrown shadow is released back to nothing as the surface turns edge-on,
+// and the attached shading owns that boundary alone. Which is also the right
+// answer artistically: nobody draws a cast shadow onto a face already in shade.
+//
+// **Measured on the raw `dot(N, L)`, not on the look's own terminator**, and that
+// correction matters. Anchoring it on `terminator` reads well for `comic` and
+// `step`, where the terminator is a real boundary — and means nothing for `bands`,
+// `smooth` and `ramp`, which do not put one there. The first look tuned after this
+// landed set `terminator` to zero, which is a perfectly reasonable thing to do on
+// a smooth gradient, and the acne came straight back. The shadow map is unreliable
+// where the surface is edge-on to the light, full stop; that is geometry, and it
+// does not depend on which look is worn.
 uniform float cast_grip : hint_range(0.0, 0.5) = 0.12;
 
 
@@ -1084,7 +1092,8 @@ void comic_shade(
 	//
 	// The chatter goes in before the steps, so every tone and every stroke picks it
 	// up together and the shadow keeps one boundary rather than three.
-	float term = (dot(facing_normal, towards) + wrap) / (1.0 + wrap);
+	float lambert = dot(facing_normal, towards);
+	float term = (lambert + wrap) / (1.0 + wrap);
 	term += (noise31(world_here * chatter_scale) - 0.5) * chatter_amount;
 	// The screen footprint of the lighting term at this pixel, which is what makes
 	// every edge below `edge_pixels` wide everywhere on every model.
@@ -1112,9 +1121,11 @@ void comic_shade(
 	// and `wrap` exists precisely so that an unlit side keeps its colour. A thrown
 	// shadow takes the surface to its own darkest tone and no further.
 	float thrown = mix(shadowed, smoothstep(0.35, 0.65, shadowed), cast_hardness);
-	// Released where the surface is already turning away — see `cast_grip`. Without
-	// it the shadow map's acne along the terminator is snapped into hard teeth.
-	thrown = mix(1.0, thrown, smoothstep(terminator, terminator + cast_grip, term));
+	// Released where the surface is turning edge-on to the key — see `cast_grip`.
+	// Without it the shadow map's acne there is snapped into hard teeth. Measured on
+	// the raw lambert, because where a shadow map stops being reliable is geometry
+	// and has nothing to do with which look is worn.
+	thrown = mix(1.0, thrown, smoothstep(0.0, cast_grip, lambert));
 	colour = mix(dark, colour, thrown);
 
 	// Lit means facing the key *and* not in something's shadow. Everything drawn

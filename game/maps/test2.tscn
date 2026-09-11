@@ -1,0 +1,48 @@
+[gd_scene format=3 uid="uid://c62ab3fft71ac"]
+
+[ext_resource type="Script" uid="uid://hteh4vb60ula" path="res://addons/voltari/world/world_map.gd" id="1_svf8j"]
+[ext_resource type="MeshLibrary" uid="uid://con6r40ecdqb1" path="res://game/assets/placeholders/brawl_arena.meshlib" id="2_0se00"]
+[ext_resource type="Script" uid="uid://bw2sjnqhgjyut" path="res://addons/voltari/world/warp.gd" id="3_0se00"]
+[ext_resource type="Script" uid="uid://b8qte8v1m6dkx" path="res://addons/voltari/world/rest_point.gd" id="4_w0mj4"]
+
+[node name="test2" type="Node3D" unique_id=848246377 node_paths=PackedStringArray("terrain", "blocking", "decor")]
+script = ExtResource("1_svf8j")
+map_id = "test2"
+terrain = NodePath("Terrain")
+blocking = NodePath("Blocking")
+decor = NodePath("Decor")
+
+[node name="Terrain" type="GridMap" parent="." unique_id=1762443203]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1.25, 0)
+mesh_library = ExtResource("2_0se00")
+cell_size = Vector3(1, 1, 1)
+cell_scale = 0.5
+data = {
+"cells": PackedInt32Array(0, 0, 50, 0, 1, 50, 0, 2, 50, 0, 3, 50, 0, 4, 50, 0, 5, 50, 1, 0, 50, 1, 1, 50, 1, 2, 50, 1, 3, 50, 1, 4, 50, 1, 5, 50, 2, 0, 50, 2, 1, 50, 2, 2, 50, 2, 3, 50, 2, 4, 50, 2, 5, 50, 3, 0, 50, 3, 1, 50, 3, 2, 50, 3, 3, 50, 3, 4, 50, 3, 5, 50, 4, 0, 50, 4, 1, 50, 4, 2, 50, 4, 3, 50, 4, 4, 50, 4, 5, 50, 5, 0, 50, 5, 1, 50, 5, 2, 50, 5, 3, 50, 5, 4, 50, 5, 5, 50, 6, 0, 50, 6, 1, 50, 6, 2, 50, 6, 3, 50, 6, 4, 50, 6, 5, 50, 7, 0, 50, 7, 1, 50, 7, 2, 50, 7, 3, 50, 7, 4, 50, 7, 5, 50, 8, 0, 50, 8, 1, 50, 8, 2, 50, 8, 3, 50, 8, 4, 50, 8, 5, 50, 9, 0, 50, 9, 1, 50, 9, 2, 50, 9, 3, 50, 9, 4, 50, 9, 5, 50)
+}
+
+[node name="Blocking" type="GridMap" parent="." unique_id=499590474]
+mesh_library = ExtResource("2_0se00")
+cell_size = Vector3(1, 1, 1)
+cell_scale = 0.5
+
+[node name="Decor" type="GridMap" parent="." unique_id=1565854379]
+mesh_library = ExtResource("2_0se00")
+cell_size = Vector3(1, 1, 1)
+cell_scale = 0.5
+data = {
+"cells": PackedInt32Array(6, 4, 1441810)
+}
+
+[node name="VltWarp" type="Node3D" parent="." unique_id=530776499]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6.5, 0.5, 4.5)
+script = ExtResource("3_0se00")
+cell = Vector2i(6, 4)
+to_map = "test1"
+metadata/_custom_type_script = "uid://bw2sjnqhgjyut"
+
+[node name="VltRestPoint" type="Node3D" parent="." unique_id=522985019]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, 0.5, 5.5)
+script = ExtResource("4_w0mj4")
+cell = Vector2i(3, 5)
+metadata/_custom_type_script = "uid://b8qte8v1m6dkx"

@@ -1,7 +1,13 @@
 @tool
+class_name CreatureView
 extends Node3D
 
 ## Runtime wiring for an imported placeholder creature.
+##
+## Named so that the two tools which need the look without having a creature to
+## hand can ask for it: the editor plugin that switches it, and the tile library
+## that dresses the world in it. Nothing new is exposed by the name — `presets`,
+## `roster_style` and `preset_values` were already static and already public.
 ##
 ## What a glTF cannot carry is reattached here: the cartoon shader and its ink
 ## outline, the scrolling flame, per-clip loop modes, the eye expressions, and
@@ -225,11 +231,11 @@ var _surfaces: Array[ShaderMaterial] = []
 ## block's timeline, kept for a placeholder exported before blocks existed.
 var _eye_clips: Dictionary[String, PackedFloat32Array] = {}
 
-## The preset the current style resolves to, empty when the style names a shader
-## directly. Held rather than looked up twice: `_push_look` has to re-apply it
-## after the sliders, and re-reading the file on every slider drag would parse
-## JSON once per frame while one is being dragged.
-var _preset: Dictionary = {}
+## The current style's uniforms, empty when the style names a shader directly.
+## Held rather than looked up twice: `_push_look` has to re-apply them after the
+## sliders, and re-reading the file on every slider drag would parse JSON once per
+## frame while one is being dragged.
+var _preset: Dictionary[String, Variant] = {}
 
 ## Column width for this model's atlas. A constant was right only for the
 ## 256-wide atlases; Pikachu's is 512 and carries mouths in its right half.
@@ -325,29 +331,51 @@ static func presets() -> Dictionary:
 	return {}
 
 
-## Push a preset's uniforms onto one surface.
+## One named preset's uniforms, as values a shader can be given.
 ##
 ## Read by JSON type: a number is a float, a `#rrggbb` string a colour. Anything
 ## else is skipped, so a typo in the file leaves the shader on its own defaults
-## rather than producing a creature that quietly looks wrong.
+## rather than producing a surface that quietly looks wrong.
+##
+## Static and by name because a creature is no longer the only thing wearing the
+## look — the tile library dresses the world from this same answer, and a second
+## reader of the same JSON is how two halves of one screen end up disagreeing.
+## Empty for a style that names a shader rather than a preset of one.
+## `wanted` rather than `style`, which is the name of this node's own property.
+static func preset_values(wanted: String) -> Dictionary[String, Variant]:
+	var values: Dictionary[String, Variant] = {}
+	var named: Variant = presets().get(wanted)
+	if typeof(named) != TYPE_DICTIONARY:
+		return values
+	@warning_ignore("unsafe_cast")
+	var entry: Dictionary = named as Dictionary
+	var table: Variant = entry.get("uniforms")
+	if typeof(table) != TYPE_DICTIONARY:
+		return values
+	@warning_ignore("unsafe_cast")
+	var fields: Dictionary = table as Dictionary
+	for key: Variant in fields:
+		var value: Variant = fields[key]
+		var kind: int = typeof(value)
+		# Kept as the Variant the file gave, not converted: `set_shader_parameter`
+		# takes an int for a float uniform, and converting here would need a cast
+		# from Variant that the strict warnings refuse.
+		if kind == TYPE_FLOAT or kind == TYPE_INT:
+			values[str(key)] = value
+		elif kind == TYPE_STRING:
+			values[str(key)] = Color.html(str(value))
+	return values
+
+
+## Push the current preset's uniforms onto one surface.
 ##
 ## Applied after the inspector's sliders, so the preset wins. A preset is a
 ## deliberate statement about a look, and a slider left at its default is not a
 ## good reason to half-undo it — which does mean the `saturation` slider does
 ## nothing on a preset that names its own.
 func _apply_preset(material: ShaderMaterial) -> void:
-	var values: Variant = _preset.get("uniforms")
-	if typeof(values) != TYPE_DICTIONARY:
-		return
-	@warning_ignore("unsafe_cast")
-	var table: Dictionary = values as Dictionary
-	for key: Variant in table:
-		var value: Variant = table[key]
-		var kind: int = typeof(value)
-		if kind == TYPE_FLOAT or kind == TYPE_INT:
-			material.set_shader_parameter(str(key), value)
-		elif kind == TYPE_STRING:
-			material.set_shader_parameter(str(key), Color.html(str(value)))
+	for name: String in _preset:
+		material.set_shader_parameter(name, _preset[name])
 
 
 ## The look the whole set is wearing, from the store beside the shaders.
@@ -546,13 +574,14 @@ func _apply_shaders() -> void:
 		wanted = roster_style()
 
 	# A style names either a shader or a preset of one. Presets are looked up
-	# first so a name can never mean two things at once.
-	_preset = {}
+	# first so a name can never mean two things at once. Read before `wanted` is
+	# rewritten below: the values are keyed on the style, not on the shader.
+	_preset = preset_values(wanted)
 	var named: Variant = presets().get(wanted)
 	if typeof(named) == TYPE_DICTIONARY:
 		@warning_ignore("unsafe_cast")
-		_preset = named as Dictionary
-		var base: Variant = _preset.get("shader")
+		var entry: Dictionary = named as Dictionary
+		var base: Variant = entry.get("shader")
 		if typeof(base) == TYPE_STRING:
 			wanted = str(base)
 

@@ -52,11 +52,13 @@ extends Node3D
 ## thing is its paper, not its ink, and a fill printed at the paper's own value is
 ## exactly what "over-exposed" looks like here.
 ##
-## Swept at 1.0, 0.88 and 0.72 against a sown lawn. **0.72** is where the greens
-## stop glowing and read as grass, and the trunks go from incandescent back to
-## wood. Both halves matter: the sun alone, taken this low without the ink, dims
-## the shadows as much as the light and the page goes grey.
-@export var brightness: float = 0.72:
+## **Back to 1.0.** It went 1.0, 0.88, 0.72 while the look was rendering 3.14 times
+## too bright and nobody knew — every step down was fighting a missing 1/pi rather
+## than setting an exposure. With that divided out, a sun at full strength lights
+## the paint at exactly its own value, which is what a sun is for. The one honest
+## reason to sit under the paper lives in `ink`, in the shared look, where it
+## applies to the surface rather than to the light.
+@export var brightness: float = 1.0:
 	set(value):
 		brightness = value
 		if _sun != null:

@@ -118,10 +118,10 @@ vec3 blade_paint() {
 	// the same function.
 	own *= comic_grain(world_here) * comic_contact();
 
-	// `ink` last, exactly as `comic_paint` applies it: the lawn is printed with the
-	// same ink as everything else, and a blade that skipped the ceiling would be
-	// the one bright thing in a scene deliberately kept under the paper.
-	return posterise(enrich(own)) * ink;
+	// The ceiling last, exactly as `comic_paint` applies it: the lawn is printed
+	// under the same paper as everything else, and a blade that skipped it would be
+	// the one bright thing in a scene deliberately kept under that paper.
+	return posterise(enrich(own)) * fill_ceiling;
 }
 
 

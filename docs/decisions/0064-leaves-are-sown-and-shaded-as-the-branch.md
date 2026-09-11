@@ -105,6 +105,28 @@ anything**: on an unrotated cell the two poses agree exactly. A test now paints
 one cell upright and one turned a quarter, and holds that the turned cell's leaves
 are the upright cell's rotated about the cell's own centre.
 
+### A leaf is moved by the one wind
+
+Asked for, and it costs a third world shader: `foliage_leaf.gdshader`, which
+includes the shared look *and* `wind.gdshaderinc` — the same air the grass and the
+turf are standing in. A leaf with its own copy of either would drift out of step
+with the field it stands in, which is what both include files exist to prevent.
+
+`wind_lean` is asked **per vertex**, not per instance. A patch is one mesh over
+many cells, so an instance origin would give the whole patch a single phase and
+the gust would stop travelling.
+
+**Two numbers ride in the colour channel**: how far up its own leaf a vertex sits,
+and how long that leaf is. Neither survives the merge into one patch mesh, and the
+UVs were not available — they are what the shared look samples a texture with, so
+a leaf would read its branch's artwork at coordinates meaning something else.
+
+The sway multiplier defaults to ten rather than one, and the reason is a scale
+mismatch worth recording: the wind speaks in fractions of a blade's length, set on
+grass where a blade is most of a metre. A leaf is a few centimetres, so the same
+fraction is sub-pixel. Measured over four tenths of a second on one palm — 3 moves
+64 pixels, 8 moves 239, 18 moves 947, 40 moves 3,701.
+
 ### Only the surface that is the foliage
 
 The first render settled this: sown on every surface, a palm's **trunk grew brown

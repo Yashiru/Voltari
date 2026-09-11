@@ -198,8 +198,21 @@ func test_leaves_keep_the_branch_colour_by_default() -> void:
 	var branch: Color = Color(0.2, 0.5, 0.3)
 	var sown: Mesh = VltFoliage.sown(_painted(branch), SEED, _settings())
 
-	assert_object(sown.surface_get_material(1)).is_same(sown.surface_get_material(0))
 	assert_object(_leaf_albedo(sown)).is_equal(branch)
+
+
+func test_a_leaf_wears_the_moving_shader_and_the_branch_does_not() -> void:
+	# A leaf flutters and the branch it grew on does not, so the two cannot share
+	# a shader — but they do share every value on it, the colour included.
+	var sown: Mesh = VltFoliage.sown(_painted(Color(0.2, 0.5, 0.3)), SEED, _settings())
+
+	var branch: ShaderMaterial = sown.surface_get_material(0) as ShaderMaterial
+	var leaf: ShaderMaterial = sown.surface_get_material(1) as ShaderMaterial
+	assert_object(leaf).is_not_same(branch)
+	assert_str(leaf.shader.resource_path).is_equal(VltFoliage.LEAF_SHADER)
+	assert_bool(branch.shader.resource_path == VltFoliage.LEAF_SHADER).override_failure_message(
+		"the branch was given the leaf's shader, so the model would flutter too"
+	).is_false()
 
 
 func test_leaves_take_the_colour_they_are_given() -> void:

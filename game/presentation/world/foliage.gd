@@ -165,7 +165,11 @@ static func leaves(source: Mesh, seed: int, settings: Settings) -> ArrayMesh:
 	return grown
 
 
-## The surface's material, carrying the leaves' colour.
+## The shader a leaf wears: the shared look, plus the one wind.
+const LEAF_SHADER: String = "res://game/presentation/world/foliage_leaf.gdshader"
+
+
+## The material a leaf wears, from the material of the surface it grew on.
 ##
 ## Copied rather than changed: the material belongs to the source mesh, which is
 ## shared with every other cell drawing the same item, and tinting it in place
@@ -176,8 +180,6 @@ static func leaves(source: Mesh, seed: int, settings: Settings) -> ArrayMesh:
 ## has nothing this knows how to read, and guessing would be worse than leaving
 ## it alone.
 static func _coloured(source: Material, settings: Settings) -> Material:
-	if settings.colour_amount <= 0.0:
-		return source
 	var dressed: ShaderMaterial = source as ShaderMaterial
 	if dressed == null:
 		return source
@@ -189,9 +191,20 @@ static func _coloured(source: Material, settings: Settings) -> Material:
 		branch = paint as Color
 
 	var copy: ShaderMaterial = dressed.duplicate() as ShaderMaterial
-	copy.set_shader_parameter(
-		"albedo", branch.lerp(settings.colour, clampf(settings.colour_amount, 0.0, 1.0))
-	)
+
+	# The same values — the colour, the named preset, the world's overrides — on a
+	# shader that also moves. Every one of them exists in both, because both
+	# include the shared look; what the leaf shader adds is the wind, whose
+	# defaults live in `wind.gdshaderinc` and are therefore the same air the grass
+	# and the turf are standing in.
+	var moving: Shader = ResourceLoader.load(LEAF_SHADER, "Shader") as Shader
+	if moving != null:
+		copy.shader = moving
+
+	if settings.colour_amount > 0.0:
+		copy.set_shader_parameter(
+			"albedo", branch.lerp(settings.colour, clampf(settings.colour_amount, 0.0, 1.0))
+		)
 	return copy
 
 
@@ -291,6 +304,7 @@ static func _leaves_over(
 
 	var grown: PackedVector3Array = PackedVector3Array()
 	var facing: PackedVector3Array = PackedVector3Array()
+	var hinge: PackedColorArray = PackedColorArray()
 	var stitched: PackedInt32Array = PackedInt32Array()
 
 	for leaf: int in range(wanted):
@@ -311,7 +325,7 @@ static func _leaves_over(
 			continue
 		out = out.normalized()
 
-		_grow(grown, facing, stitched, root, out, scatter, settings, span)
+		_grow(grown, facing, hinge, stitched, root, out, scatter, settings, span)
 
 	if grown.is_empty():
 		return []
@@ -320,6 +334,7 @@ static func _leaves_over(
 	made.resize(Mesh.ARRAY_MAX)
 	made[Mesh.ARRAY_VERTEX] = grown
 	made[Mesh.ARRAY_NORMAL] = facing
+	made[Mesh.ARRAY_COLOR] = hinge
 	made[Mesh.ARRAY_INDEX] = stitched
 	return made
 
@@ -328,6 +343,7 @@ static func _leaves_over(
 static func _grow(
 	grown: PackedVector3Array,
 	facing: PackedVector3Array,
+	hinge: PackedColorArray,
 	stitched: PackedInt32Array,
 	root: Vector3,
 	out: Vector3,
@@ -350,6 +366,13 @@ static func _grow(
 
 	for point: Vector2 in OUTLINE:
 		grown.append(stem + (right * point.x + up * point.y) * size)
+		# What the wind needs and the geometry cannot say once it is merged: how
+		# far along its own leaf this vertex sits, and how long that leaf is.
+		#
+		# In the colour channel rather than the UVs, because the UVs are what the
+		# shared look samples a texture with — a leaf would then read its branch's
+		# artwork at coordinates that mean something else entirely.
+		hinge.append(Color(point.y, size, 0.0, 1.0))
 		# **The surface's normal, not the leaf's.** See the class comment: this
 		# one line is the difference between a bush and a heap of flakes.
 		facing.append(out)

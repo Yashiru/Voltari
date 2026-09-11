@@ -184,6 +184,27 @@ const BUILT: Array[String] = [
 		edge_fade = maxf(value, 0.0)
 		_rebuild()
 
+## How far the edge of the grass wanders from where the cells and the obstacles
+## put it, in metres.
+##
+## Both boundaries are worked out as distances, and a boundary drawn from a
+## distance is a perfect curve — a straight line along a row of cells, a perfect
+## offset around a post. Perfect is the tell. This displaces both by the same
+## noise, so the grass stops raggedly and its dark ground stops with it.
+##
+## Small: this is a ragged edge, not a different shape.
+@export_range(0.0, 0.5, 0.005) var edge_jitter: float = 0.08:
+	set(value):
+		edge_jitter = clampf(value, 0.0, 0.5)
+		_rebuild()
+
+## Metres across one wobble of that edge. Under about a tenth of a metre the
+## boundary wanders once per blade, which reads as frayed rather than as irregular.
+@export_range(0.05, 4.0, 0.05) var edge_jitter_size: float = 0.55:
+	set(value):
+		edge_jitter_size = maxf(value, 0.05)
+		_rebuild()
+
 ## How far grass keeps away from anything else standing on the ground, in metres.
 ##
 ## Nothing grows right up against a rock or a fence post: there is a bare ring,
@@ -247,6 +268,15 @@ var _filled: Array[Vector3i] = []
 ## and band. Cleared whenever the patch is rebuilt, because a library rebuild can
 ## change a model under the same id.
 var _feet: Dictionary[String, PackedVector2Array] = {}
+
+## How far each corner of the sown area is from the nearest ground nobody sowed,
+## in metres, keyed by the corner's own place on the grid.
+##
+## **Once per corner and not once per cell that touches it.** Four cells meet at a
+## corner, and the mat's four quads have to agree there exactly or the alpha cracks
+## along the seam. Measured once and looked up settles that by construction, and it
+## is also what lets the blades read the same number the mat does.
+var _corners: Dictionary[Vector2i, float] = {}
 
 var _scatter: ShaderMaterial = null
 var _blade: ShaderMaterial = null
@@ -319,6 +349,7 @@ func _rebuild() -> void:
 		_lay_mat(null)
 		return
 	_filled = filled
+	_measure_corners(grid)
 
 	var per_cell: int = blades_per_cell()
 	var wanted: int = clampi(filled.size() * per_cell, 1, MOST_BLADES)
@@ -348,6 +379,8 @@ func _rebuild() -> void:
 	_scatter.set_shader_parameter("height_spread", height_spread)
 	_scatter.set_shader_parameter("blade_scatter", scatter)
 	_scatter.set_shader_parameter("blade_give", wind_give)
+	_scatter.set_shader_parameter("edge_jitter", edge_jitter)
+	_scatter.set_shader_parameter("edge_jitter_size", edge_jitter_size)
 
 	if _blade == null:
 		_blade = ShaderMaterial.new()
@@ -505,13 +538,19 @@ func _lay_mat(grid: GridMap) -> void:
 		_mat_paint = ShaderMaterial.new()
 	_mat_paint.shader = mat_shader
 	_mat_paint.set_shader_parameter("albedo", colour)
-	_mat_paint.set_shader_parameter("edge_fade", 1.0 if edge_fade > 0.0 else 0.0)
-	# The same field the blades read, so the dark ground stops exactly where the
-	# grass does — including the ring around anything standing on it.
+	# In metres, because the shader works in metres: the author sets the fade in
+	# cells and a cell is only a cell wide on a grid whose spacing is one.
+	_mat_paint.set_shader_parameter("edge_width", edge_fade * absf(grid.cell_size.x))
+	# The same field the blades read, and the same wander laid over it, so the dark
+	# ground stops exactly where the grass does — including the ring around anything
+	# standing on it, and including where that ring is nibbled.
 	_mat_paint.set_shader_parameter("room_field", _room(grid))
 	var area: Rect2 = _field_area(grid)
 	_mat_paint.set_shader_parameter("field_origin", area.position)
 	_mat_paint.set_shader_parameter("field_size", area.size)
+	_mat_paint.set_shader_parameter("clearance", clearance)
+	_mat_paint.set_shader_parameter("edge_jitter", edge_jitter)
+	_mat_paint.set_shader_parameter("edge_jitter_size", edge_jitter_size)
 	_mat_paint.set_shader_parameter("key_follows_camera", 0.0)
 	_mat_paint.set_shader_parameter("shape_round", 0.0)
 	var look: Dictionary[String, Variant] = CreatureView.preset_values(
@@ -530,12 +569,16 @@ func _lay_mat(grid: GridMap) -> void:
 ## One quad per sown cell, lying on that cell's own surface, each corner carrying
 ## how covered it is.
 ##
-## **The coverage is what makes the edge a fade rather than a rectangle.** A
-## corner is shared by four cells; how many of them were sown is how solid the mat
-## is there. Fully inside, all four, and it is opaque; on the outside of a
-## straight edge only two, and it is a third of the way gone. The mat therefore
-## dissolves over its last cell and follows whatever shape was selected, including
-## a diagonal or a hole.
+## **The distance is what makes the edge a fade rather than a rectangle.** Each
+## corner carries how far inside the sown area it is, in metres, and the shader
+## turns that into the alpha over whatever fade width the author asked for. The mat
+## therefore dissolves at the edge of the grass and follows whatever shape was
+## selected, including a diagonal or a hole.
+##
+## It travels in the **second UV set** rather than in the vertex colour, which is
+## where it used to live: a colour is eight bits clamped to one, so it could carry
+## a coverage and not a distance. The blades read the same distances out of a float
+## texture, and a boundary the two disagree about is a halo.
 ##
 ## Winding is not fussed over because the mat shader culls nothing — a mat seen
 ## from below is a mat, and there is nothing under it to see.
@@ -543,12 +586,8 @@ func _mat_mesh(grid: GridMap) -> ArrayMesh:
 	var points: PackedVector3Array = PackedVector3Array()
 	var normals: PackedVector3Array = PackedVector3Array()
 	var uvs: PackedVector2Array = PackedVector2Array()
-	var shades: PackedColorArray = PackedColorArray()
+	var edges: PackedVector2Array = PackedVector2Array()
 	var faces: PackedInt32Array = PackedInt32Array()
-
-	var sown: Dictionary[Vector3i, bool] = {}
-	for cell: Vector3i in _filled:
-		sown[cell] = true
 
 	var half_x: float = absf(grid.cell_size.x) * 0.5
 	var half_z: float = absf(grid.cell_size.z) * 0.5
@@ -563,8 +602,7 @@ func _mat_mesh(grid: GridMap) -> ArrayMesh:
 			points.append(Vector3(at.x + float(dx) * half_x, up, at.z + float(dz) * half_z))
 			normals.append(Vector3.UP)
 			uvs.append(Vector2(0.5, 0.0))
-			var cover: float = _fade_at(sown, cell, dx, dz)
-			shades.append(Color(cover, cover, cover, 1.0))
+			edges.append(Vector2(_edge_at(cell, dx, dz), 0.0))
 		faces.append_array([first, first + 2, first + 1])
 		faces.append_array([first + 1, first + 2, first + 3])
 
@@ -573,7 +611,7 @@ func _mat_mesh(grid: GridMap) -> ArrayMesh:
 	arrays[Mesh.ARRAY_VERTEX] = points
 	arrays[Mesh.ARRAY_NORMAL] = normals
 	arrays[Mesh.ARRAY_TEX_UV] = uvs
-	arrays[Mesh.ARRAY_COLOR] = shades
+	arrays[Mesh.ARRAY_TEX_UV2] = edges
 	arrays[Mesh.ARRAY_INDEX] = faces
 
 	var mat: ArrayMesh = ArrayMesh.new()
@@ -581,46 +619,102 @@ func _mat_mesh(grid: GridMap) -> ArrayMesh:
 	return mat
 
 
-## How solid the mat is at one corner of one cell.
+## How far every corner of the sown area is from the nearest ground nobody sowed,
+## in metres.
 ##
-## From how far that corner is, in cells, from the nearest ground nobody sowed —
-## so `edge_fade` is a width the author sets rather than a shape baked in here. A
-## corner deeper than the fade is fully solid; one touching bare ground is gone.
-func _fade_at(
-	sown: Dictionary[Vector3i, bool], cell: Vector3i, dx: int, dz: int
-) -> float:
-	if edge_fade <= 0.0:
-		return 1.0
+## **One number per corner, not one per corner of each cell.** Four cells meet at a
+## corner and all four want that distance: the mat's quads for their vertices and
+## the blades standing in any of them for their own cut. Measuring once and looking
+## it up is what makes those agree exactly rather than nearly — and nearly is a
+## crack in the mat and a halo round the grass.
+##
+## In metres rather than in cells because that is what both shaders work in: the
+## wander is a distance on the ground and a cell is only a metre wide on a grid
+## whose spacing is one.
+func _measure_corners(grid: GridMap) -> void:
+	_corners.clear()
 
-	var reach: int = ceili(edge_fade) + 1
-	var corner: Vector2 = Vector2(float(cell.x) + float(dx) * 0.5, float(cell.z) + float(dz) * 0.5)
-	var nearest: float = INF
-	for step_x: int in range(-reach, reach + 1):
-		for step_z: int in range(-reach, reach + 1):
-			var near: Vector3i = cell + Vector3i(step_x, 0, step_z)
-			if sown.has(near):
+	var sown: Dictionary[Vector3i, bool] = {}
+	for cell: Vector3i in _filled:
+		sown[cell] = true
+
+	var span: float = absf(grid.cell_size.x)
+	# Far enough to cover both the fade and the wander, so a corner inside the band
+	# either boundary can reach always has a real distance rather than the cap.
+	var reach: int = ceili(maxf(edge_fade, edge_jitter / maxf(span, 0.0001))) + 1
+	var farthest: float = float(reach) * span
+
+	for cell: Vector3i in _filled:
+		for corner: int in range(4):
+			var dx: int = -1 if corner % 2 == 0 else 1
+			var dz: int = -1 if corner < 2 else 1
+			var key: Vector2i = Vector2i(cell.x * 2 + dx, cell.z * 2 + dz)
+			if _corners.has(key):
 				continue
-			nearest = minf(
-				nearest, corner.distance_to(Vector2(float(near.x), float(near.z)))
+			var at: Vector2 = Vector2(
+				float(cell.x) + float(dx) * 0.5, float(cell.z) + float(dz) * 0.5
 			)
-	if nearest == INF:
-		return 1.0
-	# Half a cell is the closest a corner can be to the middle of a bare one, so
-	# that is where the fade starts from rather than from zero.
-	return clampf((nearest - 0.5) / edge_fade, 0.0, 1.0)
+			var nearest: float = INF
+			for step_x: int in range(-reach, reach + 1):
+				for step_z: int in range(-reach, reach + 1):
+					var near: Vector3i = cell + Vector3i(step_x, 0, step_z)
+					if sown.has(near):
+						continue
+					nearest = minf(nearest, _out_of(at, near))
+			if nearest == INF:
+				_corners[key] = farthest
+				continue
+			_corners[key] = clampf(nearest * span, 0.0, farthest)
 
 
-## Every sown cell's own origin, as a texture the scatter reads by index.
+## How far a point on the grid is from a cell's square, in cells.
+##
+## **To the square, not to its middle.** A cell is a square metre of bare ground,
+## not a point in it, and the difference is exactly the case the grass is drawn
+## along: the outer corner of a sown cell is 0.71 cells from the middle of the bare
+## one diagonally across from it and 0 cells from that cell's actual edge, which is
+## where the grass in fact stops. Measured to the middle, every outside corner of a
+## patch came out a fifth of a cell inside the grass, the fade never reached the
+## ground's own colour, and nothing could nibble an edge it believed was elsewhere.
+static func _out_of(at: Vector2, cell: Vector3i) -> float:
+	var away: Vector2 = Vector2(
+		absf(at.x - float(cell.x)), absf(at.y - float(cell.z))
+	) - Vector2(0.5, 0.5)
+	return Vector2(maxf(away.x, 0.0), maxf(away.y, 0.0)).length()
+
+
+## One of those distances, or zero for a corner nobody measured — which cannot
+## happen for a sown cell and is a floor under a race rather than a case.
+func _edge_at(cell: Vector3i, dx: int, dz: int) -> float:
+	var key: Vector2i = Vector2i(cell.x * 2 + dx, cell.z * 2 + dz)
+	if not _corners.has(key):
+		return 0.0
+	return _corners[key]
+
+
+## Every sown cell's own origin and its four corner distances, as a texture the
+## scatter reads by index.
 ##
 ## A texture and not an array uniform because a patch may carry hundreds of cells
-## and an array has a ceiling written into the shader. One texel per cell,
+## and an array has a ceiling written into the shader. Two texels per cell,
 ## unfiltered, so what is read back is what was written.
+##
+## The second row is **the same four numbers the mat's vertices carry**, and a
+## blade interpolates them across its cell exactly as the rasteriser interpolates
+## them across the mat's quad. That is the whole of why the grass and its dark
+## ground stop on the same line.
 func _spots(grid: GridMap) -> ImageTexture:
-	var spots: Image = Image.create(maxi(_filled.size(), 1), 1, false, Image.FORMAT_RGBF)
+	var spots: Image = Image.create(maxi(_filled.size(), 1), 2, false, Image.FORMAT_RGBAF)
 	for index: int in range(_filled.size()):
 		var cell: Vector3i = _filled[index]
 		var at: Vector3 = grid.map_to_local(cell)
-		spots.set_pixel(index, 0, Color(at.x, _surface_of(grid, cell), at.z))
+		spots.set_pixel(index, 0, Color(at.x, _surface_of(grid, cell), at.z, 0.0))
+		spots.set_pixel(index, 1, Color(
+			_edge_at(cell, -1, -1),
+			_edge_at(cell, 1, -1),
+			_edge_at(cell, -1, 1),
+			_edge_at(cell, 1, 1)
+		))
 	return ImageTexture.create_from_image(spots)
 
 

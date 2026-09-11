@@ -38,15 +38,23 @@ shader_type particles;
 render_mode disable_force, disable_velocity, keep_data;
 
 #include "res://game/presentation/world/wind.gdshaderinc"
+#include "res://game/presentation/world/turf_edge.gdshaderinc"
 
 group_uniforms patch;
 
-// Every sown cell's own origin, one texel per cell, written by `turf_patch.gd`.
+// Every sown cell, two texels tall: its own origin on the top row, and on the
+// bottom one how far each of its four corners is from the nearest ground nobody
+// sowed, in metres.
 //
 // A texture and not an array, because a patch may carry hundreds of cells and an
 // array's ceiling would have to be written into this file. Unfiltered and
 // unrepeated: what is read back has to be exactly what was written, and a cell
 // index past the end is a mistake, not a wrap.
+//
+// **The four corners are the same four numbers the mat's own vertices carry**,
+// from the same call in `turf_patch.gd`. A blade interpolates them exactly as the
+// rasteriser interpolates them across the mat's quad, so both arrive at the same
+// distance at the same point and the grass and its dark ground stop together.
 uniform sampler2D cell_spots : filter_nearest, repeat_disable, hint_default_black;
 uniform float cell_count = 1.0;
 
@@ -55,23 +63,9 @@ uniform float cell_count = 1.0;
 // place within the cell by the remainder.
 uniform float per_cell = 300.0;
 
-// How much room there is on the ground, everywhere under the patch, as a share of
-// the clearance: 0 inside something, 1 well clear of everything.
-//
-// **A distance to the shape of a thing, not to a circle around it.** Built by
-// `turf_patch.gd` from the obstacles' own base triangles, stamped into one grid
-// and measured once — so where two things overlap, the room is the room left by
-// both, and a blade is never near either. A radius could not do that: the nearest
-// centre wins and the second object is not consulted at all.
-//
-// Sampled smoothly, so the ring reads as a curve rather than as the texels it is.
-uniform sampler2D room_field : filter_linear, repeat_disable, hint_default_white;
-uniform vec2 field_origin;
-uniform vec2 field_size;
-
-// How far grass keeps away from it, in metres. At zero nothing is kept away from
-// and the whole thing costs one smoothstep that always returns one.
-uniform float clearance : hint_range(0.0, 3.0) = 0.35;
+// The room left on the ground, the wander on the boundary and the clearance they
+// are measured against all live in `turf_edge.gdshaderinc`, because the mat has to
+// read them the same way. See that file.
 uniform float cell_width = 1.0;
 uniform float cell_depth = 1.0;
 
@@ -129,7 +123,9 @@ void process() {
 	float slot = min(floor(float(INDEX) / max(per_cell, 1.0)), max(cell_count - 1.0, 0.0));
 	float within = float(INDEX) - slot * max(per_cell, 1.0);
 
-	vec3 middle = texture(cell_spots, vec2((slot + 0.5) / max(cell_count, 1.0), 0.5)).rgb;
+	float column = (slot + 0.5) / max(cell_count, 1.0);
+	vec3 middle = texture(cell_spots, vec2(column, 0.25)).rgb;
+	vec4 corners = texture(cell_spots, vec2(column, 0.75));
 
 	// A square sub-grid inside the cell, then pushed off it. The grid is what
 	// makes the coverage even; the scatter is what stops it reading as a grid.
@@ -168,8 +164,24 @@ void process() {
 	// `return` in `process`, and a blade scaled to nothing is a degenerate
 	// triangle — rasterised as no pixels at all, which is the cheapest way there
 	// is to not draw something.
-	vec2 on_field = (here.xz - field_origin) / max(field_size, vec2(0.0001));
-	tall *= smoothstep(0.0, 1.0, texture(room_field, on_field).r);
+	float bite = turf_bite(out_there.xz);
+	tall *= smoothstep(0.0, 1.0, turf_room(here.xz, bite));
+
+	// And they do stop at the edge of the patch, on the same wandering line the
+	// mat fades along. A cut and not a fade, for the reason just above: what the
+	// author asked for is where the grass ends, and the softening is the ground's.
+	//
+	// The wander can only ever eat in here, because there are no blades outside
+	// the sown cells for it to hand back. The border therefore sits a centimetre
+	// or two inside where a straight edge would have been, which is the right
+	// trade for an edge that does not read as cut with scissors.
+	vec2 in_cell = clamp(spot / vec2(cell_width, cell_depth) + 0.5, vec2(0.0), vec2(1.0));
+	float from_bare = mix(
+		mix(corners.x, corners.y, in_cell.x),
+		mix(corners.z, corners.w, in_cell.x),
+		in_cell.y
+	);
+	tall *= step(0.0, turf_edge(from_bare, bite));
 
 	float wide = tall * blade_width;
 

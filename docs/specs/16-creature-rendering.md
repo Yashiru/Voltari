@@ -484,6 +484,37 @@ frame on the desktop GPU this was written on. The project targets the Mobile
 renderer and this has never run on one; `tools/budget/` covers assets and not
 shaders.
 
+### The lawn underneath, which is not grass
+
+**Turf is not grass**, in this project's vocabulary. The tall tufts above are map
+items with a model each. The turf is the few centimetres of lawn on the ground
+they stand in: never painted, never an item, sown over chosen cells by *Sow grass*
+in the map dock, exactly as foliage is.
+
+`TurfPatch` **stores cells and numbers, never geometry.** Where each blade stands
+is worked out on the GPU from its own index every frame, in a particle shader,
+because Godot 4 has no geometry stage and an instance is the only thing that can
+become a blade. A patch therefore costs its scene a few hundred bytes whatever its
+size, and density is one number rather than a bake.
+
+It reads the same wind as the tufts, from `wind.gdshaderinc`, so a gust crosses
+both as one thing.
+
+**Two boundaries, one line** (decision 0066). A patch stops at the edge of the
+cells somebody sowed and again at a bare ring around anything standing on them —
+a distance to each obstacle's own base triangles, merged, so the ring follows a
+contour and two things that overlap leave the room left by both. Both boundaries
+are distances in metres, measured once, handed to the blades and to the ground
+under them, and displaced by one world-space noise so neither reads as a drawn
+line. The blades **cut** at that line; only the darkened ground under them fades
+across it.
+
+The ground under a patch is a mat in the colour of the blade roots.
+
+**Not measured: what a patch costs.** A blade is five triangles, and the low tier
+allows 150,000 for a whole frame — so the density an author sets is the whole
+budget and this file does not choose it for them.
+
 ## 13. Testing obligations
 
 - **Every manifest loads** into its typed form, and every path it names exists.

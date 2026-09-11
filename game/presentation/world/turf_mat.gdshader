@@ -9,9 +9,10 @@ shader_type spatial;
 //
 // **The edge is the whole reason this is not the blade shader.** A mat that stops
 // dead draws a rectangle on the map, and a rectangle is the one thing a patch of
-// grass must not look like. Each corner carries how many of the four cells around
-// it were sown, and that becomes the alpha — so the mat is solid inside the sown
-// area and dissolves over its last cell, following whatever shape was selected.
+// grass must not look like. Each corner carries how far inside the sown area it
+// is, in metres, and the alpha is that distance over the fade width — so the mat
+// is solid inside the sown area and dissolves over its last stretch, following
+// whatever shape was selected and wandering off it the way `turf_edge` says.
 //
 // `depth_draw_never` because it is a transparent film lying on an opaque surface:
 // writing depth would make the blades standing in it sort against their own
@@ -20,6 +21,7 @@ shader_type spatial;
 render_mode blend_mix, cull_disabled, unshaded, shadows_disabled, depth_draw_never;
 
 #include "res://game/presentation/creature/comic_look.gdshaderinc"
+#include "res://game/presentation/world/turf_edge.gdshaderinc"
 
 group_uniforms mat;
 
@@ -28,23 +30,19 @@ group_uniforms mat;
 // should read as further away rather than as a different material.
 uniform float mat_shade : hint_range(0.0, 1.0) = 0.18;
 
-// How much of the fade to keep. At zero the mat is solid to its edge, which is
-// the rectangle this exists to avoid; at one it dissolves over its whole last
-// cell.
-uniform float edge_fade : hint_range(0.0, 1.0) = 1.0;
+// How far the mat takes to fade out at the edge of the sown area, in metres. At
+// zero it is solid to its edge, which is the rectangle this exists to avoid.
+//
+// **The mat's alone.** Both boundaries are shared with the blades — the same
+// distances, the same wander — but how wide the ground takes to give its own
+// colour back is a property of the ground, and thinning the grass to match made
+// the last metre read as half-mown.
+uniform float edge_width : hint_range(0.0, 3.0) = 0.5;
 
-// The same field the blades read: how much room there is on the ground, as a
-// share of the clearance. **The mat has to follow the grass exactly**, and the
-// grass gives way around obstacles — so where a blade was pushed back, the ground
-// under it goes back to being whatever the tile is. The fade is a boundary
-// between grass and no grass, not a rectangle drawn under a patch.
-uniform sampler2D room_field : filter_linear, repeat_disable, hint_default_white;
-uniform vec2 field_origin;
-uniform vec2 field_size;
-
-// How covered this corner is, 0 where one cell of four was sown and 1 where all
-// four were. Written per vertex by `turf_patch.gd`.
-varying float covered;
+// How far inside the sown area this corner is, in metres, before the wander.
+// Written per vertex by `turf_patch.gd` — and it is the same number the blades
+// standing here read out of the spots texture.
+varying float from_bare;
 
 // Where this fragment sits on the ground, in the grid's own space — which is this
 // node's, because a patch is put exactly where its grid is.
@@ -52,7 +50,12 @@ varying vec2 on_ground;
 
 
 void vertex() {
-	covered = COLOR.r;
+	// The second UV set and not the vertex colour, which is where this used to
+	// live: a colour is quantised to eight bits and clamped to one on its way into
+	// the mesh, so a distance in metres could neither exceed a metre nor be finer
+	// than four millimetres. The blades read theirs from a float texture, and the
+	// two have to be the same number.
+	from_bare = UV2.x;
 	on_ground = VERTEX.xz;
 
 	world_normal = comic_normal(NORMAL, MODEL_MATRIX);
@@ -69,10 +72,13 @@ void fragment() {
 	vec3 paint = comic_paint(UV) * (1.0 - mat_shade);
 
 	ALBEDO = comic_shade(paint, SCREEN_UV * VIEWPORT_SIZE, INV_VIEW_MATRIX);
+
 	// Two boundaries, and the tighter one wins: the edge of the sown area, and the
-	// room left by everything standing on it.
-	float room = smoothstep(0.0, 1.0, texture(
-		room_field, (on_ground - field_origin) / max(field_size, vec2(0.0001))
-	).r);
-	ALPHA = min(mix(1.0, covered, edge_fade), room);
+	// room left by everything standing on it. One wander displaces both, read once
+	// here and handed to each, so the line the grass stops on and the line the
+	// ground gives up on are the same line.
+	float bite = turf_bite(world_here.xz);
+	float room = smoothstep(0.0, 1.0, turf_room(on_ground, bite));
+	float inside = turf_edge(from_bare, bite) / max(edge_width, 0.0001);
+	ALPHA = min(clamp(inside, 0.0, 1.0), room);
 }

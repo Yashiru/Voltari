@@ -506,8 +506,9 @@ a distance to each obstacle's own base triangles, merged, so the ring follows a
 contour and two things that overlap leave the room left by both. Both boundaries
 are distances in metres, measured once, handed to the blades and to the ground
 under them, and displaced by one world-space noise so neither reads as a drawn
-line. The blades **cut** at that line; only the darkened ground under them fades
-across it.
+line. The blades **cut** at that line, at both boundaries; only the darkened
+ground under them fades, over a width of its own, on the inside of it. A cell wall
+between two sown cells is neither boundary and draws nothing.
 
 The ground under a patch is a mat in the colour of the blade roots, wearing the
 roughcast of decision 0065 at the blades' own scale.

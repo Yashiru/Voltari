@@ -164,6 +164,7 @@ const BUILT: Array[String] = [
 		scatter = clampf(value, 0.0, 1.0)
 		_rebuild()
 
+
 ## How far the wind lays a blade over, on top of what the shared wind already
 ## says. Turf is shorter and stiffer than a tuft, so it takes less of one gust.
 @export_range(0.0, 2.0, 0.01) var wind_give: float = 2.0:
@@ -215,6 +216,12 @@ const BUILT: Array[String] = [
 ## one, and any prop node standing beside the grid. Both, because this editor
 ## offers both ways of putting an object down and an author should not have to
 ## remember which one they used.
+##
+## **It is where the grass stops, not where it starts getting shorter.** An earlier
+## version scaled a blade by how much room it had, so the lawn tapered over the
+## whole of this distance and the ring read as a fade. Grass does not shrink as it
+## approaches a rock. The ring is therefore this wide exactly, and reads wider than
+## the same number used to.
 @export_range(0.0, 3.0, 0.05) var clearance: float = 0.35:
 	set(value):
 		clearance = maxf(value, 0.0)
@@ -402,6 +409,7 @@ func _rebuild() -> void:
 	_scatter.set_shader_parameter("field_origin", area.position)
 	_scatter.set_shader_parameter("field_size", area.size)
 	_scatter.set_shader_parameter("clearance", clearance)
+	_scatter.set_shader_parameter("field_reach", _field_reach(grid))
 	_scatter.set_shader_parameter("cell_count", float(filled.size()))
 	_scatter.set_shader_parameter("per_cell", float(per_cell))
 	_scatter.set_shader_parameter("cell_width", absf(grid.cell_size.x))
@@ -581,6 +589,7 @@ func _lay_mat(grid: GridMap) -> void:
 	_mat_paint.set_shader_parameter("field_origin", area.position)
 	_mat_paint.set_shader_parameter("field_size", area.size)
 	_mat_paint.set_shader_parameter("clearance", clearance)
+	_mat_paint.set_shader_parameter("field_reach", _field_reach(grid))
 	_mat_paint.set_shader_parameter("edge_jitter", edge_jitter)
 	_mat_paint.set_shader_parameter("edge_jitter_size", edge_jitter_size)
 	_mat_paint.set_shader_parameter("key_follows_camera", 0.0)
@@ -768,10 +777,10 @@ func _spots(grid: GridMap) -> ImageTexture:
 ## told how far it is from the nearest stamped one. Both are ordinary work done
 ## once when the patch is built; the shader reads one texel per blade and is done.
 ##
-## Stored as a share of the clearance rather than in metres, so the shader needs
-## no scale and a texel never means something different from one patch to the
-## next. White — wide open — is the default, so a missing texture grows grass
-## everywhere rather than nowhere.
+## Stored as a share of `_field_reach` rather than in metres, so a texel is the
+## same size whatever the clearance and the shader multiplies once to get metres
+## back. White — as far as the field can see — is the default, so a missing texture
+## grows grass everywhere rather than nowhere.
 func _room(grid: GridMap) -> ImageTexture:
 	var area: Rect2 = _field_area(grid)
 	var wide: int = clampi(roundi(area.size.x * FIELD_DETAIL), 1, FIELD_MOST)
@@ -789,8 +798,21 @@ func _room(grid: GridMap) -> ImageTexture:
 	for print_of: PackedVector2Array in _footprints(grid):
 		_stamp(taken, wide, deep, area, print_of)
 
-	_spread(room, taken, wide, deep, area)
+	_spread(room, taken, wide, deep, area, _field_reach(grid))
 	return ImageTexture.create_from_image(room)
+
+
+## The longest distance the room field can express, in metres.
+##
+## The clearance is where the grass stops, and the ground under it fades out over
+## `edge_fade` *inside* that — so the field has to reach past the clearance by at
+## least the fade, or the ground would still be at full strength where the last
+## blade is. The wander is added because it moves the boundary outward as readily
+## as inward.
+func _field_reach(grid: GridMap) -> float:
+	return maxf(
+		clearance + edge_fade * absf(grid.cell_size.x) + edge_jitter, 0.01
+	)
 
 
 ## The ground this field covers: the sown cells, grown by the clearance so the
@@ -1114,12 +1136,12 @@ static func _stamp(
 ## get a distance out of a stencil without measuring every pair. Exact enough: the
 ## error is under a texel, and a texel here is a few centimetres.
 func _spread(
-	room: Image, taken: PackedByteArray, wide: int, deep: int, area: Rect2
+	room: Image, taken: PackedByteArray, wide: int, deep: int, area: Rect2, reach: float
 ) -> void:
 	var step_x: float = area.size.x / float(wide)
 	var step_y: float = area.size.y / float(deep)
 	var across: float = sqrt(step_x * step_x + step_y * step_y)
-	var far: float = clearance * 4.0
+	var far: float = reach * 4.0
 
 	var gap: PackedFloat32Array = PackedFloat32Array()
 	gap.resize(wide * deep)
@@ -1152,7 +1174,7 @@ func _spread(
 
 	for y: int in range(deep):
 		for x: int in range(wide):
-			var share: float = clampf(gap[y * wide + x] / maxf(clearance, 0.0001), 0.0, 1.0)
+			var share: float = clampf(gap[y * wide + x] / maxf(reach, 0.0001), 0.0, 1.0)
 			room.set_pixel(x, y, Color(share, share, share, 1.0))
 
 

@@ -74,11 +74,17 @@ void fragment() {
 	ALBEDO = comic_shade(paint, SCREEN_UV * VIEWPORT_SIZE, INV_VIEW_MATRIX);
 
 	// Two boundaries, and the tighter one wins: the edge of the sown area, and the
-	// room left by everything standing on it. One wander displaces both, read once
-	// here and handed to each, so the line the grass stops on and the line the
-	// ground gives up on are the same line.
+	// bare ring around everything standing on it. Both come back as the same
+	// quantity — how far inside the grass this fragment is, in metres — so the
+	// smaller of them is the distance to whichever edge is nearer, and one fade
+	// over one width serves both. One wander displaces both, read once here and
+	// handed to each, so the line the grass stops on and the line the ground gives
+	// up on are the same line.
+	//
+	// **The fade runs inside the grass, never past it.** The ground is dark
+	// because there is grass on it; a millimetre beyond the last blade there is no
+	// reason for it to be anything but the tile.
 	float bite = turf_bite(world_here.xz);
-	float room = smoothstep(0.0, 1.0, turf_room(on_ground, bite));
-	float inside = turf_edge(from_bare, bite) / max(edge_width, 0.0001);
-	ALPHA = min(clamp(inside, 0.0, 1.0), room);
+	float inside = min(turf_room(on_ground, bite), turf_edge(from_bare, bite));
+	ALPHA = clamp(inside / max(edge_width, 0.0001), 0.0, 1.0);
 }

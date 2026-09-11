@@ -151,37 +151,34 @@ void process() {
 
 	float tall = blade_height * mix(1.0 - height_spread, 1.0, more.x);
 
-	// **The blades do not fade at the edge of a patch.** Grass has an edge; it is
-	// the darkening of the ground under it that softens, and that is the mat's
-	// business. Thinning the blades as well made the last metre read as
-	// half-mown.
+	// **Blades do not taper at a boundary, they stop at it.** Both boundaries are
+	// handed over as a distance in metres — how far inside the grass this blade
+	// stands, counting from the edge of the patch and from the bare ring around
+	// anything on it — and a blade is drawn at its own full height on one side of
+	// zero and not at all on the other.
 	//
-	// What they do give way to is whatever else is standing here — read at this
-	// blade's own feet, from a field that already knows the shape of everything
-	// on the ground and where those shapes overlap.
+	// The earlier version multiplied a blade's size by a 0-to-1 room, which made
+	// the lawn thin out over the whole clearance. Grass does not get shorter as it
+	// approaches a rock: it stops.
 	//
 	// Folded into the size rather than returned early: a particle shader forbids
 	// `return` in `process`, and a blade scaled to nothing is a degenerate
 	// triangle — rasterised as no pixels at all, which is the cheapest way there
 	// is to not draw something.
-	float bite = turf_bite(out_there.xz);
-	tall *= smoothstep(0.0, 1.0, turf_room(here.xz, bite));
-
-	// And they do stop at the edge of the patch, on the same wandering line the
-	// mat fades along. A cut and not a fade, for the reason just above: what the
-	// author asked for is where the grass ends, and the softening is the ground's.
 	//
-	// The wander can only ever eat in here, because there are no blades outside
-	// the sown cells for it to hand back. The border therefore sits a centimetre
-	// or two inside where a straight edge would have been, which is the right
-	// trade for an edge that does not read as cut with scissors.
+	// The wander can only ever eat into the patch edge, because there are no
+	// blades outside the sown cells for it to hand back. The border therefore sits
+	// a centimetre or two inside where a straight edge would have been, which is
+	// the right trade for an edge that does not read as cut with scissors.
+	float bite = turf_bite(out_there.xz);
 	vec2 in_cell = clamp(spot / vec2(cell_width, cell_depth) + 0.5, vec2(0.0), vec2(1.0));
 	float from_bare = mix(
 		mix(corners.x, corners.y, in_cell.x),
 		mix(corners.z, corners.w, in_cell.x),
 		in_cell.y
 	);
-	tall *= step(0.0, turf_edge(from_bare, bite));
+	float inside = min(turf_room(here.xz, bite), turf_edge(from_bare, bite));
+	tall *= step(0.0, inside);
 
 	float wide = tall * blade_width;
 

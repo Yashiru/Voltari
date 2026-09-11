@@ -58,12 +58,28 @@ the object itself.
 
 ### The blades cut, the ground fades
 
-Unchanged from before and worth restating, because it is the thing that keeps
-being re-proposed: the grass **stops**, and only the darkened ground under it
-softens. Thinning the blades over the last stretch makes a lawn read as half-mown.
-The wander can therefore only eat into the patch edge — there are no blades
-outside the sown cells for it to hand back — so the border sits a centimetre or
-two inside a straight edge. That is the trade, and it is the right way round.
+The grass **stops**, and only the darkened ground under it softens. Thinning the
+blades over the last stretch makes a lawn read as half-mown.
+
+That was already true at the edge of a patch and was **not** true around an
+obstacle, where a blade's size was multiplied by a 0-to-1 room and the lawn
+therefore tapered over the whole clearance. Grass does not get shorter as it
+approaches a rock; it stops. So the field hands back a **distance in metres**
+rather than a share, the blades cut on its sign at both boundaries, and the ground
+fades over a width of its own on the inside of whichever is nearer. One boundary,
+and each side of it drawn the way it should be.
+
+The consequence is that `clearance` now means what it says — the ring is that wide
+of genuinely bare ground — and reads wider than the same number used to.
+
+The field is stored as a share of a reach that is the clearance **plus** the fade
+width and the wander, rather than of the clearance alone, because the ground has
+to finish fading before the last blade and there was no headroom past the
+clearance to do it in.
+
+The wander can only eat into the patch edge — there are no blades outside the sown
+cells for it to hand back — so the border sits a centimetre or two inside a
+straight edge. That is the trade, and it is the right way round.
 
 ## What this fixed on the way
 

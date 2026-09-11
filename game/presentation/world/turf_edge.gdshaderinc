@@ -48,10 +48,15 @@ uniform sampler2D room_field : filter_linear, repeat_disable, hint_default_white
 uniform vec2 field_origin;
 uniform vec2 field_size;
 
-// How far grass keeps away from anything standing on it, in metres. The field is
-// stored as a share of this, so it is needed here only to turn a bite in metres
-// back into the field's own units.
+// How far grass keeps away from anything standing on it, in metres. **The edge of
+// the grass is exactly here**: at the clearance the lawn is full height, and
+// inside it there is none.
 uniform float clearance : hint_range(0.0, 3.0) = 0.35;
+
+// The longest distance the field can express, in metres. It is stored as a share
+// of this, so one texel means the same thing at any clearance, and it reaches past
+// the clearance far enough for the ground under the grass to fade out inside it.
+uniform float field_reach = 1.0;
 
 group_uniforms edge;
 
@@ -109,35 +114,42 @@ float turf_bite(vec2 world_xz) {
 }
 
 
-// The room left on the ground here, after the wander, 0 to 1.
+// How far inside the grass this point is, in metres, counting from the bare ring
+// around whatever is standing on the ground. Negative is inside the ring.
 //
 // `on_ground` is the point in the grid's own space, which is the space the field
 // was built in; `bite` is what `turf_bite` said at the same point.
 //
-// **The bite is faded out as the room runs out**, and that is not a nicety. A
+// **A distance, not a share, and that is what stops the blades tapering.** The
+// field used to be read as a 0-to-1 room and multiplied into a blade's size, so
+// the lawn thinned out over the whole clearance and the ring was a fade rather
+// than an edge. Grass does not get shorter as it approaches a rock. Handing back
+// a distance lets the blades cut on its sign and the ground fade over a width of
+// its own — one boundary, and each side of it drawn the way it should be.
+//
+// **The bite is faded out as the ground runs out**, and that is not a nicety. A
 // wander that reached all the way in would push grass *inside* the thing it is
 // keeping away from wherever the noise happened to be negative — a blade growing
 // through a fence post, from a feature meant to make the edge prettier. Scaling
-// the bite by how much room there already is means the boundary can move freely
-// out in the open and cannot move at all against the object itself.
+// the bite by the room already there means the boundary can move freely out in
+// the open and cannot move at all against the object itself.
 float turf_room(vec2 on_ground, float bite) {
-	float room = texture(
+	float gap = texture(
 		room_field, (on_ground - field_origin) / max(field_size, vec2(0.0001))
-	).r;
-	if (clearance <= 0.0) {
-		return room;
-	}
-	float shift = bite / clearance;
-	room -= shift * smoothstep(0.0, abs(shift) + 1e-4, room);
-	return clamp(room, 0.0, 1.0);
+	).r * field_reach;
+	gap -= bite * smoothstep(0.0, abs(bite) + 1e-4, gap);
+	return gap - clearance;
 }
 
 
 // How far inside the sown area this point is, after the wander, in metres.
 //
-// Negative is outside. One line, and a function anyway: the sign convention is the
-// thing two shaders have to agree on, and a convention written twice is a
-// convention that gets flipped once.
+// Negative is outside. The same quantity `turf_room` returns, measured against the
+// other boundary — so whatever reads them can simply take the smaller.
+//
+// One line, and a function anyway: the sign convention is the thing two shaders
+// have to agree on, and a convention written twice is a convention that gets
+// flipped once.
 float turf_edge(float from_bare, float bite) {
 	return from_bare - bite;
 }

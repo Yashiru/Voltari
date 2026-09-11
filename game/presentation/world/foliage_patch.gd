@@ -55,7 +55,7 @@ extends MeshInstance3D
 ## picked out of the air. What it does cost is linear — a palm's canopy is about
 ## 126 square units, so every point of density is another 126 leaves on every cell
 ## carrying one, and a leaf is six vertices and eight triangles.
-@export_range(0.0, 200.0, 0.1, "or_greater") var density: float = 3.0:
+@export_range(0.0, 200.0, 0.1, "or_greater") var density: float = 500.0:
 	set(value):
 		density = value
 		_regrow()
@@ -75,22 +75,22 @@ extends MeshInstance3D
 
 ## Leaf length as a share of the model's own height, so one setting suits a palm
 ## and a cactus alike.
-@export_range(0.005, 0.5, 0.005) var smallest: float = 0.07:
+@export_range(0.005, 0.5, 0.005) var smallest: float = 0.05:
 	set(value):
 		smallest = value
 		_regrow()
 
-@export_range(0.005, 0.5, 0.005) var largest: float = 0.13:
+@export_range(0.005, 0.5, 0.005) var largest: float = 0.09:
 	set(value):
 		largest = value
 		_regrow()
 
-@export_range(0.0, 90.0, 1.0) var lean: float = 34.0:
+@export_range(0.0, 90.0, 1.0) var lean: float = 90.0:
 	set(value):
 		lean = value
 		_regrow()
 
-@export_range(0.0, 1.0, 0.01) var lift: float = 0.22:
+@export_range(0.0, 1.0, 0.01) var lift: float = 0.0:
 	set(value):
 		lift = value
 		_regrow()

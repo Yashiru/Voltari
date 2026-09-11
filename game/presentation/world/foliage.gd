@@ -60,7 +60,7 @@ class Settings:
 	## game metres. A `GridMap` draws an item at `ART_SCALE`, so the placeholder
 	## models are authored about twice the size they appear at, and a density
 	## expressed in metres would be wrong by four on every one of them.
-	var density: float = 3.0
+	var density: float = 500.0
 
 	## How long a leaf is, stem to tip, **as a share of the model's own height**.
 	## Drawn between the two.
@@ -70,8 +70,8 @@ class Settings:
 	## height of a three-unit cactus on it — each one sticking far outside the
 	## volume it grew on, which reads as a flat sheet of shards planted through the
 	## plant rather than as foliage. One share works on both.
-	var smallest: float = 0.07
-	var largest: float = 0.13
+	var smallest: float = 0.05
+	var largest: float = 0.09
 
 	## How far a leaf may lean off the surface normal, in degrees.
 	##
@@ -80,11 +80,11 @@ class Settings:
 	## because the face has to keep pointing outwards to survive back-face
 	## culling — the tool this is taken from solves that by turning cards towards
 	## the camera, which is a thing we do not need and therefore do not have.
-	var lean: float = 34.0
+	var lean: float = 90.0
 
 	## How far a leaf is pushed out along the normal, as a share of its own size.
 	## What lets the silhouette grow ragged instead of staying the blob's.
-	var lift: float = 0.22
+	var lift: float = 0.0
 
 	## The colour the leaves take, and how much of it they take.
 	##

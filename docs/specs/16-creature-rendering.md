@@ -348,6 +348,23 @@ on anything that moves the patches would swim across the surface.
 hundred; FBX to glTF lays them on their side. Both were tried and reverted. Data a
 mesh needs is computed on the mesh Godot already imported.
 
+### A roughcast is put on chosen models by hand
+
+**Settled by decision 0065.** A third layer, unlike the two above in that it is
+**opt-in per model**: a comma-separated list of name fragments the author types,
+empty by default. A rendered wall is a material somebody chooses, not something
+the palette does on its own.
+
+It is a **stipple** — two octaves of world-space noise cut into specks, darkening
+the tone underneath — and not a perturbation of the lighting term. The first
+attempt was the latter and did almost nothing, because this geometry is flat
+shaded and the lighting term is constant across a face.
+
+**Any world-space grain must fade out on its screen footprint.** A grain finer
+than a pixel is not a material, it is per-pixel noise that changes every frame the
+camera moves, and that crawl is what gives a stylised surface away. Measured, a
+wall goes to exactly zero local contrast by four times the reference distance.
+
 **Known limitation.** A creature keeps screentone off its face by raising
 `face_flat` on the surfaces that carry the eye and mouth sheets. The character's
 face is painted into its body texture and has no surface of its own, so the coarse

@@ -173,6 +173,39 @@ group_uniforms chatter;
 uniform float chatter_amount : hint_range(0.0, 0.2) = 0.035;
 uniform float chatter_scale : hint_range(1.0, 200.0) = 46.0;
 
+group_uniforms stucco;
+// Roughcast. The same mechanism as the chatter above — noise added to the
+// lighting term before it is stepped — turned up, given a second octave, and
+// opted into per model rather than worn by everything.
+//
+// **Why it goes into the lighting term and not into the colour.** A rendered wall
+// is barely visible lit flat on; it explodes into speckle where the light rakes
+// across it, because that is the only place its relief casts anything. Perturbing
+// `facing` reproduces exactly that, and reproduces it for free: on a surface
+// already well past the terminator a small change to `facing` is clipped by the
+// step and does nothing, while at the boundary the same change flips a pixel from
+// lit to shadow. The steps do the masking, so there is no "only near the edge"
+// term to write and none to get wrong.
+//
+// Two octaves because roughcast is two things: an aggregate you can see and a
+// sand you can only feel. One octave reads as television static.
+// How much darker a speck is than the tone it sits on.
+uniform float stucco_amount : hint_range(0.0, 0.5) = 0.0;
+// The two grains, as how many repeat per metre. The aggregate you can see and the
+// sand you can only feel — one octave alone reads as television static.
+uniform float stucco_coarse : hint_range(1.0, 200.0) = 26.0;
+uniform float stucco_fine : hint_range(1.0, 400.0) = 78.0;
+uniform float stucco_fine_share : hint_range(0.0, 1.0) = 0.45;
+// Where the noise is cut into specks. Lower leaves fewer, larger pits; at a half
+// the surface is half pitted and stops reading as a wall.
+uniform float stucco_pits : hint_range(0.05, 0.6) = 0.42;
+// How much of the roughcast still shows on a surface in full light.
+//
+// Not zero and not one. A rendered wall does show most where the light rakes
+// across it — that is the physical truth — but a lit face that went perfectly
+// smooth would undo the whole point on every south wall in the game.
+uniform float stucco_lit_share : hint_range(0.0, 1.0) = 0.45;
+
 group_uniforms form;
 // Blend the shading normal towards the one a sphere would have at this point,
 // around the mesh's own centre — pushed in by the runtime script.
@@ -349,6 +382,75 @@ float comic_up(float vertex_y) {
 }
 
 
+// How much world one pixel covers here, in metres. The unit every grain is
+// measured against.
+float comic_footprint(vec3 here) {
+	return max(length(fwidth(here)), 1e-6);
+}
+
+
+// How much of a grain of this size is still worth drawing, 1 near and 0 far.
+//
+// **This is the whole difference between a surface that has a material and a
+// surface that sparkles**, and it is why a procedural grain beats a tiled
+// photograph here. A grain a centimetre across is a material at two metres and is
+// pure noise at twenty: one pixel then spans several grains, nothing in it can be
+// resolved, and sampling it once per pixel gives a different answer every frame
+// the camera moves. That crawl gives a stylised surface away instantly.
+//
+// So the grain is faded out on its own screen footprint, analytically, with no
+// mipmap and no texture: full while a grain is comfortably wider than a pixel,
+// gone by the time a pixel has caught up. A distant wall goes cleanly flat, which
+// is also what a drawing does — an illustrator stops rendering texture at
+// distance rather than drawing it smaller.
+float comic_detail(float scale, float footprint) {
+	float period = 1.0 / max(scale, 1e-4);
+	return 1.0 - smoothstep(period * 0.35, period * 0.9, footprint);
+}
+
+
+// The roughcast, as the share of this pixel that sits in a pit.
+//
+// **Drawn into the value, not into the lighting.** The first attempt perturbed
+// the lighting term the way the chatter does, on the reasoning that a rendered
+// wall only shows where light rakes across it and that the hard steps would mask
+// it everywhere else for free. Rendered and measured, it did almost nothing: this
+// geometry is flat shaded, so the lighting term is *constant across a face* and a
+// perturbation either flips a whole face or is clipped away. That reasoning was
+// right for a sphere and wrong for a crate, which is most of a town.
+//
+// So it is a stipple, which is what an inker draws on a rendered wall anyway:
+// two octaves of world-space noise, thresholded into specks rather than left as a
+// wash, and darkening the tone underneath. Thresholded with a screen-space width
+// so a speck is a crisp speck at any distance instead of a soft blob up close and
+// a hard one far away.
+//
+// World space throughout: this geometry has no UVs worth the name, and a grain
+// keyed on world position crosses the seam between two tiles without showing it.
+float comic_roughcast(vec3 here, float footprint) {
+	if (stucco_amount <= 0.0) {
+		return 0.0;
+	}
+	float coarse_left = comic_detail(stucco_coarse, footprint);
+	float fine_left = comic_detail(stucco_fine, footprint);
+	float visible = max(coarse_left, fine_left);
+	if (visible <= 0.0) {
+		return 0.0;
+	}
+
+	// Each octave fades towards its own mean rather than towards zero, so a band
+	// on its way out lightens its contribution instead of shifting the whole
+	// surface darker.
+	float aggregate = mix(0.5, noise31(here * stucco_coarse), coarse_left);
+	float sand = mix(0.5, noise31(here * stucco_fine), fine_left);
+	float grain = mix(aggregate, sand, stucco_fine_share);
+
+	float width = max(fwidth(grain), 1e-4);
+	float pit = 1.0 - smoothstep(stucco_pits - width, stucco_pits + width, grain);
+	return pit * visible;
+}
+
+
 // Patches of slightly darker tone, fixed to the world.
 //
 // Only ever darkens: the lit fill stays the ceiling, so raising this cannot blow
@@ -444,6 +546,16 @@ vec3 comic_shade(vec3 paint, vec2 pixel, mat4 inv_view) {
 			dots_angle + core_dots_turn);
 	colour = mix(colour, colour * (1.0 - core_dots_darken),
 			fine * core_dots_amount * (1.0 - above_core) * printable);
+
+	// The roughcast, if this surface wears one. After the tones and before the
+	// stroke: it is a skin over whatever tone the surface ended up with, so it
+	// reads the same in light and in shadow, and the terminator line still lands
+	// on top of it the way an inker's last pass does.
+	if (stucco_amount > 0.0) {
+		float rough = comic_roughcast(world_here, comic_footprint(world_here));
+		colour = mix(colour, colour * (1.0 - stucco_amount),
+				rough * mix(1.0, stucco_lit_share, lit) * printable);
+	}
 
 	// The stroke on the shadow side of the terminator. Everything above draws
 	// areas; this draws the line between them.

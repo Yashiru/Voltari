@@ -1,250 +1,247 @@
 {
- "_comment": [
-  "A look, as a set of numbers. Every look in the game is one of these — there is",
-  "no longer such a thing as a look that is only a shader, which is what used to",
-  "make `toon` and its four siblings impossible to save and impossible to leave.",
-  "",
-  "`shader` names one of the five quantisers in comic_look.gdshaderinc: how the",
-  "surface steps from its shadow into the sun. Everything else in the pipeline is",
-  "shared, so everything else is a number here.",
-  "",
-  "A value is read by its JSON type. A number is a float; a \"#rrggbb\" string is",
-  "a colour, and it reaches the shader as the exact components it spells — Godot",
-  "does not convert a Color set from script on a `source_color` uniform, which was",
-  "measured rather than assumed. Nothing else is accepted, so a typo here is inert",
-  "rather than a creature that quietly looks wrong.",
-  "",
-  "**A preset is read as complete.** `Look.wear` puts the whole shared vocabulary",
-  "back to the shader's own defaults before applying one, so anything left out here",
-  "is the default and not whatever the last look happened to leave behind. Leaving",
-  "that out is how switching looks used to accumulate: `comic-sunday` sets the",
-  "saturation to 1.55, `toon` set nothing at all, and the toon look inherited it.",
-  "",
-  "These win over the sliders on the creature — saturation and the rest. A preset",
-  "is a deliberate statement about a look, and a slider is not a good reason to",
-  "half-undo it."
- ],
-
- "comic-clear": {
-  "shader": "comic",
-  "_note": "Ligne claire. No tone at all, two flat fills, and the whole read carried by the line. Tintin, Spirou: the discipline is that nothing is hatched, so the drawing has to be right.",
-  "uniforms": {
-   "saturation": 1.42,
-   "terminator": 0.40,
-   "core_extra": 0.0,
-   "shadow_depth": 0.26,
-   "shadow_hue_mix": 0.30,
-   "shadow_saturate": 0.15,
-   "dots_amount": 0.0,
-   "core_dots_amount": 0.0,
-   "edge_line": 0.42,
-   "edge_line_width": 0.0933,
-   "chatter_amount": 0.0333
-  }
- },
-
- "comic-manga": {
-  "shader": "comic",
-  "_note": "Tone does the structural work, in fine screens over a deep core — but the paint keeps its colour. Swept 0.85 / 1.05 / 1.25 / 1.45 on two creatures: under 1.05 the difference from the desaturated original barely reads, over 1.35 the warm bodies go hot and the screen starts fighting the fill. Back to 1.0 once the missing 1/pi was found (decision 0067): every number above 1 here was fighting a pipeline that was 3.14 times too bright.",
-  "uniforms": {
-   "saturation": 1.0,
-   "lift": 0.0,
-   "terminator": 0.4533,
-   "shadow_depth": 0.42,
-   "shadow_hue_mix": 0.18,
-   "core_extra": 0.22,
-   "dots_amount": 1.0,
-   "dots_size": 6.0,
-   "dots_max": 0.82,
-   "dots_reach": 0.60,
-   "dots_darken": 0.34,
-   "core_dots_amount": 0.90,
-   "core_dots_size": 3.5,
-   "core_dots_max": 0.78,
-   "core_dots_darken": 0.30,
-   "edge_line": 0.34
-  }
- },
-
- "comic-noir": {
-  "shader": "comic",
-  "_note": "Most of the form in shadow and the light as the exception. The terminator is pushed past the middle, so the lit side becomes a shape rather than a default.",
-  "uniforms": {
-   "saturation": 1.05,
-   "terminator": 0.5867,
-   "core_level": 0.2667,
-   "shadow_depth": 0.58,
-   "shadow_hue": "#39406b",
-   "shadow_hue_mix": 0.55,
-   "shadow_saturate": 0.10,
-   "core_extra": 0.30,
-   "dots_amount": 0.80,
-   "dots_size": 11.0,
-   "dots_max": 0.85,
-   "dots_darken": 0.34,
-   "core_dots_amount": 0.40,
-   "edge_line": 0.45,
-   "edge_line_width": 0.1067,
-   "chatter_amount": 0.0333
-  }
- },
-
- "comic-newsprint": {
-  "shader": "comic",
-  "_note": "Cheap press: a coarse screen you are meant to see, four inks, warm paper grey in the shadow. The posterise is on here and nowhere else in the comic family.",
-  "uniforms": {
-   "saturation": 1.0,
-   "lift": 0.08,
-   "flat_levels": 6.0,
-   "shadow_hue": "#8a8272",
-   "shadow_hue_mix": 0.42,
-   "shadow_saturate": 0.0,
-   "dots_amount": 0.90,
-   "dots_size": 16.0,
-   "dots_max": 0.90,
-   "dots_reach": 0.7333,
-   "dots_darken": 0.36,
-   "core_dots_amount": 0.70,
-   "core_dots_size": 9.0,
-   "core_dots_turn": 15.0,
-   "edge_line": 0.22,
-   "chatter_amount": 0.04,
-   "chatter_scale": 30.0
-  }
- },
-
- "comic-sunday": {
-  "shader": "comic",
-  "_note": "The bright end. Little shadow, saturated fills, a light screen at a shallow angle. Closest of the family to what a game for children would actually ship.",
-  "uniforms": {
-   "saturation": 1.55,
-   "lift": 0.10,
-   "terminator": 0.3733,
-   "shadow_depth": 0.24,
-   "shadow_hue": "#7f8fd8",
-   "shadow_hue_mix": 0.45,
-   "shadow_saturate": 0.35,
-   "core_extra": 0.10,
-   "dots_amount": 0.55,
-   "dots_size": 10.0,
-   "dots_angle": 15.0,
-   "dots_max": 0.60,
-   "dots_darken": 0.18,
-   "core_dots_amount": 0.30,
-   "edge_line": 0.20
-  }
- },
-
- "toon": {
-  "shader": "bands",
-  "_note": "Three flat bands, a fold line, a stepped highlight and a rim. The cel look: nothing is printed, so no screen and no terminator stroke. Was a shader of its own with nineteen uniforms prefixed `toon_`; every one of them turned out to be a general question already asked elsewhere under another name.",
-  "uniforms": {
-   "wrap": 0.35,
-   "bands": 3.0,
-   "shadow_hue": "#6b78ad",
-   "shadow_hue_mix": 1.0,
-   "shadow_depth": 0.0,
-   "shadow_saturate": 0.0,
-   "ground_shade": 0.22,
-   "ink_colour": "#4d5c85",
-   "crease_ink": 0.55,
-   "crease_bias": 0.02,
-   "crease_width": 0.06,
-   "spec_strength": 0.35,
-   "rim_strength": 0.55,
-   "rim_width": 0.42,
-   "dots_amount": 0.0,
-   "core_dots_amount": 0.0,
-   "edge_line": 0.0,
-   "cast_line": 0.0,
-   "cast_screen": 0.0,
-   "chatter_amount": 0.0
-  }
- },
-
- "bd": {
-  "shader": "step",
-  "_note": "Franco-Belgian album: one hard terminator, flattened fills, one screen and an inked fold. The ink is a near-black blue-violet rather than black, which is what a two-colour press puts down and what keeps a fold line from reading as a hole in the page.",
-  "uniforms": {
-   "wrap": 1.0,
-   "terminator": 0.46,
-   "flat_levels": 6.0,
-   "shadow_hue": "#a8addb",
-   "shadow_hue_mix": 0.26,
-   "shadow_depth": 0.0,
-   "shadow_saturate": 0.0,
-   "ink_colour": "#171421",
-   "dots_amount": 0.45,
-   "dots_size": 11.0,
-   "dots_max": 0.60,
-   "dots_reach": 0.46,
-   "dots_darken": 1.0,
-   "core_dots_amount": 0.0,
-   "crease_ink": 0.70,
-   "edge_line": 0.0,
-   "cast_screen": 1.0,
-   "cast_line": 0.0,
-   "chatter_amount": 0.0
-  }
- },
-
- "vinyl": {
-  "shader": "smooth",
-  "_note": "A gradient, warm into cool, and nothing stepped anywhere. The whole point is that the terminator is not a statement, so every mark in the ink stage is off.",
-  "uniforms": {
-   "wrap": 0.55,
-   "shadow_hue": "#8a99cc",
-   "shadow_hue_mix": 0.28,
-   "shadow_depth": 0.0,
-   "shadow_saturate": 0.0,
-   "light_hue": "#fff5e0",
-   "light_hue_mix": 0.10,
-   "ground_shade": 0.08,
-   "dots_amount": 0.0,
-   "core_dots_amount": 0.0,
-   "edge_line": 0.0,
-   "cast_line": 0.0,
-   "cast_screen": 0.0,
-   "chatter_amount": 0.0
-  }
- },
-
- "ramp": {
-  "shader": "ramp",
-  "_note": "The whole light response read off `shading_ramp.png`. Nothing else shades it, so nothing else is turned on — this look is the strip, and editing the strip is how it is changed.",
-  "uniforms": {
-   "wrap": 0.30,
-   "ground_shade": 0.08,
-   "ramp_row": 0.5,
-   "dots_amount": 0.0,
-   "core_dots_amount": 0.0,
-   "edge_line": 0.0,
-   "cast_line": 0.0,
-   "cast_screen": 0.0,
-   "chatter_amount": 0.0
-  }
- },
-
- "typelit": {
-  "shader": "step",
-  "_note": "Two tones in the creature's own element colour, and a rim in it too. The shadow is the element darkened rather than grey, which is what makes the pair read as one creature instead of as a creature and a stain. The same quantiser as `bd`: what separates them is entirely numbers, which is the point of writing them down here.",
-  "uniforms": {
-   "wrap": 0.22,
-   "terminator": 0.46,
-   "fill_ceiling": 0.86,
-   "shadow_depth": 0.34,
-   "shadow_hue_mix": 0.45,
-   "shadow_saturate": 0.0,
-   "accent_shadow": 1.0,
-   "rim_strength": 0.55,
-   "rim_width": 0.30,
-   "rim_accent": 1.0,
-   "dots_amount": 0.0,
-   "core_dots_amount": 0.0,
-   "edge_line": 0.0,
-   "cast_line": 0.0,
-   "cast_screen": 0.0,
-   "chatter_amount": 0.0
-  }
- }
+	"_comment": [
+		"A look, as a set of numbers. Every look in the game is one of these — there is",
+		"no longer such a thing as a look that is only a shader, which is what used to",
+		"make `toon` and its four siblings impossible to save and impossible to leave.",
+		"",
+		"`shader` names one of the five quantisers in comic_look.gdshaderinc: how the",
+		"surface steps from its shadow into the sun. Everything else in the pipeline is",
+		"shared, so everything else is a number here.",
+		"",
+		"A value is read by its JSON type. A number is a float; a \"#rrggbb\" string is",
+		"a colour, and it reaches the shader as the exact components it spells — Godot",
+		"does not convert a Color set from script on a `source_color` uniform, which was",
+		"measured rather than assumed. Nothing else is accepted, so a typo here is inert",
+		"rather than a creature that quietly looks wrong.",
+		"",
+		"**A preset is read as complete.** `Look.wear` puts the whole shared vocabulary",
+		"back to the shader's own defaults before applying one, so anything left out here",
+		"is the default and not whatever the last look happened to leave behind. Leaving",
+		"that out is how switching looks used to accumulate: `comic-sunday` sets the",
+		"saturation to 1.55, `toon` set nothing at all, and the toon look inherited it.",
+		"",
+		"These win over the sliders on the creature — saturation and the rest. A preset",
+		"is a deliberate statement about a look, and a slider is not a good reason to",
+		"half-undo it."
+	],
+	"bd": {
+		"_note": "Franco-Belgian album: one hard terminator, flattened fills, one screen and an inked fold. The ink is a near-black blue-violet rather than black, which is what a two-colour press puts down and what keeps a fold line from reading as a hole in the page.",
+		"shader": "step",
+		"uniforms": {
+			"cast_line": 0.0,
+			"cast_screen": 1.0,
+			"chatter_amount": 0.0,
+			"core_dots_amount": 0.0,
+			"crease_ink": 0.7,
+			"dots_amount": 0.45,
+			"dots_darken": 1.0,
+			"dots_max": 0.6,
+			"dots_reach": 0.46,
+			"dots_size": 11.0,
+			"edge_line": 0.0,
+			"flat_levels": 6.0,
+			"ink_colour": "#171421",
+			"shadow_depth": 0.0,
+			"shadow_hue": "#a8addb",
+			"shadow_hue_mix": 0.26,
+			"shadow_saturate": 0.0,
+			"terminator": 0.46,
+			"wrap": 1.0
+		}
+	},
+	"comic-clear": {
+		"_note": "Ligne claire. No tone at all, two flat fills, and the whole read carried by the line. Tintin, Spirou: the discipline is that nothing is hatched, so the drawing has to be right.",
+		"shader": "comic",
+		"uniforms": {
+			"chatter_amount": 0.0333,
+			"core_dots_amount": 0.0,
+			"core_extra": 0.0,
+			"dots_amount": 0.0,
+			"edge_line": 0.42,
+			"edge_line_width": 0.0933,
+			"saturation": 1.42,
+			"shadow_depth": 0.26,
+			"shadow_hue_mix": 0.3,
+			"shadow_saturate": 0.15,
+			"terminator": 0.4
+		}
+	},
+	"comic-manga": {
+		"_note": "Tone does the structural work, in fine screens over a deep core — but the paint keeps its colour. Swept 0.85 / 1.05 / 1.25 / 1.45 on two creatures: under 1.05 the difference from the desaturated original barely reads, over 1.35 the warm bodies go hot and the screen starts fighting the fill. Back to 1.0 once the missing 1/pi was found (decision 0067): every number above 1 here was fighting a pipeline that was 3.14 times too bright.",
+		"shader": "comic",
+		"uniforms": {
+			"core_dots_amount": 0.9,
+			"core_dots_darken": 0.3,
+			"core_dots_max": 0.78,
+			"core_dots_size": 3.5,
+			"core_extra": 0.22,
+			"dots_amount": 1.0,
+			"dots_darken": 0.34,
+			"dots_max": 0.82,
+			"dots_reach": 0.6,
+			"dots_size": 6.0,
+			"edge_line": 0.34,
+			"lift": 0.0,
+			"saturation": 1.0,
+			"shadow_depth": 0.42,
+			"shadow_hue_mix": 0.18,
+			"terminator": 0.4533
+		}
+	},
+	"comic-newsprint": {
+		"_note": "Cheap press: a coarse screen you are meant to see, four inks, warm paper grey in the shadow. The posterise is on here and nowhere else in the comic family.",
+		"shader": "comic",
+		"uniforms": {
+			"chatter_amount": 0.04,
+			"chatter_scale": 30.0,
+			"core_dots_amount": 0.7,
+			"core_dots_size": 9.0,
+			"core_dots_turn": 15.0,
+			"dots_amount": 0.9,
+			"dots_darken": 0.36,
+			"dots_max": 0.9,
+			"dots_reach": 0.7333,
+			"dots_size": 16.0,
+			"edge_line": 0.22,
+			"flat_levels": 6.0,
+			"lift": 0.08,
+			"saturation": 1.0,
+			"shadow_hue": "#8a8272",
+			"shadow_hue_mix": 0.42,
+			"shadow_saturate": 0.0
+		}
+	},
+	"comic-noir": {
+		"_note": "Most of the form in shadow and the light as the exception. The terminator is pushed past the middle, so the lit side becomes a shape rather than a default.",
+		"shader": "comic",
+		"uniforms": {
+			"chatter_amount": 0.0333,
+			"core_dots_amount": 0.4,
+			"core_extra": 0.3,
+			"core_level": 0.2667,
+			"dots_amount": 0.8,
+			"dots_darken": 0.34,
+			"dots_max": 0.85,
+			"dots_size": 11.0,
+			"edge_line": 0.45,
+			"edge_line_width": 0.1067,
+			"saturation": 1.05,
+			"shadow_depth": 0.58,
+			"shadow_hue": "#39406b",
+			"shadow_hue_mix": 0.55,
+			"shadow_saturate": 0.1,
+			"terminator": 0.5867
+		}
+	},
+	"comic-sunday": {
+		"_note": "The bright end. Little shadow, saturated fills, a light screen at a shallow angle. Closest of the family to what a game for children would actually ship.",
+		"shader": "comic",
+		"uniforms": {
+			"core_dots_amount": 0.3,
+			"core_extra": 0.1,
+			"dots_amount": 0.55,
+			"dots_angle": 15.0,
+			"dots_darken": 0.18,
+			"dots_max": 0.6,
+			"dots_size": 10.0,
+			"edge_line": 0.2,
+			"lift": 0.1,
+			"saturation": 1.55,
+			"shadow_depth": 0.24,
+			"shadow_hue": "#7f8fd8",
+			"shadow_hue_mix": 0.45,
+			"shadow_saturate": 0.35,
+			"terminator": 0.3733
+		}
+	},
+	"ramp": {
+		"_note": "The whole light response read off `shading_ramp.png`. Nothing else shades it, so nothing else is turned on — this look is the strip, and editing the strip is how it is changed.",
+		"shader": "ramp",
+		"uniforms": {
+			"cast_line": 0.0,
+			"cast_screen": 0.0,
+			"chatter_amount": 0.0,
+			"core_dots_amount": 0.0,
+			"dots_amount": 0.0,
+			"edge_line": 0.0,
+			"ground_shade": 0.08,
+			"ramp_row": 0.5,
+			"wrap": 0.3
+		}
+	},
+	"toon": {
+		"_note": "Three flat bands, a fold line, a stepped highlight and a rim. The cel look: nothing is printed, so no screen and no terminator stroke. Was a shader of its own with nineteen uniforms prefixed `toon_`; every one of them turned out to be a general question already asked elsewhere under another name.",
+		"shader": "bands",
+		"uniforms": {
+			"bands": 3.0,
+			"cast_line": 0.0,
+			"cast_screen": 0.0,
+			"chatter_amount": 0.0,
+			"core_dots_amount": 0.0,
+			"crease_bias": 0.02,
+			"crease_ink": 0.55,
+			"crease_width": 0.06,
+			"dots_amount": 0.0,
+			"edge_line": 0.0,
+			"ground_shade": 0.22,
+			"ink_colour": "#4d5c85",
+			"rim_strength": 0.55,
+			"rim_width": 0.42,
+			"shadow_depth": 0.0,
+			"shadow_hue": "#6b78ad",
+			"shadow_hue_mix": 1.0,
+			"shadow_saturate": 0.0,
+			"spec_strength": 0.35,
+			"wrap": 0.35
+		}
+	},
+	"typelit": {
+		"_note": "Two tones in the creature's own element colour, and a rim in it too. The shadow is the element darkened rather than grey, which is what makes the pair read as one creature instead of as a creature and a stain. The same quantiser as `bd`: what separates them is entirely numbers, which is the point of writing them down here.",
+		"shader": "step",
+		"uniforms": {
+			"accent_shadow": 1.0,
+			"cast_line": 0.0,
+			"cast_screen": 0.0,
+			"chatter_amount": 0.0,
+			"core_dots_amount": 0.0,
+			"dots_amount": 0.0,
+			"edge_line": 0.0,
+			"fill_ceiling": 0.86,
+			"rim_accent": 1.0,
+			"rim_strength": 0.55,
+			"rim_width": 0.3,
+			"shadow_depth": 0.34,
+			"shadow_hue_mix": 0.45,
+			"shadow_saturate": 0.0,
+			"terminator": 0.46,
+			"wrap": 0.22
+		}
+	},
+	"vinyl": {
+		"_note": "A gradient, warm into cool, and nothing stepped anywhere. The whole point is that the terminator is not a statement, so every mark in the ink stage is off.",
+		"shader": "smooth",
+		"uniforms": {
+			"cast_line": 0.0,
+			"cast_screen": 0.0,
+			"chatter_amount": 0.0,
+			"contact_shade": 0.0,
+			"core_dots_amount": 0.0,
+			"dots_amount": 0.0,
+			"edge_line": 0.0,
+			"edge_pixels": 1.34,
+			"fill_ceiling": 0.999999999999999,
+			"grain_amount": 0.291000011563301,
+			"ground_shade": 0.384000015258789,
+			"lift": 0.300000011920928,
+			"light_hue": "#fff5e0",
+			"light_hue_mix": 0.1,
+			"saturation": 1.025,
+			"shadow_depth": 0.701999981403351,
+			"shadow_hue": "#000516",
+			"shadow_hue_mix": 0.1,
+			"shadow_saturate": 0.065,
+			"terminator": 0.0,
+			"wrap": 0.69
+		}
+	}
 }

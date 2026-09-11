@@ -329,6 +329,27 @@ Three consequences are worth knowing before writing anything that draws:
   style's uniforms into the `MeshLibrary`; creatures and the character read the
   style file when they load. All three read the same two files.
 
+### Three layers break the flat fill
+
+**Settled by decision 0063.** These models carry one colour per surface, no
+texture, no vertex colour, and — on the ground tile — no UVs. Three layers sit in
+the shared look, all off by default and all raised on the world only:
+
+- a **grain**, a world-space noise snapped to three tones. World space because the
+  ground has no UVs, and because the pattern then ignores tile edges, which is what
+  stops a floor of identical tiles reading as one.
+- a **contact** band where a model meets the ground, measured up the model's own
+  height so it is right on any layer.
+- a **cavity** term, baked into the mesh's colour channel by the tile library.
+  Not ambient occlusion: it knows where a model folds into itself and nothing else.
+
+The grain is raised on the world and nowhere else. It is fixed to world space, so
+on anything that moves the patches would swim across the surface.
+
+**Never rewrite a model file to add data.** FBX to FBX divides these models by a
+hundred; FBX to glTF lays them on their side. Both were tried and reverted. Data a
+mesh needs is computed on the mesh Godot already imported.
+
 **Known limitation.** A creature keeps screentone off its face by raising
 `face_flat` on the surfaces that carry the eye and mouth sheets. The character's
 face is painted into its body texture and has no surface of its own, so the coarse

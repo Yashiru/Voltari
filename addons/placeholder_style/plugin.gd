@@ -63,6 +63,9 @@ var _trial: Dictionary[String, Variant] = {}
 func _enter_tree() -> void:
 	_panel = VBoxContainer.new()
 	_panel.name = "Look"
+	# So the dock hands it the whole height it has, which is what the scroll below
+	# then has something to distribute.
+	_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	_picker = OptionButton.new()
 	_picker.tooltip_text = ("The look the game wears, everywhere.\n"
@@ -78,8 +81,25 @@ func _enter_tree() -> void:
 	_reach.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_panel.add_child(_reach)
 
+	# **The list has to scroll.** There are a few dozen rows and a dock is a
+	# column a few hundred pixels tall, so without this everything below the fold
+	# is not merely hard to reach, it is unreachable — which is the same defect as
+	# a slider that does nothing, arrived at from the other end.
+	#
+	# The scroll takes the leftover height so the picker stays pinned at the top
+	# and **Keep** at the bottom: the two things that are always wanted are the two
+	# that must never scroll away.
+	var scroll: ScrollContainer = ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.custom_minimum_size = Vector2(0.0, 220.0)
+	_panel.add_child(scroll)
+
 	_controls = VBoxContainer.new()
-	_panel.add_child(_controls)
+	# Fills the scroll's width, or every slider is drawn at its minimum size in a
+	# column down the left edge.
+	_controls.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(_controls)
 
 	var keep: Button = Button.new()
 	keep.text = "Keep"

@@ -171,3 +171,63 @@ func _quad(side: float) -> Array:
 	])
 	made[Mesh.ARRAY_INDEX] = PackedInt32Array([0, 2, 1, 0, 3, 2])
 	return made
+
+
+# --- the leaves can be given a colour ----------------------------------------
+
+
+## A box wearing a material of the kind the tile library writes.
+func _painted(branch: Color) -> ArrayMesh:
+	var mesh: ArrayMesh = _box()
+	var dressed: ShaderMaterial = ShaderMaterial.new()
+	dressed.shader = ResourceLoader.load(
+		"res://game/presentation/creature/comic.gdshader", "Shader") as Shader
+	dressed.set_shader_parameter("albedo", branch)
+	mesh.surface_set_material(0, dressed)
+	return mesh
+
+
+func _leaf_albedo(mesh: Mesh) -> Color:
+	var dressed: ShaderMaterial = mesh.surface_get_material(1) as ShaderMaterial
+	@warning_ignore("unsafe_cast")
+	var paint: Color = dressed.get_shader_parameter("albedo") as Color
+	return paint
+
+
+func test_leaves_keep_the_branch_colour_by_default() -> void:
+	var branch: Color = Color(0.2, 0.5, 0.3)
+	var sown: Mesh = VltFoliage.sown(_painted(branch), SEED, _settings())
+
+	assert_object(sown.surface_get_material(1)).is_same(sown.surface_get_material(0))
+	assert_object(_leaf_albedo(sown)).is_equal(branch)
+
+
+func test_leaves_take_the_colour_they_are_given() -> void:
+	var branch: Color = Color(0.2, 0.5, 0.3)
+	var settings: VltFoliage.Settings = _settings()
+	settings.colour = Color(0.9, 0.1, 0.4)
+	settings.colour_amount = 1.0
+
+	# Channel by channel: a lerp to one does not come back bit-identical, and an
+	# exact comparison fails on a difference too small to print.
+	var sown: Mesh = VltFoliage.sown(_painted(branch), SEED, settings)
+	var leaf: Color = _leaf_albedo(sown)
+	assert_float(leaf.r).is_equal_approx(settings.colour.r, 0.001)
+	assert_float(leaf.g).is_equal_approx(settings.colour.g, 0.001)
+	assert_float(leaf.b).is_equal_approx(settings.colour.b, 0.001)
+	# The branch is untouched: the material is shared with every other cell
+	# drawing this item, so tinting it in place would repaint the tree too.
+	@warning_ignore("unsafe_cast")
+	var kept: Color = (sown.surface_get_material(0) as ShaderMaterial).get_shader_parameter(
+		"albedo") as Color
+	assert_object(kept).is_equal(branch)
+
+
+func test_a_share_of_the_colour_lands_between_the_two() -> void:
+	var branch: Color = Color(0.2, 0.5, 0.3)
+	var settings: VltFoliage.Settings = _settings()
+	settings.colour = Color(0.8, 0.5, 0.3)
+	settings.colour_amount = 0.5
+
+	var sown: Mesh = VltFoliage.sown(_painted(branch), SEED, settings)
+	assert_float(_leaf_albedo(sown).r).is_equal_approx(0.5, 0.001)

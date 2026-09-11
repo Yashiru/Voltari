@@ -82,6 +82,20 @@ class Settings:
 	## What lets the silhouette grow ragged instead of staying the blob's.
 	var lift: float = 0.22
 
+	## The colour the leaves take, and how much of it they take.
+	##
+	## At zero a leaf is exactly the colour of the surface it grew on, which is the
+	## behaviour this had before the setting existed and the one that needs no
+	## thought: the canopy's leaves are canopy-coloured and the bark's are bark.
+	## At one they are `colour` and nothing else.
+	##
+	## In between is where it is actually useful. A leaf a little lighter or a
+	## little warmer than the branch reads as a leaf; one that matches it exactly
+	## disappears into it, which is most of why a dense sowing comes out as
+	## speckle rather than as foliage.
+	var colour: Color = Color(0.42, 0.72, 0.34)
+	var colour_amount: float = 0.0
+
 	## Sowings produced per item, each with its own seed.
 	##
 	## A `GridMap` stamps one item over many cells, so a single sowing would be
@@ -136,12 +150,44 @@ static func leaves(source: Mesh, seed: int, settings: Settings) -> ArrayMesh:
 			continue
 		grown.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, sprigs)
 		# The surface's own material, so a leaf is the colour of what it grew
-		# from, with nothing anywhere having to know which surface is which.
+		# from, with nothing anywhere having to know which surface is which —
+		# unless a colour was asked for.
 		grown.surface_set_material(
-			grown.get_surface_count() - 1, array_source.surface_get_material(surface)
+			grown.get_surface_count() - 1,
+			_coloured(array_source.surface_get_material(surface), settings)
 		)
 
 	return grown
+
+
+## The surface's material, carrying the leaves' colour.
+##
+## Copied rather than changed: the material belongs to the source mesh, which is
+## shared with every other cell drawing the same item, and tinting it in place
+## would repaint the tree along with its leaves.
+##
+## Returns the material untouched when no colour was asked for, and when the
+## material is not one of ours — a mesh that never went through the tile library
+## has nothing this knows how to read, and guessing would be worse than leaving
+## it alone.
+static func _coloured(source: Material, settings: Settings) -> Material:
+	if settings.colour_amount <= 0.0:
+		return source
+	var dressed: ShaderMaterial = source as ShaderMaterial
+	if dressed == null:
+		return source
+
+	var branch: Color = Color.WHITE
+	var paint: Variant = dressed.get_shader_parameter("albedo")
+	if typeof(paint) == TYPE_COLOR:
+		@warning_ignore("unsafe_cast")
+		branch = paint as Color
+
+	var copy: ShaderMaterial = dressed.duplicate() as ShaderMaterial
+	copy.set_shader_parameter(
+		"albedo", branch.lerp(settings.colour, clampf(settings.colour_amount, 0.0, 1.0))
+	)
+	return copy
 
 
 ## The source with its leaves on it, as one mesh.

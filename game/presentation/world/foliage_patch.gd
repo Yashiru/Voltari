@@ -60,6 +60,19 @@ extends MeshInstance3D
 		density = value
 		_regrow()
 
+## What colour the leaves are, and how much of it they take. At zero a leaf is
+## exactly the colour of the surface it grew on, which is what a patch does until
+## somebody says otherwise.
+@export var colour: Color = Color(0.42, 0.72, 0.34):
+	set(value):
+		colour = value
+		_regrow()
+
+@export_range(0.0, 1.0, 0.01) var colour_amount: float = 0.0:
+	set(value):
+		colour_amount = value
+		_regrow()
+
 @export_range(0.05, 4.0, 0.01) var smallest: float = 0.55:
 	set(value):
 		smallest = value
@@ -116,6 +129,8 @@ func settings() -> VltFoliage.Settings:
 	wanted.lean = lean
 	wanted.lift = lift
 	wanted.dominant_share = dominant_share
+	wanted.colour = colour
+	wanted.colour_amount = colour_amount
 	return wanted
 
 

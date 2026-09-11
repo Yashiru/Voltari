@@ -1,6 +1,6 @@
 # 0064 — Leaves are sown, and shaded as the branch
 
-**Status:** Accepted — the generator; **pending** — the wiring into the builder
+**Status:** Accepted
 **Date:** 2026-09-11
 **Builds on:** decisions 0062 and 0063
 **Recorded in:** spec 16, section 9
@@ -52,13 +52,34 @@ transparency sorting, and a leaf texture to author, and it would be the first
 textured thing on screen. The shape is paid for in geometry instead, where it
 costs none of those.
 
-### Variants, because an item is stamped
+### Nothing has foliage until somebody says so, cell by cell
 
-A `GridMap` paints one item over many cells. A single sowing would be fifty trees
-identical leaf for leaf — the repetition decision 0063 removed from the ground,
-back at a far more visible scale. The builder will produce several sowings per
-item as separate palette entries, painted by hand, rather than a runtime that
-generates per cell. The bare item is kept and keeps its id.
+The first plan was a name fragment in the dock, applied to the whole palette on
+every rebuild — the shape the grass already uses. **The maintainer rejected it**:
+foliage is to be added where they want, when they want, configured at the moment
+it is applied, and on nothing at all by default.
+
+So there is no automatic pass and nothing to match. A `VltFoliagePatch` node is
+one application: a list of cells, the settings used, and a seed. Its settings are
+`@export`s, so they belong to that application and to no other — sowing a second
+selection makes a second patch, and either can be tuned or deleted without
+touching the other. Deleting one takes its leaves and leaves the models bare.
+
+Godot exposes `GridMapEditorPlugin.get_selected_cells()`, so the cells are the
+ones the author already selected with the tool they already use. Reaching the
+plugin instance is the part that is *not* offered — `EditorInterface` exposes only
+`is_plugin_enabled` — so it is found by searching the editor's tree, and says so
+plainly when it cannot be.
+
+**A patch stores cells and numbers, never a mesh.** Six floats and a list of cells
+go into the `.tscn` and the leaves are grown again on load, which is only sound
+because the sowing is deterministic. The seed is the cell's, not the item's: two
+cells of the same palm are never the same tree, and a cell keeps its tree when its
+neighbours change.
+
+**Only the leaves.** The `GridMap` still draws the bare model underneath, so a
+patch adds foliage rather than replacing a tree with a sown copy of it. That is
+also what makes it removable without leaving a hole.
 
 ### Only the surface that is the foliage
 
@@ -83,12 +104,15 @@ reason.
 a handful of trees and not obviously cheap for a forest. `tools/budget/` is where
 that gets answered, and it has not been asked yet.
 
-**Not yet wired into the tile library.** The builder and the dock were being
-changed in the working tree at the time — a roughcast feature, with its own new
-parameter on `build` — so the generator is landed on its own rather than risking
-somebody else's work in progress. What remains is small and already has a shape to
-follow: a `foliage` fragment beside `parting` and `rough`, matched with the same
-helper, calling `VltFoliage.sown` once per variant and adding each as an item.
+**The generator is runtime code, not map tooling.** It moved out of the addon into
+`game/presentation/world/`, because a patch regrows its leaves on load and the
+game cannot depend on an editor plugin. The tile library is untouched — which also
+kept this clear of a roughcast feature being written in the same files at the same
+time.
+
+**A map pays for its foliage at load.** Regrowing is a few milliseconds per
+hundred sown cells and the scene stays small. The alternative, baking the mesh
+into the `.tscn`, trades kilobytes for megabytes and was not taken.
 
 **Nothing is asserted about how it looks.** The tests cover the two properties
 that are not visual — that a seed is repeatable, so a rebuild cannot quietly

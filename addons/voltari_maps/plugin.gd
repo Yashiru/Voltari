@@ -33,6 +33,8 @@ var _snap: Button = null
 ## silently rewritten to cell (0, 0) the first time the editor drew it.
 var _placed: Dictionary[int, Vector3] = {}
 
+var _sow: Button = null
+
 
 func _enter_tree() -> void:
 	_gizmos = VltMapGizmos.new()
@@ -50,11 +52,24 @@ func _enter_tree() -> void:
 	_snap.pressed.connect(snap_selection)
 	add_control_to_container(CONTAINER_SPATIAL_EDITOR_MENU, _snap)
 
+	# Beside it, and for the same reason: it acts on the cells selected in the
+	# GridMap editor.
+	_sow = Button.new()
+	_sow.text = "Sow foliage"
+	_sow.tooltip_text = ("Grow leaves on the cells selected in the GridMap editor.\n"
+		+ "Makes one patch node, whose settings are its own — select it to tune them.")
+	_sow.pressed.connect(sow_selection)
+	add_control_to_container(CONTAINER_SPATIAL_EDITOR_MENU, _sow)
+
 	set_process(true)
 
 
 func _exit_tree() -> void:
 	set_process(false)
+	if _sow != null:
+		remove_control_from_container(CONTAINER_SPATIAL_EDITOR_MENU, _sow)
+		_sow.queue_free()
+		_sow = null
 	if _gizmos != null:
 		remove_node_3d_gizmo_plugin(_gizmos)
 		_gizmos = null
@@ -167,3 +182,98 @@ func _put(node: Node3D, id: int, at: Vector3) -> void:
 	node.position = at
 	_placed[id] = at
 	node.update_gizmos()
+
+
+## Grows leaves on the cells selected in the GridMap editor.
+##
+## **This is the only way anything in this game gets foliage.** There is no
+## automatic pass and no name to match: a model is bare until somebody selects
+## cells and presses this, which is what "where I want, when I want" has to mean
+## for it to be true.
+##
+## One press is one patch, carrying its own settings. Pressing again over other
+## cells makes a second patch rather than joining the first, so two areas can be
+## sown differently and either can be tuned or deleted without touching the other.
+##
+## Godot exposes the GridMap editor's own selection (`get_selected_cells`), so
+## this reads the selection the author already made with the tool they already
+## use, rather than offering a second way to choose cells.
+func sow_selection() -> void:
+	var grid: GridMap = _selected_grid()
+	if grid == null:
+		_say("Select a GridMap and some of its cells first.")
+		return
+
+	if _grid_editor() == null:
+		_say("This Godot does not expose its GridMap editor, so the selection cannot be read.")
+		return
+	var chosen: Array[Vector3i] = _selected_cells()
+	if chosen.is_empty():
+		_say("No cells are selected in the GridMap editor. Select some and press again.")
+		return
+
+	var patch: VltFoliagePatch = VltFoliagePatch.new()
+	patch.name = "Foliage"
+	patch.cells = chosen
+
+	var root: Node = EditorInterface.get_edited_scene_root()
+	var undo: EditorUndoRedoManager = get_undo_redo()
+	undo.create_action("Sow foliage")
+	undo.add_do_method(grid.get_parent(), "add_child", patch)
+	undo.add_do_method(patch, "set_owner", root)
+	undo.add_do_reference(patch)
+	undo.add_undo_method(grid.get_parent(), "remove_child", patch)
+	undo.commit_action()
+
+	# Set after the node is in the tree: the path is resolved against it, and a
+	# patch that regrew before it had a parent would have nothing to read.
+	patch.layer = patch.get_path_to(grid)
+	EditorInterface.get_selection().clear()
+	EditorInterface.get_selection().add_node(patch)
+	print("Sowed %d cell(s): %d leaves. Tune this patch in the inspector."
+		% [chosen.size(), patch.leaf_total()])
+
+
+## The cells the GridMap editor has selected, as cells.
+static func _selected_cells() -> Array[Vector3i]:
+	var chosen: Array[Vector3i] = []
+	var editor: GridMapEditorPlugin = _grid_editor()
+	if editor == null or not editor.has_selection():
+		return chosen
+	for cell: Vector3i in editor.get_selected_cells():
+		chosen.append(cell)
+	return chosen
+
+
+## The GridMap the author is editing, which is the one they selected.
+static func _selected_grid() -> GridMap:
+	for node: Node in EditorInterface.get_selection().get_selected_nodes():
+		var grid: GridMap = node as GridMap
+		if grid != null:
+			return grid
+	return null
+
+
+## The engine's own GridMap editor.
+##
+## Found by searching the editor's own tree, because there is no API that hands a
+## plugin to another plugin — `EditorInterface` exposes only `is_plugin_enabled`.
+## The class itself is exposed and its selection is readable, which is the part
+## that matters; reaching the instance is the part that is not offered.
+##
+## Returns nothing rather than failing when it cannot be found, so a Godot that
+## moved it produces a message an author can act on instead of a crash.
+static func _grid_editor() -> GridMapEditorPlugin:
+	var base: Control = EditorInterface.get_base_control()
+	if base == null or base.get_tree() == null:
+		return null
+	for node: Node in base.get_tree().root.find_children("", "GridMapEditorPlugin", true, false):
+		return node as GridMapEditorPlugin
+	return null
+
+
+## Said through the editor's own warning channel rather than through the dock:
+## the dock is somebody else's file today, and a warning is where an author
+## already looks when a button does nothing.
+func _say(what: String) -> void:
+	push_warning(what)

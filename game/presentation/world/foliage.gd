@@ -105,41 +105,71 @@ class Settings:
 	var dominant_share: float = 0.5
 
 
-## The source mesh with a surface of leaves added to each of its own.
+## Only the leaves, with nothing of the source in them.
 ##
-## Returns the source untouched when there is nothing to sow on: an unindexed
-## surface has no triangles to measure, and a mesh that is not an `ArrayMesh`
-## cannot be read at all.
+## **This is the one the game uses.** A `GridMap` already draws the bare model at
+## its cell, so a sown copy of it would be the same tree drawn twice. The leaves
+## are laid over the top as their own mesh instead, which is also what makes them
+## removable: delete the patch and the tree is simply bare again.
 ##
-## `seed` makes this deterministic. Two builds of the same item produce the same
-## tree, which is what stops a rebuild from quietly redrawing a painted map.
-static func sown(source: Mesh, seed: int, settings: Settings) -> Mesh:
+## Empty when there is nothing to sow on — a mesh that is not an `ArrayMesh`
+## cannot be read, and an unindexed surface has no triangles to measure.
+##
+## `seed` makes this deterministic. The same seed gives the same tree, which is
+## what lets a map store six numbers and a cell instead of a baked mesh.
+static func leaves(source: Mesh, seed: int, settings: Settings) -> ArrayMesh:
+	var grown: ArrayMesh = ArrayMesh.new()
 	var array_source: ArrayMesh = source as ArrayMesh
 	if array_source == null:
-		return source
+		return grown
 
-	var grown: ArrayMesh = ArrayMesh.new()
 	var scatter: RandomNumberGenerator = RandomNumberGenerator.new()
 	scatter.seed = seed
 	var enough: float = _dominant(array_source) * settings.dominant_share
 
 	for surface: int in range(array_source.get_surface_count()):
 		var arrays: Array = array_source.surface_get_arrays(surface)
-		var material: Material = array_source.surface_get_material(surface)
-
-		grown.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-		grown.surface_set_material(grown.get_surface_count() - 1, material)
-
 		if _area_of(arrays) < enough:
 			continue
-		var leaves: Array = _leaves_over(arrays, scatter, settings)
-		if leaves.is_empty():
+		var sprigs: Array = _leaves_over(arrays, scatter, settings)
+		if sprigs.is_empty():
 			continue
-		grown.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, leaves)
-		# The same material, so a leaf is the colour of what it grew from. The
-		# canopy's leaves are canopy-coloured and the trunk's are bark-coloured,
-		# with nothing anywhere having to know which surface is which.
-		grown.surface_set_material(grown.get_surface_count() - 1, material)
+		grown.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, sprigs)
+		# The surface's own material, so a leaf is the colour of what it grew
+		# from, with nothing anywhere having to know which surface is which.
+		grown.surface_set_material(
+			grown.get_surface_count() - 1, array_source.surface_get_material(surface)
+		)
+
+	return grown
+
+
+## The source with its leaves on it, as one mesh.
+##
+## For looking at one model on its own — a preview, a test. The game does not use
+## this: see `leaves`.
+static func sown(source: Mesh, seed: int, settings: Settings) -> Mesh:
+	var array_source: ArrayMesh = source as ArrayMesh
+	if array_source == null:
+		return source
+
+	var grown: ArrayMesh = ArrayMesh.new()
+	for surface: int in range(array_source.get_surface_count()):
+		grown.add_surface_from_arrays(
+			Mesh.PRIMITIVE_TRIANGLES, array_source.surface_get_arrays(surface)
+		)
+		grown.surface_set_material(
+			grown.get_surface_count() - 1, array_source.surface_get_material(surface)
+		)
+
+	var sprigs: ArrayMesh = leaves(array_source, seed, settings)
+	for surface: int in range(sprigs.get_surface_count()):
+		grown.add_surface_from_arrays(
+			Mesh.PRIMITIVE_TRIANGLES, sprigs.surface_get_arrays(surface)
+		)
+		grown.surface_set_material(
+			grown.get_surface_count() - 1, sprigs.surface_get_material(surface)
+		)
 
 	return grown
 
@@ -156,7 +186,7 @@ static func leaf_count(source: Mesh, settings: Settings) -> int:
 		var area: float = _area_of(array_source.surface_get_arrays(surface))
 		if area < enough:
 			continue
-		total += int(round(area * settings.density))
+		total += roundi(area * settings.density)
 	return total
 
 
@@ -195,7 +225,7 @@ static func _leaves_over(arrays: Array, scatter: RandomNumberGenerator, settings
 		reach.append(running)
 		triangle += 3
 
-	var wanted: int = int(round(running * settings.density))
+	var wanted: int = roundi(running * settings.density)
 	if wanted <= 0 or running <= 0.0:
 		return []
 

@@ -140,6 +140,29 @@ func _ready() -> void:
 	_regrow()
 
 
+## The grown mesh is never written into the scene.
+##
+## It is derived from the settings above and rebuilt in `_ready()`, so a copy in
+## the `.tscn` is one nobody ever reads — and it is not a small one. Four cells of
+## this in one map came to 45 MB of base64 inside the scene file. Nothing about
+## that was visible: the map opened, the grass looked right, and the only symptom
+## was that everything touching `game/maps/` had become slow.
+##
+## It was expensive in a place nobody would look for it. `WorldSandbox` opens every
+## map in the folder to learn its id, and Godot's resource cache holds scenes
+## weakly, so those 45 MB were re-parsed on every world built — six seconds each,
+## and the test suite builds one per test. One scratch map took `world_sandbox_test`
+## from 4.5 seconds to 272.
+##
+## Godot sends these two notifications around packing for exactly this purpose:
+## drop what is derived, let the scene be written without it, put it back.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_EDITOR_PRE_SAVE:
+		mesh = null
+	elif what == NOTIFICATION_EDITOR_POST_SAVE:
+		_regrow()
+
+
 ## How many leaves this patch is carrying. For a report, and for an author who
 ## wants to know what a density is costing before a profiler tells them.
 func leaf_total() -> int:

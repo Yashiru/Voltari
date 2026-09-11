@@ -191,3 +191,39 @@ func test_leaves_follow_a_cell_that_was_painted_turned() -> void:
 		assert_vector(turned[point]).is_equal_approx(
 			centre + quarter * (straight[point] - centre), Vector3.ONE * 0.001
 		)
+
+
+# --- the leaves are never written into the scene ------------------------------
+
+
+func test_saving_the_scene_does_not_carry_the_mesh_into_it() -> void:
+	# The mesh is derived from the cells and the numbers beside them, and it is
+	# grown again on load — so a copy in the `.tscn` is one nobody reads. It is
+	# also not small: four cells of this came to 45 MB of base64 inside one map,
+	# and every world built afterwards paid six seconds to parse it.
+	var patch: VltFoliagePatch = _patch([Vector3i(0, 0, 0)], [Vector3i(0, 0, 0)])
+	assert_object(patch.mesh).override_failure_message(
+		"the fixture grew nothing, so this test cannot say anything"
+	).is_not_null()
+
+	patch.notification(Node.NOTIFICATION_EDITOR_PRE_SAVE)
+
+	assert_object(patch.mesh).override_failure_message(
+		"the grown mesh was still on the node when the scene was packed"
+	).is_null()
+
+
+func test_the_leaves_come_back_once_the_scene_is_written() -> void:
+	# Dropping it for the save is only acceptable if the editor still shows it
+	# afterwards. A patch that went blank every time somebody pressed Ctrl+S would
+	# be traded one problem for a worse one.
+	var patch: VltFoliagePatch = _patch([Vector3i(0, 0, 0)], [Vector3i(0, 0, 0)])
+	var before: int = patch.leaf_total()
+
+	patch.notification(Node.NOTIFICATION_EDITOR_PRE_SAVE)
+	patch.notification(Node.NOTIFICATION_EDITOR_POST_SAVE)
+
+	assert_object(patch.mesh).is_not_null()
+	assert_int(patch.leaf_total()).override_failure_message(
+		"the leaves came back different, so the mesh is not purely derived"
+	).is_equal(before)

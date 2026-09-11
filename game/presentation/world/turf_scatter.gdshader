@@ -76,6 +76,14 @@ uniform float height_spread : hint_range(0.0, 1.0) = 0.45;
 // rather than absolute so a short blade is not a wide stub.
 uniform float blade_width : hint_range(0.02, 1.0) = 0.16;
 
+// How far a blade bows over of its own accord, as a share of its height. The
+// blade mesh carries the shape of the bow in its local z, running 0 at the root
+// to 1 at the tip; this is only how far that shape reaches.
+//
+// Geometry, not wind: it is there when the air is still, and it is what separates
+// a field of grass from a field of spikes.
+uniform float blade_bend : hint_range(0.0, 1.2) = 0.45;
+
 // How far the wind lays a blade over, on top of what `wind_lean` already says.
 // The turf is shorter and stiffer than a tuft, so it takes less of the same wind.
 uniform float blade_give : hint_range(0.0, 2.0) = 0.55;
@@ -142,10 +150,14 @@ void process() {
 
 	// The lean is a shear of the up axis rather than a rotation: a blade bends
 	// from its root and keeps its feet planted, which a rotation would not.
+	// The third column is the bow, not a depth: a blade is a card with none, and
+	// its local z carries how far along the bend each vertex sits. Scaling that
+	// column by the blade's own height is what makes a tall blade bow further
+	// than a short one by the same share.
 	mat4 standing = mat4(
 		vec4(vec3(turn, 0.0, -across) * wide, 0.0),
 		vec4(vec3(push.x, 1.0, push.y) * tall, 0.0),
-		vec4(vec3(across, 0.0, turn) * wide, 0.0),
+		vec4(vec3(across, 0.0, turn) * (tall * blade_bend), 0.0),
 		vec4(here, 1.0)
 	);
 

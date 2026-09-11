@@ -23,13 +23,18 @@ group_uniforms blade;
 // How much darker the base of a blade is than its tip. The whole of the depth in
 // a lawn: without it a field of blades is one flat green area, because every
 // blade is the same colour and they overlap.
-uniform float root_shade : hint_range(0.0, 1.0) = 0.42;
+uniform float root_shade : hint_range(0.0, 1.0) = 0.18;
 
 // The colour the tip leans towards, and how far. Warmer and lighter than the
 // fill, which is what makes a lawn read as catching light it is not actually
 // being given.
 uniform vec4 tip_tint : source_color = vec4(0.72, 0.86, 0.36, 1.0);
-uniform float tip_tint_amount : hint_range(0.0, 1.0) = 0.35;
+
+// How much of the way to the tip colour a blade goes at its very top. Driven to
+// one by `turf_patch.gd`, which exposes both ends as colours: the gradient is the
+// look, not a tint over it. Squared on the way in, so the root keeps its own
+// colour for most of the blade and the change gathers where the light would.
+uniform float tip_tint_amount : hint_range(0.0, 1.0) = 1.0;
 
 // How much a blade's colour varies from its neighbour's, from the number the
 // scatter gave it. Small: a lawn is one plant, not a meadow of species.

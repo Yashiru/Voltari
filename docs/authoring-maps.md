@@ -37,9 +37,28 @@ in and let the editor import them.
 In the **Maps** dock: set *Models folder* and *Tile library*, then **Build tile
 library**.
 
-It reads every model in the folder and writes a `MeshLibrary` — the palette a
+It reads every model under the folder and writes a `MeshLibrary` — the palette a
 `GridMap` paints from. Both paths default inside the quarantine, because a
 library built from third-party models is derived from them.
+
+### Folders are categories
+
+A subfolder becomes part of the item's name: `<root>/Plants/Bush_1.fbx` is the
+item `Plants/Bush_1`. The `GridMap` palette sorts and filters by name, so the
+plants arrive together and typing `plants` in the palette's search box narrows to
+them. Nest as deep as you like — `Ground/Paths/Slab` is a category inside a
+category.
+
+Nothing else has to know. The grass, grain, contact and roughcast fields match on
+the name, so `Plants/` in one of them is every plant at once — the trailing slash
+is what keeps it from also matching a crate called `Plantation`.
+
+A model at the root of the folder keeps its bare name and no category, which is
+why an existing flat palette can gain folders without any of its items moving.
+
+**Sort a pack on the way in.** Moving a model between folders renames it, with
+the consequence below: a palette built flat and tidied afterwards grows one
+orphan per file you moved.
 
 Run it as often as you like. **Item ids never move**: an existing library is
 added to rather than replaced, an item keeps its id for as long as its name does,

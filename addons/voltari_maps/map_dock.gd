@@ -345,6 +345,20 @@ func _show_build(report: VltTileLibrary.Report) -> void:
 	])
 	lines.append("  %d new, %d already there" % [report.added.size(), report.kept.size()])
 
+	# The folders the models came from, because a folder under the root **is** a
+	# category and the only way to see that the palette will group is a count per
+	# folder. Said only when there is more than one: a flat folder has nothing to
+	# report and a line saying so is a line in the way.
+	if report.categories.size() > 1:
+		var counted: PackedStringArray = PackedStringArray()
+		for category: String in report.categories:
+			counted.append("%s (%d)" % [
+				category if not category.is_empty() else "no folder",
+				report.categories[category]
+			])
+		counted.sort()
+		lines.append("  %d categories: %s" % [report.categories.size(), ", ".join(counted)])
+
 	if not report.parting.is_empty():
 		lines.append("  %d tile(s) open around a walker: %s" % [
 			report.parting.size(), ", ".join(report.parting)

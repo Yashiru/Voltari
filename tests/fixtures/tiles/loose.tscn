@@ -1,0 +1,13 @@
+[gd_scene load_steps=2 format=3]
+
+; A model sitting at the root of a palette folder: it belongs to no category and
+; keeps the bare name it has always had.
+
+[sub_resource type="BoxMesh" id="BoxMesh_loose"]
+; Local to the scene so every build gets its own mesh. A dressed surface is
+; deliberately never re-dressed, so a shared one would make these tests depend on
+; which of them ran first.
+resource_local_to_scene = true
+
+[node name="loose" type="MeshInstance3D"]
+mesh = SubResource("BoxMesh_loose")

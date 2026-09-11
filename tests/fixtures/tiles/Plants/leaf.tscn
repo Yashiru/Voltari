@@ -1,0 +1,12 @@
+[gd_scene load_steps=2 format=3]
+
+; A model in a category folder. Its item is named `Plants/leaf`.
+
+[sub_resource type="BoxMesh" id="BoxMesh_leaf"]
+; Local to the scene so every build gets its own mesh. A dressed surface is
+; deliberately never re-dressed, so a shared one would make these tests depend on
+; which of them ran first.
+resource_local_to_scene = true
+
+[node name="leaf" type="MeshInstance3D"]
+mesh = SubResource("BoxMesh_leaf")

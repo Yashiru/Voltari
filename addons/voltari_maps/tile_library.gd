@@ -24,6 +24,18 @@ extends RefCounted
 ## lookup and what stops you is a painted layer (spec 14, sections 1 and 3). A
 ## shape on a tile would be a second answer to a question already answered, and
 ## the two would disagree the first time somebody painted only one of them.
+##
+## **A folder under the root is a category**, and that is the whole of the
+## mechanism: an item's name is its path under the root, and the palette sorts and
+## filters by name. `tiles/Plants/Bush_1.fbx` is the item `Plants/Bush_1`, so the
+## plants arrive together and typing "plants" narrows to them.
+##
+## No table anywhere says which category a model belongs to. Refiling one is
+## dragging a file, which is the only place the question can be asked without
+## somebody having to find the place it is answered. It also means moving a model
+## between folders is renaming it, with the consequence stated above — a palette
+## built from a hundred loose files and then sorted grows a hundred orphans, so
+## sort a pack on the way in rather than after.
 
 ## What is read. Everything Godot imports as a scene, plus scenes themselves —
 ## a model somebody has already adjusted is as good a source as the file it came
@@ -133,6 +145,11 @@ class Report:
 	## rather than deleted.
 	var orphaned: PackedStringArray = PackedStringArray()
 
+	## How many items came out of each folder under the root, keyed by the folder.
+	## The root itself is the empty key. Reported because a category only exists if
+	## the palette groups by it, and the way to see that it did is a count.
+	var categories: Dictionary[String, int] = {}
+
 	## Items whose material was swapped for the parting shader.
 	var parting: PackedStringArray = PackedStringArray()
 
@@ -181,13 +198,17 @@ static func build(
 	var produced: Dictionary[String, bool] = {}
 
 	for path: String in files:
-		var item_name: String = path.get_file().get_basename()
+		var item_name: String = item_name_of(folder, path)
 		var mesh: Mesh = mesh_of(path)
 		if mesh == null:
 			report.skipped.append(path)
 			continue
 
 		produced[item_name] = true
+		var category: String = item_name.get_base_dir()
+		if not report.categories.has(category):
+			report.categories[category] = 0
+		report.categories[category] += 1
 		if by_name.has(item_name):
 			# The mesh is refreshed and the id is not. Re-exporting a model has
 			# to be a safe thing to do, or nobody will fix one.
@@ -217,14 +238,42 @@ static func build(
 	return report
 
 
-## Every file in the folder that Godot could load as a model. Flat, not
-## recursive: one folder is one library, which is the rule that makes it obvious
-## which palette a model will end up in.
+## Every file under the folder that Godot could load as a model.
+##
+## Recursive, and one root is still one library: the subfolders are categories
+## within it, not libraries of their own. Which palette a model ends up in is
+## therefore still obvious — it is the root it sits under — and *where* in that
+## palette is now obvious too.
 static func model_files(folder: String) -> PackedStringArray:
 	var found: PackedStringArray = PackedStringArray()
-	var directory: DirAccess = DirAccess.open(folder)
+	_models_under(root_of(folder), "", found)
+	found.sort()
+	return found
+
+
+## The models root without a trailing slash, so a path under it is always the
+## root, one slash and the rest — never two.
+static func root_of(folder: String) -> String:
+	return folder.trim_suffix("/")
+
+
+## The name an item takes from its file: its path under the root, without the
+## extension. `tiles/Plants/Bush_1.fbx` under `tiles` is `Plants/Bush_1`; a file
+## at the root keeps the bare name it has always had, which is what lets a flat
+## palette gain categories without any of its existing items moving.
+static func item_name_of(folder: String, path: String) -> String:
+	return path.trim_prefix("%s/" % root_of(folder)).get_basename()
+
+
+## `inside` is where we are relative to the root, which is what the names are
+## built from. Carried down rather than subtracted afterwards: the root may
+## itself contain slashes, and a prefix that is merely plausible is a prefix that
+## eventually strips the wrong one.
+static func _models_under(root: String, inside: String, found: PackedStringArray) -> void:
+	var here: String = root if inside.is_empty() else "%s/%s" % [root, inside]
+	var directory: DirAccess = DirAccess.open(here)
 	if directory == null:
-		return found
+		return
 
 	for file: String in directory.get_files():
 		# Godot writes an `.import` beside every source it converts. Reading them
@@ -233,11 +282,11 @@ static func model_files(folder: String) -> PackedStringArray:
 			continue
 		for extension: String in SOURCES:
 			if file.to_lower().ends_with(extension):
-				found.append("%s/%s" % [folder, file])
+				found.append("%s/%s" % [here, file])
 				break
 
-	found.sort()
-	return found
+	for sub: String in directory.get_directories():
+		_models_under(root, sub if inside.is_empty() else "%s/%s" % [inside, sub], found)
 
 
 ## The mesh a model file yields, or null.
@@ -426,6 +475,11 @@ static func _next_id(library: MeshLibrary) -> int:
 ##
 ## A list rather than one fragment, so a name can be an exact one when nothing
 ## shorter would do. `Wall_Tile` is a family; `Chest,Safe,Stump` is three choices.
+##
+## A name now carries its folders, so a *category* is a fragment like any other:
+## `Plants/` is every plant, and the trailing slash is what keeps it from also
+## matching a crate called `Plantation`. Nothing here had to learn about
+## categories for that to work — it falls out of the name being a path.
 ##
 ## A fragment may carry a surface after a colon — see `_named_surface`. Only the
 ## part before it is an item, which is what lets `Tree:Wood` still answer "yes,

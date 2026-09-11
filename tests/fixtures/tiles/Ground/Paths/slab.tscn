@@ -1,0 +1,13 @@
+[gd_scene load_steps=2 format=3]
+
+; Two folders deep, because nothing in the rule stops at one: the name is the
+; whole path, so `Ground/Paths` is a category inside a category.
+
+[sub_resource type="BoxMesh" id="BoxMesh_slab"]
+; Local to the scene so every build gets its own mesh. A dressed surface is
+; deliberately never re-dressed, so a shared one would make these tests depend on
+; which of them ran first.
+resource_local_to_scene = true
+
+[node name="slab" type="MeshInstance3D"]
+mesh = SubResource("BoxMesh_slab")

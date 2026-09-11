@@ -8,6 +8,12 @@ extends GdUnitTestSuite
 ## later and cannot be traced back.
 
 const MODELS: String = "res://tests/fixtures/models"
+
+## A palette with folders in it: one model at the root, one a folder down, one two
+## folders down. Separate from `MODELS` so the tests that count items are not
+## rewritten every time a category is added to this one.
+const SORTED: String = "res://tests/fixtures/tiles"
+
 const OUT: String = "user://tile_library_test.meshlib"
 
 
@@ -148,6 +154,65 @@ func _ids_by_name(library: MeshLibrary) -> Dictionary[String, int]:
 	for id: int in library.get_item_list():
 		by_name[library.get_item_name(id)] = id
 	return by_name
+
+
+# --- folders are categories ---------------------------------------------------
+
+
+func _sorted() -> VltTileLibrary.Report:
+	return VltTileLibrary.build(SORTED, OUT)
+
+
+func test_a_folder_under_the_root_becomes_part_of_the_name() -> void:
+	# The whole of the category mechanism. The palette sorts and filters by name,
+	# so a name that starts with a folder is a palette grouped by folder — there is
+	# nothing else to it, and nothing else to keep in step.
+	_sorted()
+	var names: Dictionary[String, int] = _ids_by_name(_library())
+
+	assert_bool(names.has("Plants/leaf")).override_failure_message(
+		"expected an item named after its folder, got: %s" % ", ".join(names.keys())
+	).is_true()
+
+
+func test_a_category_inside_a_category_keeps_both() -> void:
+	# Nothing in the rule stops at one folder, so nothing here does either.
+	_sorted()
+	var names: Dictionary[String, int] = _ids_by_name(_library())
+
+	assert_bool(names.has("Ground/Paths/slab")).is_true()
+
+
+func test_a_model_at_the_root_keeps_its_bare_name() -> void:
+	# The property that lets a flat palette gain categories without any of its
+	# existing items moving: a file that did not move is not renamed, so its id
+	# does not move either, so no painted cell changes meaning.
+	_sorted()
+	var names: Dictionary[String, int] = _ids_by_name(_library())
+
+	assert_bool(names.has("loose")).override_failure_message(
+		"a root-level model was given a prefix, which would orphan every existing item"
+	).is_true()
+
+
+func test_the_report_counts_each_category() -> void:
+	# The report is the only place an author can see that a folder was read as a
+	# category. The root itself is the empty key.
+	var report: VltTileLibrary.Report = _sorted()
+
+	assert_int(report.categories.get("Plants", 0)).is_equal(1)
+	assert_int(report.categories.get("Ground/Paths", 0)).is_equal(1)
+	assert_int(report.categories.get("", 0)).is_equal(1)
+
+
+func test_a_category_selects_surfaces_like_any_other_fragment() -> void:
+	# Falls out of the name being a path: the layer fields match on the name, and
+	# the name now carries its folders. Worth a test because it is the reason no
+	# field had to learn what a category is.
+	var report: VltTileLibrary.Report = VltTileLibrary.build(SORTED, OUT, "Plants/")
+
+	assert_array(report.parting).contains(["Plants/leaf"])
+	assert_array(report.parting).not_contains(["loose"])
 
 
 # --- a folder with nothing in it ---------------------------------------------

@@ -208,7 +208,7 @@ void vertex() {
 
 
 void fragment() {
-	vec3 paint = comic_paint(UV);
+	vec3 paint = comic_paint(UV, COLOR);
 
 	// The plant's own colour, before the print. Applied after `comic_paint` has
 	// saturated the fill rather than before, which costs an exact commutation

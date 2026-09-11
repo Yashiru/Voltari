@@ -36,5 +36,5 @@ void vertex() {
 }
 
 void fragment() {
-	ALBEDO = comic_shade(comic_paint(UV), SCREEN_UV * VIEWPORT_SIZE, INV_VIEW_MATRIX);
+	ALBEDO = comic_shade(comic_paint(UV, COLOR), SCREEN_UV * VIEWPORT_SIZE, INV_VIEW_MATRIX);
 }

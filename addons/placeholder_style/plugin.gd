@@ -90,11 +90,44 @@ func _enter_tree() -> void:
 	# The scroll takes the leftover height so the picker stays pinned at the top
 	# and **Keep** at the bottom: the two things that are always wanted are the two
 	# that must never scroll away.
-	# **A small floor, not a large one.** `SIZE_EXPAND_FILL` already hands the scroll
-	# every pixel the buttons do not need, so a 220-pixel minimum only fights them:
-	# in a short dock the column asked for more height than it had and the editor
-	# clipped the bottom — which put Keep, the name field and Keep as off screen
-	# with no way to reach them. The scroll is the part that is allowed to be small.
+	# **The actions go above the list, and that is not a style choice.**
+	#
+	# Below it they were unreachable. A dock clips its content rather than shrinking
+	# it, so anything under a control that expands is at the mercy of the dock's
+	# height — and the panel is a few dozen rows tall. Keep, the name field and Keep
+	# as sat off the bottom edge with no way to scroll to them, which is the same
+	# defect as a slider that does nothing, reached from a third direction.
+	#
+	# Above the scroll their position is fixed: picker, what it reaches, what you can
+	# do about it, then the numbers. One row, so it costs the list almost nothing.
+	var doing: HBoxContainer = HBoxContainer.new()
+
+	_naming = LineEdit.new()
+	_naming.placeholder_text = "new name"
+	_naming.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_naming.tooltip_text = "The name Keep as will write under."
+	doing.add_child(_naming)
+
+	var keep: Button = Button.new()
+	keep.text = "Keep"
+	keep.tooltip_text = ("Merge the controls into style_presets.json under the look "
+		+ "named above. Until you do, they are a trial and nothing outside this "
+		+ "editor session sees them.")
+	@warning_ignore("return_value_discarded")
+	keep.pressed.connect(_keep)
+	doing.add_child(keep)
+
+	var fork: Button = Button.new()
+	fork.text = "Keep as"
+	fork.tooltip_text = ("Write everything the surfaces are currently set to as a "
+		+ "new look under the name on the left, on the same quantiser, and wear "
+		+ "it.\nKeep merges into an existing look; this one makes another.")
+	@warning_ignore("return_value_discarded")
+	fork.pressed.connect(_keep_as)
+	doing.add_child(fork)
+
+	_panel.add_child(doing)
+
 	var scroll: ScrollContainer = ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -106,28 +139,6 @@ func _enter_tree() -> void:
 	# column down the left edge.
 	_controls.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(_controls)
-
-	var keep: Button = Button.new()
-	keep.text = "Keep"
-	keep.tooltip_text = ("Merge the controls into style_presets.json under the "
-		+ "name above. Until you do, they are a trial and nothing outside this "
-		+ "editor session sees them.")
-	@warning_ignore("return_value_discarded")
-	keep.pressed.connect(_keep)
-	_panel.add_child(keep)
-
-	_naming = LineEdit.new()
-	_naming.placeholder_text = "new look name"
-	_panel.add_child(_naming)
-
-	var fork: Button = Button.new()
-	fork.text = "Keep as"
-	fork.tooltip_text = ("Write everything the surfaces are currently set to as a "
-		+ "new look under that name, on the same quantiser, and wear it.\n"
-		+ "Keep merges into an existing look; this one makes another.")
-	@warning_ignore("return_value_discarded")
-	fork.pressed.connect(_keep_as)
-	_panel.add_child(fork)
 
 	add_control_to_dock(DOCK_SLOT_RIGHT_BL, _panel)
 

@@ -90,10 +90,15 @@ func _enter_tree() -> void:
 	# The scroll takes the leftover height so the picker stays pinned at the top
 	# and **Keep** at the bottom: the two things that are always wanted are the two
 	# that must never scroll away.
+	# **A small floor, not a large one.** `SIZE_EXPAND_FILL` already hands the scroll
+	# every pixel the buttons do not need, so a 220-pixel minimum only fights them:
+	# in a short dock the column asked for more height than it had and the editor
+	# clipped the bottom — which put Keep, the name field and Keep as off screen
+	# with no way to reach them. The scroll is the part that is allowed to be small.
 	var scroll: ScrollContainer = ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scroll.custom_minimum_size = Vector2(0.0, 220.0)
+	scroll.custom_minimum_size = Vector2(0.0, 60.0)
 	_panel.add_child(scroll)
 
 	_controls = VBoxContainer.new()

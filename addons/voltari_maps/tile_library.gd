@@ -411,12 +411,26 @@ static func _move(arrays: Array, at: Transform3D) -> void:
 # --- the library itself ------------------------------------------------------
 
 
+## The library to add to: the one already on disk, read into the very instance
+## everything else is holding.
+##
+## **`CACHE_MODE_REPLACE`, and both halves of it matter.** *Replace* is what makes
+## a build start from what is on disk rather than from a copy the editor loaded
+## hours ago. And replacing *in place* is what stops there being two copies at
+## all — the editor's `GridMap` and this tool end up holding the same object, so
+## the palette shows a rebuild immediately and the editor has no stale second copy
+## left to write back over it.
+##
+## It used to ignore the cache, and the detached copy it made cost a build: the
+## tool wrote 303 items, the editor still held the 92 it had opened the scene
+## with, and saving put those 92 back on disk. The file was correct for two hours
+## and then quietly was not.
 static func _existing(output: String) -> MeshLibrary:
 	if not ResourceLoader.exists(output):
 		return MeshLibrary.new()
 
 	var library: MeshLibrary = ResourceLoader.load(
-		output, "MeshLibrary", ResourceLoader.CACHE_MODE_IGNORE
+		output, "MeshLibrary", ResourceLoader.CACHE_MODE_REPLACE
 	) as MeshLibrary
 	return library if library != null else MeshLibrary.new()
 

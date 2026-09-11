@@ -16,6 +16,10 @@ const SORTED: String = "res://tests/fixtures/tiles"
 
 const OUT: String = "user://tile_library_test.meshlib"
 
+## A second output, used by the one test that cares what the resource *cache*
+## holds. Its own path so nothing it leaves in the cache can reach another test.
+const HELD: String = "user://tile_library_held_test.meshlib"
+
 
 func before_test() -> void:
 	_forget()
@@ -26,8 +30,9 @@ func after_test() -> void:
 
 
 func _forget() -> void:
-	if FileAccess.file_exists(OUT):
-		DirAccess.remove_absolute(OUT)
+	for path: String in [OUT, HELD]:
+		if FileAccess.file_exists(path):
+			DirAccess.remove_absolute(path)
 
 
 func _build() -> VltTileLibrary.Report:
@@ -213,6 +218,33 @@ func test_a_category_selects_surfaces_like_any_other_fragment() -> void:
 
 	assert_array(report.parting).contains(["Plants/leaf"])
 	assert_array(report.parting).not_contains(["loose"])
+
+
+# --- one copy of the library, not two ----------------------------------------
+
+
+func test_a_build_fills_the_copy_everything_else_is_holding() -> void:
+	# Two copies of one library is the whole defect. The tool wrote 303 items on
+	# a copy of its own; the editor went on holding the 92 it had opened the scene
+	# with; saving put those 92 back over the file. It was right for two hours and
+	# then quietly was not.
+	var first: MeshLibrary = MeshLibrary.new()
+	first.create_item(0)
+	first.set_item_name(0, "was_here_first")
+	first.set_item_mesh(0, BoxMesh.new())
+	ResourceSaver.save(first, HELD)
+
+	# What an open scene's GridMap does: hold the library by its path.
+	var held: MeshLibrary = ResourceLoader.load(HELD, "MeshLibrary") as MeshLibrary
+	assert_int(held.get_item_list().size()).is_equal(1)
+
+	VltTileLibrary.build(SORTED, HELD)
+
+	assert_int(held.get_item_list().size()).override_failure_message(
+		"the build went to a second copy — what everything else holds still has %d item(s),"
+		% held.get_item_list().size()
+		+ " so the palette would not show the rebuild and saving would undo it"
+	).is_greater(1)
 
 
 # --- a folder with nothing in it ---------------------------------------------

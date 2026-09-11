@@ -32,6 +32,7 @@ void vertex() {
 	world_normal = comic_normal(NORMAL, MODEL_MATRIX);
 	world_here = comic_point(VERTEX, MODEL_MATRIX);
 	round_normal = world_here - comic_point(shape_centre, MODEL_MATRIX);
+	model_up = comic_up(VERTEX.y);
 }
 
 void fragment() {

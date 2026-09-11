@@ -194,9 +194,62 @@ group_uniforms volume;
 // polished. The three tones carry the volume instead.
 uniform float ground_shade : hint_range(0.0, 0.6) = 0.0;
 
+group_uniforms model;
+// The mesh's own vertical extent, written per item by the tile library builder.
+//
+// One quantity, one name. The grass needs it to know where a blade is hinged and
+// how far up its tip is; the contact shadow needs it to know where a model meets
+// the ground. Guessing one number for every model would put both in the wrong
+// place on all but one of them — the grass here runs from 0.55 m to 3.4 m.
+uniform float model_base = 0.0;
+uniform float model_height : hint_range(0.05, 8.0) = 2.0;
+
+group_uniforms grain;
+// How much the fill varies across the world, as a share of its own value.
+//
+// Off by default, and raised on the world rather than on creatures — the patches
+// are fixed to **world** space, so on anything that moves they would swim across
+// the surface instead of belonging to it.
+//
+// World space and not UV space is not a preference: the ground tile in the
+// placeholder pack carries no UVs at all, and it is the first thing that needed
+// breaking up. It also means the pattern crosses a tile boundary without a seam,
+// so a floor of a hundred identical tiles stops reading as a hundred identical
+// tiles — which was half the flatness and costs nothing to fix.
+uniform float grain_amount : hint_range(0.0, 0.6) = 0.0;
+// Metres across one patch.
+uniform float grain_size : hint_range(0.1, 20.0) = 4.5;
+// How many tones the patches are snapped to.
+//
+// **Snapped, not smooth.** A gradient laid over a flat fill is the polish this
+// whole look exists to avoid; patches of flat tone are what a screentone is. Two
+// is a stencil, five stops reading as deliberate.
+uniform float grain_steps : hint_range(2.0, 6.0) = 3.0;
+
+group_uniforms contact;
+// A darker band where a model meets the ground, and how far up its own height it
+// climbs.
+//
+// The cheapest answer to the thing that actually makes these models look flat.
+// The pack's own renders are lit, and what carries them is not texture — it is
+// that every tree casts a shadow and every corner is occluded. This look has no
+// lights and never will (decision 0062), so the contact has to be drawn rather
+// than computed.
+//
+// Stepped rather than faded, for the same reason the grain is snapped: an inker
+// draws a shape at the base of a trunk, not a gradient. Measured up the model's
+// own height, so it is correct wherever the cell sits — a global ground height
+// would be wrong the moment anything is painted on a second layer.
+uniform float contact_shade : hint_range(0.0, 0.8) = 0.0;
+uniform float contact_reach : hint_range(0.01, 0.5) = 0.10;
+
 varying vec3 world_normal;
 varying vec3 round_normal;
 varying vec3 world_here;
+
+// Where this fragment sits up the model, 0 at its base and 1 at its top. Assigned
+// in each shader's `vertex()` — see `comic_up`.
+varying float model_up;
 
 
 // Value noise on a world position. Small and self-contained: the alternative is
@@ -289,10 +342,53 @@ vec3 comic_point(vec3 vertex, mat4 model) {
 }
 
 
+// How far up its own height a vertex sits. Model space, so it travels with the
+// object and means the same thing wherever the object is put.
+float comic_up(float vertex_y) {
+	return clamp((vertex_y - model_base) / max(model_height, 0.001), 0.0, 1.0);
+}
+
+
+// Patches of slightly darker tone, fixed to the world.
+//
+// Only ever darkens: the lit fill stays the ceiling, so raising this cannot blow
+// a colour out, it can only work into it.
+float comic_grain(vec3 here) {
+	if (grain_amount <= 0.0) {
+		return 1.0;
+	}
+	float patch = noise31(here / max(grain_size, 0.01));
+	// Snapped to `grain_steps` flat levels rather than left continuous.
+	patch = floor(patch * grain_steps) / max(grain_steps - 1.0, 1.0);
+	return 1.0 - grain_amount * (1.0 - clamp(patch, 0.0, 1.0));
+}
+
+
+// The drawn shadow where a model meets the ground.
+//
+// The edge is one screen pixel wide, taken from the derivative the same way the
+// terminator's is, so the band is as crisp on a distant fence post as on a trunk
+// filling the screen.
+float comic_contact() {
+	if (contact_shade <= 0.0) {
+		return 1.0;
+	}
+	float climbed = model_up / clamp(contact_reach, 0.001, 1.0);
+	float width = max(fwidth(climbed), 1e-5);
+	float above = smoothstep(1.0 - width, 1.0 + width, climbed);
+	return mix(1.0 - contact_shade, 1.0, above);
+}
+
+
 // The flat colour of a surface before any light touches it: its texture, its
-// colour, or both.
+// colour, or both, worked over by the grain and the contact.
+//
+// Both go in before `enrich`, so they are part of the paint rather than something
+// laid on top of it — a patch that the saturation then treats as a colour of its
+// own, which is what stops it reading as a dirty overlay.
 vec3 comic_paint(vec2 uv) {
 	vec3 sampled = texture(albedo_tex, fract(uv + uv_offset)).rgb * albedo.rgb;
+	sampled *= comic_grain(world_here) * comic_contact();
 	return posterise(enrich(sampled));
 }
 

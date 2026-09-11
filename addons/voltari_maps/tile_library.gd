@@ -55,7 +55,7 @@ const PARTING_SHADER: String = "res://game/presentation/world/grass_parting.gdsh
 ##
 ## An `Array[String]`: the packed form is a call, and a call is not a constant
 ## expression in GDScript.
-const OWNED: Array[String] = ["albedo", "albedo_tex", "blade_base", "blade_height"]
+const OWNED: Array[String] = ["albedo", "albedo_tex", "model_base", "model_height"]
 
 ## What the world overrides on the shared look, and why each one.
 ##
@@ -70,9 +70,21 @@ const OWNED: Array[String] = ["albedo", "albedo_tex", "blade_base", "blade_heigh
 ## `shape_round`: rounds the shading normal towards a sphere, which rescues a
 ## creature's soft undulations from a razor terminator. A wall is genuinely flat,
 ## and bending its shadow would contradict what the eye can see of its edge.
+## `grain_amount`: patches of slightly darker tone, fixed to world space. Raised
+## here and nowhere else — the patches belong to the world, so on anything that
+## moves they would swim across the surface instead of sitting on it. It is also
+## what stops a floor of a hundred identical tiles reading as a hundred identical
+## tiles, because the pattern does not know where a tile ends.
+##
+## `contact_shade`: the drawn band where a model meets the ground. The pack's own
+## marketing renders are lit, and what carries them is not texture — it is that
+## every tree casts a shadow and every corner is occluded. This look has no lights
+## and never will, so the contact is drawn instead of computed.
 const WORLD_LOOK: Dictionary[String, float] = {
 	"key_follows_camera": 0.0,
 	"shape_round": 0.0,
+	"grain_amount": 0.26,
+	"contact_shade": 0.22,
 }
 
 
@@ -397,7 +409,7 @@ static func _dress_all(
 	for item_name: String in by_name:
 		var grass: bool = parting != null and item_name.to_lower().contains(needle)
 		var shader: Shader = parting if grass else comic
-		if not _dress(library.get_item_mesh(by_name[item_name]), shader, grass, look):
+		if not _dress(library.get_item_mesh(by_name[item_name]), shader, look):
 			continue
 		if grass:
 			report.parting.append(item_name)
@@ -431,17 +443,17 @@ static func _look(style: String) -> Dictionary[String, Variant]:
 ## Returns whether anything was dressed, so an item that carried nothing swappable
 ## is not reported as done.
 static func _dress(
-	mesh: Mesh, shader: Shader, grass: bool, look: Dictionary[String, Variant]
+	mesh: Mesh, shader: Shader, look: Dictionary[String, Variant]
 ) -> bool:
 	if mesh == null:
 		return false
 
-	# The mesh's own extent, so the hinge is at this model's root and the tip
-	# weight reaches one at this model's tip. One number guessed for every model
-	# would put the bend in the wrong place on all but one of them — and the
-	# grass here runs from 0.55 m to 3.4 m tall. Asked for only when it is grass:
-	# nothing else has a blade.
-	var box: AABB = mesh.get_aabb() if grass else AABB()
+	# The mesh's own extent, wanted by everything now rather than by the grass
+	# alone: the wind hinges a blade at its root, and the contact band is drawn a
+	# fraction of the way up whatever this model happens to be. One number guessed
+	# for every model would put both in the wrong place on all but one of them —
+	# the grass here alone runs from 0.55 m to 3.4 m tall.
+	var box: AABB = mesh.get_aabb()
 
 	var dressed: bool = false
 	for surface: int in range(mesh.get_surface_count()):
@@ -450,9 +462,8 @@ static func _dress(
 		)
 		if material == null:
 			continue
-		if grass:
-			material.set_shader_parameter("blade_base", box.position.y)
-			material.set_shader_parameter("blade_height", maxf(box.size.y, 0.05))
+		material.set_shader_parameter("model_base", box.position.y)
+		material.set_shader_parameter("model_height", maxf(box.size.y, 0.05))
 		# Before the look, not after: `_disown` puts everything this tool does not
 		# own back to the shader's default, and the look is exactly the set of
 		# values it is meant to then override.

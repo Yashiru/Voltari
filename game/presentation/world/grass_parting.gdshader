@@ -100,11 +100,10 @@ uniform float walker_strength : hint_range(0.0, 1.0) = 1.0;
 
 group_uniforms blade;
 
-// The mesh's own extent, written per item by the tile library builder. Guessing
-// one number for every model would put the hinge in the wrong place on all but
-// one of them — the grass in the placeholder pack runs from 0.55 m to 3.4 m.
-uniform float blade_height : hint_range(0.05, 8.0) = 2.0;
-uniform float blade_base = 0.0;
+// The blade's extent is `model_base` and `model_height`, from the shared look —
+// one quantity under one name. The wind needs it to know where a blade is hinged
+// and how far up its tip is; the contact shadow needs the same numbers to know
+// where a model meets the ground. Written per item by the tile library builder.
 
 // How far up the blade is anchored. Below this nothing moves, so grass stays
 // planted in the ground rather than sliding over it.
@@ -121,8 +120,6 @@ group_uniforms colour;
 uniform float root_shade : hint_range(0.0, 1.0) = 0.35;
 uniform vec4 tip_tint : source_color = vec4(0.78, 0.82, 0.42, 1.0);
 uniform float tip_tint_amount : hint_range(0.0, 1.0) = 0.15;
-
-varying float blade_fraction;
 
 
 // One swing of a cell that was stepped into, from nothing through a swing and
@@ -146,10 +143,7 @@ float jostle_of(vec3 cell, vec3 entered, float age) {
 void vertex() {
 	vec3 cell = MODEL_MATRIX[3].xyz;
 
-	float up_the_blade = clamp(
-		(VERTEX.y - blade_base) / max(blade_height, 0.001), 0.0, 1.0
-	);
-	blade_fraction = up_the_blade;
+	float up_the_blade = comic_up(VERTEX.y);
 
 	// Anchored at the bottom and easing upwards: a linear weight hinges the tuft
 	// at a point, a curved one bends it along its length. This is the whole of
@@ -191,7 +185,7 @@ void vertex() {
 	// One direction and one amount for every blade of the tuft, so it leans as
 	// one piece. Nothing here changes the shape the artist made.
 	vec2 push = (lean + shaken) * leverage;
-	float up = VERTEX.y - blade_base;
+	float up = VERTEX.y - model_base;
 
 	VERTEX.x += push.x * up;
 	VERTEX.z += push.y * up;
@@ -207,6 +201,9 @@ void vertex() {
 	world_normal = comic_normal(NORMAL, MODEL_MATRIX);
 	world_here = comic_point(VERTEX, MODEL_MATRIX);
 	round_normal = world_here - comic_point(shape_centre, MODEL_MATRIX);
+	// The same fraction the wind was weighted by, handed to the look so the
+	// thatch, the tip tint and the contact band all measure from one place.
+	model_up = up_the_blade;
 }
 
 
@@ -216,9 +213,9 @@ void fragment() {
 	// The plant's own colour, before the print. Applied after `comic_paint` has
 	// saturated the fill rather than before, which costs an exact commutation
 	// nobody can see and saves splitting the shared function in two.
-	paint *= mix(1.0 - root_shade, 1.0, blade_fraction);
+	paint *= mix(1.0 - root_shade, 1.0, model_up);
 	paint = mix(
-		paint, tip_tint.rgb, tip_tint_amount * blade_fraction * blade_fraction
+		paint, tip_tint.rgb, tip_tint_amount * model_up * model_up
 	);
 
 	ALBEDO = comic_shade(paint, SCREEN_UV * VIEWPORT_SIZE, INV_VIEW_MATRIX);

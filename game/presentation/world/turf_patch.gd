@@ -53,6 +53,14 @@ const TIP: Color = Color(0.42, 0.71, 0.13)
 ## drawing less than it was asked for.
 const MOST_BLADES: int = 4000000
 
+## How far above the grass the slice still looks, in metres.
+##
+## A rim, a frame, a low wall: things that stand a little proud of the lawn and
+## that grass must not grow through, even though no blade reaches them. Kept
+## short — a palm's canopy is twelve metres up and must never be counted, or the
+## clearance becomes the shadow of the tree.
+const SLICE_ABOVE: float = 0.6
+
 ## How far below the ground the slice still looks, in metres.
 ##
 ## A rim flush with the grass, or a tile whose top face sits a hair under it,
@@ -404,10 +412,7 @@ func _wear_ground_grain(onto: ShaderMaterial, grid: GridMap) -> void:
 	var size: float = 0.0
 	var steps: float = 0.0
 
-	for cell: Vector3i in _filled:
-		var material: ShaderMaterial = _ground_material(grid, cell)
-		if material == null:
-			continue
+	for material: ShaderMaterial in _ground_materials(grid):
 		var carried: Variant = material.get_shader_parameter("grain_amount")
 		if typeof(carried) != TYPE_FLOAT and typeof(carried) != TYPE_INT:
 			continue
@@ -429,17 +434,33 @@ func _wear_ground_grain(onto: ShaderMaterial, grid: GridMap) -> void:
 	onto.set_shader_parameter("grain_steps", steps)
 
 
-## The material of whatever is drawn in a cell, or nothing.
-func _ground_material(grid: GridMap, cell: Vector3i) -> ShaderMaterial:
+## Every material drawn under this patch, one per surface of each item sown on.
+##
+## **Every surface, not the first.** The tile library grains a model surface by
+## surface — a tile can have its top grained and its earth band left plain — so
+## reading surface zero and stopping found nothing on any model whose ground face
+## is not the one that happens to be first.
+##
+## Each item is read once however many cells hold it: a patch is two thousand
+## cells and a handful of models.
+func _ground_materials(grid: GridMap) -> Array[ShaderMaterial]:
+	var found: Array[ShaderMaterial] = []
 	if grid.mesh_library == null:
-		return null
-	var item: int = grid.get_cell_item(cell)
-	if item == GridMap.INVALID_CELL_ITEM:
-		return null
-	var mesh: Mesh = grid.mesh_library.get_item_mesh(item)
-	if mesh == null or mesh.get_surface_count() == 0:
-		return null
-	return mesh.surface_get_material(0) as ShaderMaterial
+		return found
+	var seen: Dictionary[int, bool] = {}
+	for cell: Vector3i in _filled:
+		var item: int = grid.get_cell_item(cell)
+		if item == GridMap.INVALID_CELL_ITEM or seen.has(item):
+			continue
+		seen[item] = true
+		var mesh: Mesh = grid.mesh_library.get_item_mesh(item)
+		if mesh == null:
+			continue
+		for surface: int in range(mesh.get_surface_count()):
+			var material: ShaderMaterial = mesh.surface_get_material(surface) as ShaderMaterial
+			if material != null:
+				found.append(material)
+	return found
 
 
 ## One shader value off a material, or the fallback when it carries none.
@@ -701,7 +722,9 @@ func _footprints(grid: GridMap) -> Array[PackedVector2Array]:
 			# delimitation quietly did nothing at all.
 			var from_y: float = minf(ground - SLICE_BELOW, at.y)
 			var low: float = (from_y - at.y) / scale
-			var high: float = (ground + blade_height + lift - at.y) / scale
+			var high: float = (
+				ground + maxf(blade_height + lift, SLICE_ABOVE) - at.y
+			) / scale
 			var shape: PackedVector2Array = _slice_of(layer_grid, cell, low, high)
 			if shape.is_empty():
 				continue
@@ -856,8 +879,24 @@ func _slice_of(
 				flat.append(Vector2(inside[step].x, inside[step].z))
 				flat.append(Vector2(inside[step + 1].x, inside[step + 1].z))
 
-	_feet[key] = flat
-	return flat
+	# **Solid, not hollow.** A slice through a well at grass height is a ring: its
+	# walls are in the slab and its middle is not, so stamping the slice as it
+	# comes leaves the inside of the well open and grass grows in the hole. What a
+	# blade has to stay out of is the whole area the thing occupies, so the slice
+	# is closed over its own hull.
+	#
+	# Convex, which fills the notch of an L and the mouth of a U. That is the right
+	# way to be wrong here: a little too much bare ground reads as deliberate, and
+	# grass growing inside a well reads as broken.
+	var hull: PackedVector2Array = Geometry2D.convex_hull(flat)
+	var solid: PackedVector2Array = PackedVector2Array()
+	for step: int in range(1, hull.size() - 1):
+		solid.append(hull[0])
+		solid.append(hull[step])
+		solid.append(hull[step + 1])
+
+	_feet[key] = solid
+	return solid
 
 
 ## A polygon kept to the part of it between two heights.

@@ -70,34 +70,42 @@ const OWNED: Array[String] = ["albedo", "albedo_tex", "model_base", "model_heigh
 ## `shape_round`: rounds the shading normal towards a sphere, which rescues a
 ## creature's soft undulations from a razor terminator. A wall is genuinely flat,
 ## and bending its shadow would contradict what the eye can see of its edge.
-## `grain_amount`: patches of slightly darker tone, fixed to world space. Raised
-## here and nowhere else — the patches belong to the world, so on anything that
-## moves they would swim across the surface instead of sitting on it. It is also
-## what stops a floor of a hundred identical tiles reading as a hundred identical
-## tiles, because the pattern does not know where a tile ends.
-##
-## `contact_shade`: the drawn band where a model meets the ground. The pack's own
-## marketing renders are lit, and what carries them is not texture — it is that
-## every tree casts a shadow and every corner is occluded. This look has no lights
-## and never will, so the contact is drawn instead of computed.
+## Neither is decoration. They are what makes the shared look correct on a set
+## rather than on a subject, so they are not opt-in and there is nothing to choose.
 const WORLD_LOOK: Dictionary[String, float] = {
 	"key_follows_camera": 0.0,
 	"shape_round": 0.0,
+}
+
+
+## The three layers a surface can be given, each one opt-in and each one off until
+## somebody names the surface that wears it.
+##
+## **Nothing is decoration by default.** They were global once and it was wrong:
+## a layer applied everywhere is a layer nobody chose, and the first thing the
+## maintainer said about it was that it was on plenty of things they did not want.
+## Applied is now the same as written down.
+##
+## `grain`: patches of slightly darker tone, fixed to world space. World space is
+## why it is never put on anything that moves — the patches would swim across the
+## surface instead of sitting on it — and it is also what stops a floor of a
+## hundred identical tiles reading as a hundred identical tiles.
+##
+## `contact`: the drawn band where a model meets the ground. The pack's own
+## marketing renders are lit, and what carries them is not texture — it is that
+## every tree casts a shadow and every corner is occluded. This look has no lights
+## and never will, so the contact is drawn instead of computed.
+##
+## `roughcast`: a granular rendered skin. Decision 0065, and the only one of the
+## three that was opt-in from the start.
+const GRAIN_LOOK: Dictionary[String, float] = {
 	"grain_amount": 0.26,
+}
+
+const CONTACT_LOOK: Dictionary[String, float] = {
 	"contact_shade": 0.22,
 }
 
-## What the roughcast adds on top of the shared look, on the items asked for and
-## on no others.
-##
-## Layered over `WORLD_LOOK` rather than replacing it: a rendered wall is still a
-## printed wall, and it still wants the grain, the contact and the terminator it
-## shares with everything else. This is a material, not a second art direction.
-##
-## Tuned by rendering four different models at two distances and looking at them,
-## which is the only way a shader is judged here (decision 0059). The amount is
-## far above the chatter's because a chatter is a line quality and this is a
-## surface: it has to survive being stepped.
 ## Only the switch. The grain's size, its threshold and how much of it survives in
 ## full light are art direction and live in the shader's own defaults, where every
 ## other look value lives — this dictionary exists to turn the layer on, not to
@@ -131,7 +139,9 @@ class Report:
 	## Items whose material was swapped for the printed look.
 	var printed: PackedStringArray = PackedStringArray()
 
-	## Items that were additionally given the roughcast.
+	## Items given each of the three opt-in layers, with how many surfaces each.
+	var grain: PackedStringArray = PackedStringArray()
+	var contact: PackedStringArray = PackedStringArray()
 	var stucco: PackedStringArray = PackedStringArray()
 
 	## The named look everything was dressed in, for a caller that wants to show
@@ -149,8 +159,13 @@ class Report:
 
 
 ## Reads `folder`, writes `output`, and says what it did.
+## `parting` names the grass. `grain`, `contact` and `rough` name the surfaces
+## that wear each opt-in layer, in the syntax `_named_surface` describes. All four
+## empty is a library with the printed look and nothing else, which is the honest
+## default: applied is the same as written down.
 static func build(
-	folder: String, output: String, parting: String = "", rough: String = ""
+	folder: String, output: String, parting: String = "", rough: String = "",
+	grain: String = "", contact: String = ""
 ) -> Report:
 	var report: Report = Report.new()
 	report.output = output
@@ -191,7 +206,7 @@ static func build(
 		if not produced.has(item_name):
 			report.orphaned.append(item_name)
 
-	_dress_all(library, by_name, parting, rough, report)
+	_dress_all(library, by_name, parting, grain, contact, rough, report)
 
 	_bake_previews(library)
 
@@ -411,11 +426,46 @@ static func _next_id(library: MeshLibrary) -> int:
 ##
 ## A list rather than one fragment, so a name can be an exact one when nothing
 ## shorter would do. `Wall_Tile` is a family; `Chest,Safe,Stump` is three choices.
+##
+## A fragment may carry a surface after a colon — see `_named_surface`. Only the
+## part before it is an item, which is what lets `Tree:Wood` still answer "yes,
+## this item is involved" here.
 static func _named(item_name: String, fragments: String) -> bool:
 	var lowered: String = item_name.to_lower()
 	for fragment: String in fragments.split(",", false):
-		var needle: String = fragment.strip_edges().to_lower()
+		var needle: String = fragment.split(":", false)[0].strip_edges().to_lower()
 		if not needle.is_empty() and lowered.contains(needle):
+			return true
+	return false
+
+
+## Whether one *surface* is asked for, by the same list.
+##
+## A fragment with no colon names an item and takes every surface of it. One with
+## a colon narrows to the surfaces whose imported material is named after it:
+## `Tree:Wood` is the trunks of the palms and not their fronds.
+##
+## **The names are the artist's and are only as good as they made them.** The palms
+## carry `Wood` and `GreenGrass`, which is everything one could ask for; the chest
+## carries `Material.022`, `Material.020` and two more, which is nothing. Where
+## they are useless the colon is useless too and the whole item stays the only
+## granularity there is — and that is a fact about the model, not a gap here.
+static func _named_surface(
+	item_name: String, surface_name: String, fragments: String
+) -> bool:
+	var lowered: String = item_name.to_lower()
+	var surface: String = surface_name.to_lower()
+	for fragment: String in fragments.split(",", false):
+		var parts: PackedStringArray = fragment.split(":", false)
+		if parts.is_empty():
+			continue
+		var needle: String = parts[0].strip_edges().to_lower()
+		if needle.is_empty() or not lowered.contains(needle):
+			continue
+		if parts.size() < 2:
+			return true
+		var wanted: String = parts[1].strip_edges().to_lower()
+		if wanted.is_empty() or surface.contains(wanted):
 			return true
 	return false
 
@@ -428,7 +478,7 @@ static func _named(item_name: String, fragments: String) -> bool:
 ## surface would drop the colour on the floor rather than leaving it alone.
 static func _dress_all(
 	library: MeshLibrary, by_name: Dictionary[String, int], wanted: String,
-	rough: String, report: Report
+	grain: String, contact: String, rough: String, report: Report
 ) -> void:
 	var comic: Shader = ResourceLoader.load(COMIC_SHADER, "Shader") as Shader
 	if comic == null:
@@ -449,20 +499,23 @@ static func _dress_all(
 		var grass: bool = parting != null and _named(item_name, wanted)
 		var shader: Shader = parting if grass else comic
 
-		# The roughcast is a per-item addition to the same look, not a look of its
-		# own — so it is layered onto the shared values rather than replacing them,
-		# and grass could wear it too if anybody ever asked for a rough blade.
-		var dressing: Dictionary[String, Variant] = look
-		var roughcast: bool = _named(item_name, rough)
-		if roughcast:
-			dressing = look.duplicate()
-			for name: String in STUCCO_LOOK:
-				dressing[name] = STUCCO_LOOK[name]
+		var mesh: Mesh = library.get_item_mesh(by_name[item_name])
+		# Counted **before** dressing. A dressed surface carries a `ShaderMaterial`
+		# this tool made, which has no name, so asking afterwards always answers
+		# nothing — and the report would say a layer matched nobody while the
+		# materials plainly carried it.
+		var grained: int = _layer_surfaces(mesh, item_name, grain)
+		var touched: int = _layer_surfaces(mesh, item_name, contact)
+		var roughed: int = _layer_surfaces(mesh, item_name, rough)
 
-		if not _dress(library.get_item_mesh(by_name[item_name]), shader, dressing):
+		if not _dress(mesh, shader, look, item_name, grain, contact, rough):
 			continue
-		if roughcast:
-			report.stucco.append(item_name)
+		if grained > 0:
+			report.grain.append("%s (%d)" % [item_name, grained])
+		if touched > 0:
+			report.contact.append("%s (%d)" % [item_name, touched])
+		if roughed > 0:
+			report.stucco.append("%s (%d)" % [item_name, roughed])
 		if grass:
 			report.parting.append(item_name)
 		else:
@@ -490,12 +543,50 @@ static func _look(style: String) -> Dictionary[String, Variant]:
 	return values
 
 
+## How many of an item's surfaces a layer's list asks for. For the report, which
+## says what happened rather than what was typed.
+static func _layer_surfaces(mesh: Mesh, item_name: String, fragments: String) -> int:
+	if mesh == null:
+		return 0
+	var asked: int = 0
+	for surface: int in range(mesh.get_surface_count()):
+		if _named_surface(item_name, _surface_name(mesh, surface), fragments):
+			asked += 1
+	return asked
+
+
+## Gives one surface a layer's values, if its list asks for that surface.
+##
+## One function for all three layers rather than three blocks that would drift:
+## they differ only in which list selects them and which values they carry.
+static func _layer(
+	material: ShaderMaterial, item_name: String, surface_name: String,
+	fragments: String, values: Dictionary[String, float]
+) -> void:
+	if not _named_surface(item_name, surface_name, fragments):
+		return
+	for name: String in values:
+		material.set_shader_parameter(name, values[name])
+
+
+## The name the artist gave a surface's material, or empty.
+static func _surface_name(mesh: Mesh, surface: int) -> String:
+	var material: Material = mesh.surface_get_material(surface)
+	return "" if material == null else material.resource_name
+
+
 ## Replaces each surface's material with one that draws the same thing, printed.
 ##
 ## Returns whether anything was dressed, so an item that carried nothing swappable
 ## is not reported as done.
+##
+## Each of the three layers is decided **per surface**, not per item: they are
+## materials, and a palm's trunk and its fronds are two materials. They are layered
+## onto the shared look rather than replacing it — a rendered wall is still a
+## printed wall.
 static func _dress(
-	mesh: Mesh, shader: Shader, look: Dictionary[String, Variant]
+	mesh: Mesh, shader: Shader, look: Dictionary[String, Variant],
+	item_name: String, grain: String, contact: String, rough: String
 ) -> bool:
 	if mesh == null:
 		return false
@@ -509,6 +600,9 @@ static func _dress(
 
 	var dressed: bool = false
 	for surface: int in range(mesh.get_surface_count()):
+		# Read before the material is replaced: the name is the artist's, and the
+		# one this tool puts there has none.
+		var surface_name: String = _surface_name(mesh, surface)
 		var material: ShaderMaterial = _imported(
 			mesh.surface_get_material(surface), shader
 		)
@@ -522,6 +616,9 @@ static func _dress(
 		_disown(material, shader)
 		for name: String in look:
 			material.set_shader_parameter(name, look[name])
+		_layer(material, item_name, surface_name, grain, GRAIN_LOOK)
+		_layer(material, item_name, surface_name, contact, CONTACT_LOOK)
+		_layer(material, item_name, surface_name, rough, STUCCO_LOOK)
 		mesh.surface_set_material(surface, material)
 		dressed = true
 

@@ -33,6 +33,19 @@ const LIBRARY: String = "res://game/assets/placeholders/brawl_arena.meshlib"
 ## rule nobody can correct.
 const GRASS: String = "grass"
 
+## Which surfaces get each of the three optional layers, comma separated.
+##
+## **All three empty by default, and that is the point.** They were applied to
+## everything once and the maintainer's word for it was that it landed on plenty
+## of things they did not want. Applied is now the same as written down.
+##
+## A fragment names a family — `Wall_Tile` — and a full name names one model. A
+## colon narrows it to one material of that model: `Tree:Wood` is the palm trunks
+## and not their fronds.
+const GRAIN: String = ""
+const CONTACT: String = ""
+const ROUGH: String = ""
+
 ## Where a new game begins. Reachability is the one check that needs a fact no
 ## map carries, and it is skipped rather than guessed at when this is empty
 ## (spec 14, section 7).
@@ -43,6 +56,9 @@ var _entry: LineEdit = null
 var _models: LineEdit = null
 var _library: LineEdit = null
 var _parting: LineEdit = null
+var _grain: LineEdit = null
+var _contact: LineEdit = null
+var _rough: LineEdit = null
 var _new_id: LineEdit = null
 var _ground: LineEdit = null
 var _width: SpinBox = null
@@ -79,6 +95,9 @@ func _init() -> void:
 	_models = _field("Models folder", MODELS)
 	_library = _field("Tile library", LIBRARY)
 	_parting = _field("Grass tiles contain (blank: none)", GRASS)
+	_grain = _field("Grain on (Item or Item:Material, comma separated)", GRAIN)
+	_contact = _field("Ground contact on (Item or Item:Material)", CONTACT)
+	_rough = _field("Roughcast on (Item or Item:Material)", ROUGH)
 
 	var build: Button = Button.new()
 	build.text = "Build tile library"
@@ -126,6 +145,19 @@ func library_field() -> LineEdit:
 
 func parting_field() -> LineEdit:
 	return _parting
+
+
+func rough_field() -> LineEdit:
+	return _rough
+
+
+func grain_field() -> LineEdit:
+	return _grain
+
+
+func contact_field() -> LineEdit:
+	return _contact
+
 
 
 func _field(label: String, value: String) -> LineEdit:
@@ -291,7 +323,8 @@ func _on_build_pressed() -> void:
 ## the old library.
 func build_library() -> VltTileLibrary.Report:
 	var report: VltTileLibrary.Report = VltTileLibrary.build(
-		_models.text, _library.text, _parting.text
+		_models.text, _library.text, _parting.text, _rough.text,
+		_grain.text, _contact.text
 	)
 	_show_build(report)
 	return report
@@ -316,6 +349,17 @@ func _show_build(report: VltTileLibrary.Report) -> void:
 		lines.append("  %d tile(s) open around a walker: %s" % [
 			report.parting.size(), ", ".join(report.parting)
 		])
+
+	# Said out loud every build, because a fragment that matches nothing looks
+	# exactly like a fragment that works until somebody looks at the tile. The
+	# number in brackets is how many of that item's surfaces it reached.
+	for layer: Array in [["grain", report.grain], ["contact", report.contact],
+			["roughcast", report.stucco]]:
+		var touched: PackedStringArray = layer[1]
+		if not touched.is_empty():
+			lines.append("  %s on %d tile(s): %s" % [
+				layer[0], touched.size(), ", ".join(touched)
+			])
 
 	if not report.orphaned.is_empty():
 		# Kept rather than removed, and said out loud so the palette growing a

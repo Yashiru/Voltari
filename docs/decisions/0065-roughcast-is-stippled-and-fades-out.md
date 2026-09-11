@@ -119,13 +119,30 @@ and the coverages are laid over one another. And value noise from eight hashes i
 a bell too narrow to cut specks from — nearly all of it within a tenth of the
 middle — so it is spread with one smoothstep before it is cut.
 
-### Applied by hand, by name
+### Applied by hand, by name — down to the surface
 
-Which models wear it is a comma-separated list of name fragments the author types,
-matched by the same helper the grass uses. Empty by default, and that is the
-point: this is a material somebody chooses for a model, not a look the palette
-wears. The build reports every item it matched, because a fragment that matches
-nothing looks exactly like a fragment that works until somebody looks at the tile.
+Which surfaces wear it is a comma-separated list the author types. Empty by
+default, and that is the point: this is a material somebody chooses, not a look
+the palette wears.
+
+**A fragment names an item; a colon narrows it to one of that item's materials.**
+`Tree` is every surface of the palms, `Tree:Wood` is their trunks and not their
+fronds. Per item was the first shape and it was too coarse the first time it was
+used in anger: a palm is one model and two materials, and roughcast palm leaves
+are not a thing.
+
+The material names are the artist's and are only as good as they made them. The
+palms carry `Wood` and `GreenGrass`, which is everything one could ask for; the
+chest carries `Material.022` and three more, which is nothing. Where they are
+useless the colon is useless too and the whole item stays the only granularity
+there is — a fact about the model, not a gap in the tool.
+
+The build reports every item it matched and how many of its surfaces, because a
+fragment that matches nothing looks exactly like a fragment that works until
+somebody looks at the tile. That count is taken **before** dressing: a dressed
+surface carries a material this tool made, which has no name, so asking afterwards
+always answers nothing — which it did, and the report claimed the roughcast had
+matched nobody while the materials plainly carried it.
 
 ## Consequences
 

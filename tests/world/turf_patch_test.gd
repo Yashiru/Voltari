@@ -186,6 +186,64 @@ func test_the_distances_grow_with_the_grid() -> void:
 	assert_float(two).is_equal_approx(one * 2.0, 0.0001)
 
 
+# --- it notices the map changing under it -------------------------------------
+
+
+func test_the_signature_holds_still_when_the_map_does() -> void:
+	# The other half of the contract, and the one that matters for the editor: a
+	# signature that changed on its own would regrow every patch four times a
+	# second for as long as the scene was open.
+	var cells: Array[Vector3i] = _block(3)
+	var patch: TurfPatch = _patch(cells, cells)
+
+	var once: int = patch.map_signature()
+	for again: int in range(4):
+		assert_int(patch.map_signature()).is_equal(once)
+
+
+func test_painting_a_cell_changes_the_signature() -> void:
+	var cells: Array[Vector3i] = _block(3)
+	var patch: TurfPatch = _patch(cells, cells)
+	var grid: GridMap = patch.get_node(patch.layer) as GridMap
+
+	var before: int = patch.map_signature()
+	grid.set_cell_item(Vector3i(1, 1, 1), 0, 0)
+	assert_int(patch.map_signature()).override_failure_message(
+		"something was painted in the middle of the lawn and the patch did not notice"
+	).is_not_equal(before)
+
+
+func test_turning_a_cell_in_place_changes_the_signature() -> void:
+	# The case a list of cells cannot see. A fence rotated where it stands adds no
+	# cell and removes none, and its footprint turns with it — so a signature built
+	# from `get_used_cells` alone would let the grass keep the shape of the fence
+	# that used to be there.
+	var cells: Array[Vector3i] = _block(3)
+	var patch: TurfPatch = _patch(cells, cells)
+	var grid: GridMap = patch.get_node(patch.layer) as GridMap
+	grid.set_cell_item(Vector3i(1, 1, 1), 0, 0)
+
+	var before: int = patch.map_signature()
+	# 16 is a quarter turn about Y in Godot's orthogonal table.
+	grid.set_cell_item(Vector3i(1, 1, 1), 0, 16)
+	assert_int(patch.map_signature()).override_failure_message(
+		"a cell was turned in place and the patch did not notice"
+	).is_not_equal(before)
+
+
+func test_resowing_grows_the_patch_from_the_map_as_it_is() -> void:
+	var cells: Array[Vector3i] = [Vector3i(0, 0, 0), Vector3i(1, 0, 0)]
+	var patch: TurfPatch = _patch(cells, [Vector3i(0, 0, 0)])
+	assert_int(_mat_edges(patch).size()).is_equal(4)
+
+	# The second cell is filled after the patch was sown, so only a resow can see
+	# it. This is what the editor plugin calls when the map settles.
+	var grid: GridMap = patch.get_node(patch.layer) as GridMap
+	grid.set_cell_item(Vector3i(1, 0, 0), 0, 0)
+	patch.resow()
+	assert_int(_mat_edges(patch).size()).is_equal(8)
+
+
 # --- a patch with nothing to sow ----------------------------------------------
 
 

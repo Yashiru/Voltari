@@ -117,6 +117,21 @@ const BUILT: Array[String] = [
 		cells = value
 		_rebuild()
 
+## Whether the patch grows itself again when the map under it is edited.
+##
+## A patch is worked out once, from the map as it stood when it was sown. Paint a
+## well in the middle of a lawn afterwards and the grass keeps growing through it,
+## because nothing tells the patch anything happened.
+##
+## With this on, the editor plugin notices and resows it a moment after the last
+## change — see `map_signature`. Off, the patch stays exactly as it was sown until
+## something asks it to change, which is what a patch large enough for the rebuild
+## to be felt will want.
+##
+## **Editor only.** In a running game nothing repaints a `GridMap`, so nobody is
+## watching and this costs nothing.
+@export var follow_map: bool = true
+
 @export_group("lawn")
 
 ## Blades a square metre.
@@ -204,14 +219,14 @@ const BUILT: Array[String] = [
 ## Small: this is a ragged edge, not a different shape.
 @export_range(0.0, 0.5, 0.005) var edge_jitter: float = 0.08:
 	set(value):
-		edge_jitter = clampf(value, 0.0, 0.5)
+		edge_jitter = clampf(value, 0.0, 4)
 		_rebuild()
 
 ## Metres across one wobble of that edge. Under about a tenth of a metre the
 ## boundary wanders once per blade, which reads as frayed rather than as irregular.
 @export_range(0.05, 4.0, 0.05) var edge_jitter_size: float = 0.55:
 	set(value):
-		edge_jitter_size = maxf(value, 0.05)
+		edge_jitter_size = maxf(value, 0.001)
 		_rebuild()
 
 ## How far grass keeps away from anything else standing on the ground, in metres.
@@ -347,6 +362,65 @@ func _validate_property(property: Dictionary) -> void:
 ## sows, and for anything counting against a budget.
 func blade_total() -> int:
 	return amount
+
+
+## Grows the patch again from the map as it stands now.
+##
+## Everything a patch is made of is already recomputed from scratch whenever one
+## of its settings changes; this is the same work, asked for by somebody who
+## changed the map instead.
+func resow() -> void:
+	_rebuild()
+
+
+## A number that changes when anything this patch was grown from changes.
+##
+## **Cheap on purpose, because it is read four times a second while the editor is
+## open.** It answers "is the map still what it was", not "what is the map" — so it
+## walks the same layers `_footprints` does and folds each cell's identity into one
+## integer, rather than doing any of the work that follows from them.
+##
+## What it has to catch is exactly what `_footprints` reads: which cells each layer
+## holds, which item is in each, **which way each is turned** — a fence rotated in
+## place changes no cell list and changes its whole footprint — and where the prop
+## nodes beside the grid are standing.
+##
+## Returns zero when there is no layer to look at, which is the same answer every
+## time and therefore never asks for a rebuild.
+func map_signature() -> int:
+	var grid: GridMap = get_node_or_null(layer) as GridMap
+	if grid == null:
+		return 0
+
+	# Folded rather than collected: an array of a few thousand entries to hash
+	# would allocate more than the whole rest of this costs.
+	var tally: int = cells.size()
+	for layer_grid: GridMap in _layers(grid):
+		var used: Array[Vector3i] = layer_grid.get_used_cells()
+		tally = _fold(tally, used.hash())
+		tally = _fold(tally, hash(layer_grid.global_transform))
+		tally = _fold(tally, hash(layer_grid.cell_size))
+		for cell: Vector3i in used:
+			tally = _fold(tally, layer_grid.get_cell_item(cell))
+			tally = _fold(tally, layer_grid.get_cell_item_orientation(cell))
+
+	var beside: Node = grid.get_parent()
+	if beside == null:
+		return tally
+	for node: Node in beside.get_children():
+		if node == self or node is GridMap:
+			continue
+		var shown: VisualInstance3D = node as VisualInstance3D
+		if shown == null:
+			continue
+		tally = _fold(tally, hash(shown.global_transform))
+	return tally
+
+
+## One step of that fold. Masked to thirty-two bits so it cannot overflow, which
+## is the one way a signature could differ between two runs on the same map.
+static func _fold(tally: int, next: int) -> int:
+	return ((tally * 1000003) ^ next) & 0xFFFFFFFF
 
 
 ## How many blades stand in one cell, from the density and the grid's own cell

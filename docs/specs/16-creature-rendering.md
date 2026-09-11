@@ -518,6 +518,13 @@ one.
 The ground under a patch is a mat in the colour of the blade roots, wearing the
 roughcast of decision 0065 at the blades' own scale.
 
+**A patch follows the map it was sown on** (decision 0067). The editor plugin
+looks four times a second at a cheap signature of everything the patch was grown
+from — cells, items, orientations, prop transforms — and regrows it on the first
+look that finds the map unchanged, so a brush stroke costs one rebuild rather than
+one per cell. A rebuild is a quarter of a second on a middling patch, which is why
+it waits and why `follow_map` can switch it off.
+
 **Not measured: what a patch costs.** A blade is five triangles, and the low tier
 allows 150,000 for a whole frame — so the density an author sets is the whole
 budget and this file does not choose it for them.

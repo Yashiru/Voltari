@@ -23,6 +23,18 @@ extends EditorPlugin
 ## mark the scene modified every frame.
 const MOVED: float = 0.001
 
+## How often the map under a patch of turf is looked at, in seconds.
+##
+## **It is also the settling time**, and the two being one number is the point: a
+## patch is regrown on the first look that finds the map unchanged, so painting a
+## row of fence posts costs one rebuild after the last one rather than one per
+## post. Growing a large patch takes a good fraction of a second, and doing it
+## under a moving brush would make painting unusable.
+##
+## A quarter of a second is short enough that the grass has given way before the
+## author has finished looking at what they placed.
+const SETTLE: float = 0.25
+
 var _gizmos: EditorNode3DGizmoPlugin = null
 var _dock: VltMapDock = null
 var _snap: Button = null
@@ -35,6 +47,16 @@ var _placed: Dictionary[int, Vector3] = {}
 
 var _sow: Button = null
 var _mow: Button = null
+
+## What the map under each patch of turf looked like when it was last looked at,
+## by instance id, and whether it has changed since the look before that.
+##
+## Two dictionaries rather than one, because they answer different questions: the
+## first is "has anything moved", the second is "has it stopped moving". A patch is
+## regrown only when the first says no and the second says yes.
+var _turf: Dictionary[int, int] = {}
+var _restless: Dictionary[int, bool] = {}
+var _looked: float = 0.0
 
 
 func _enter_tree() -> void:
@@ -98,9 +120,11 @@ func _exit_tree() -> void:
 		_snap.queue_free()
 		_snap = null
 	_placed.clear()
+	_turf.clear()
+	_restless.clear()
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	var root: Node = EditorInterface.get_edited_scene_root()
 	if root == null:
 		return
@@ -110,6 +134,51 @@ func _process(_delta: float) -> void:
 	# the origin until somebody selected it.
 	for node: Node3D in _placed_nodes(root):
 		_agree(node)
+
+	_looked += delta
+	if _looked < SETTLE:
+		return
+	_looked = 0.0
+	for patch: TurfPatch in _turf_patches(root):
+		_follow(patch)
+
+
+## Regrows one patch of turf if the map under it has changed and then settled.
+##
+## **Not on the change itself.** A brush dragged across ten cells is ten changes,
+## and a patch that regrew on each of them would drag the editor to a halt. Waiting
+## for one look that finds nothing new turns a whole stroke into one rebuild.
+func _follow(patch: TurfPatch) -> void:
+	if not patch.follow_map:
+		return
+	var id: int = patch.get_instance_id()
+	var now: int = patch.map_signature()
+
+	if not _turf.has(id):
+		# First sight. What the map looks like now is what it is supposed to look
+		# like — the patch was grown from it — so there is nothing to do but
+		# remember it.
+		_turf[id] = now
+		return
+
+	if _turf[id] != now:
+		_turf[id] = now
+		_restless[id] = true
+		return
+
+	if _restless.has(id) and _restless[id]:
+		_restless[id] = false
+		patch.resow()
+
+
+func _turf_patches(root: Node) -> Array[TurfPatch]:
+	var found: Array[TurfPatch] = []
+	var here: TurfPatch = root as TurfPatch
+	if here != null:
+		found.append(here)
+	for child: Node in root.get_children():
+		found.append_array(_turf_patches(child))
+	return found
 
 
 func _placed_nodes(root: Node) -> Array[Node3D]:

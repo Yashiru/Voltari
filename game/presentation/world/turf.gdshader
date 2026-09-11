@@ -80,6 +80,8 @@ void vertex() {
 	blade_normal = normalize(vec3(
 		INSTANCE_CUSTOM.z * blade_facing, 1.0, INSTANCE_CUSTOM.w * blade_facing
 	));
+	// The blade's own normal, already in world space — see above.
+	world_normal = blade_normal;
 	world_here = comic_point(VERTEX, MODEL_MATRIX);
 	round_normal = world_here - comic_point(shape_centre, MODEL_MATRIX);
 	model_up = comic_up(VERTEX.y);
@@ -137,7 +139,7 @@ void fragment() {
 
 
 void light() {
-	comic_shade(blade_paint(), NORMAL, LIGHT, LIGHT_COLOR, ATTENUATION,
+	comic_shade(blade_paint(), NORMAL, LIGHT, VIEW, LIGHT_COLOR, ATTENUATION,
 			LIGHT_IS_DIRECTIONAL, FRAGCOORD.xy, DIFFUSE_LIGHT);
 }
 

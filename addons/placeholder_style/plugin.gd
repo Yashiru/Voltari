@@ -36,20 +36,13 @@ extends EditorPlugin
 const WHOLE: PackedStringArray = ["comic", "comic-clear", "comic-manga", "comic-noir",
 	"comic-newsprint", "comic-sunday"]
 
-## Looks that dress **creatures only**, and why they cannot do more.
+## The five that used to dress creatures only.
 ##
-## Each is a separate shader that predates the shared look. Two things stop them
-## reaching the world, and neither is an oversight:
-##
-## - **None of them has a flat `albedo` colour**, only a texture. The world's
-##   models carry their colour in their material and have no texture at all, so a
-##   tile wearing one of these would come out white.
-## - **All of them are `unshaded`** and light themselves from a direction uniform.
-##   A world wearing one would lose every cast shadow it has — which is the thing
-##   decision 0064 existed to get.
-##
-## They are offered anyway, because trying a look on a creature is what they are
-## for. The panel says which case you are in rather than appearing to fail.
+## They were separate shaders, none with a flat colour and all but one unshaded,
+## so a tile wearing one came out white and a world wearing one lost every cast
+## shadow. They are modes of the shared look now (decision 0066) and dress the
+## whole game like the rest — kept in their own list only because the separator
+## says where the printed family ends and the rest begins.
 const CREATURES: PackedStringArray = ["toon", "bd", "vinyl", "ramp", "typelit"]
 
 ## What the sliders offer, grouped the way the shader groups them.
@@ -90,12 +83,11 @@ func _enter_tree() -> void:
 	_panel.name = "Look"
 
 	_picker = OptionButton.new()
-	_picker.tooltip_text = ("The look the game wears.\n"
-		+ "Written to style.txt, which is what the game reads on load.\n"
-		+ "The entries below the line dress creatures only.")
+	_picker.tooltip_text = ("The look the game wears, everywhere.\n"
+		+ "Written to style.txt, which is what the game reads on load.")
 	for name: String in WHOLE:
 		_picker.add_item(name)
-	_picker.add_separator("creatures only")
+	_picker.add_separator("other looks")
 	for name: String in CREATURES:
 		_picker.add_item(name)
 	_picker.select(maxi(_index_of(Look.chosen()), 0))
@@ -267,13 +259,6 @@ func _keep() -> void:
 ## everything. Zero is the honest and common answer: a scene that builds its world
 ## at run time has nothing to dress until it runs.
 func _show_reach() -> void:
-	var wanted: String = _picked()
-	if CREATURES.has(wanted):
-		_reach.text = ("%s dresses creatures only — it has no flat colour and no "
-			+ "lighting, so the world would come out white and lose its shadows. "
-			+ "The world stays on comic.") % wanted
-		return
-
 	var root: Node = EditorInterface.get_edited_scene_root()
 	if root == null:
 		_reach.text = "no scene open — nothing to push onto"

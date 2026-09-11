@@ -66,14 +66,40 @@ static func tune(root: Node, name: String, value: Variant) -> int:
 ## rather than claiming success — zero is the interesting answer, and it means the
 ## scene builds its world at run time and has nothing to dress yet.
 static func wear(root: Node, style: String) -> int:
+	# The mode first, and unconditionally. A style that names a look rather than a
+	# preset — `toon`, `bd` — carries no values at all, and returning early on that
+	# is exactly what used to make picking one of them do nothing at all.
+	var mode: int = CreatureView.mode_of(style)
 	var values: Dictionary[String, Variant] = CreatureView.preset_values(style)
-	if values.is_empty():
-		return 0
+	# The `ramp` look reads its whole light response off a strip, and the creature
+	# runtime was the only thing binding one. Without it the sampler falls back to
+	# white and the look comes out with no shading at all — which reads as broken
+	# rather than as a look.
+	var strip: Texture2D = _ramp()
 	var worn: Array[ShaderMaterial] = worn_under(root)
 	for material: ShaderMaterial in worn:
+		material.set_shader_parameter("look_mode", mode)
+		if strip != null:
+			material.set_shader_parameter("shading_ramp", strip)
 		for name: String in values:
 			material.set_shader_parameter(name, values[name])
 	return worn.size()
+
+
+## The shading strip, loaded once. Absent from a checkout without it, in which
+## case the `ramp` look shades flat and says nothing — the same fallback the
+## creature runtime has always had.
+static var _strip: Texture2D = null
+static var _looked_for_strip: bool = false
+
+
+static func _ramp() -> Texture2D:
+	if not _looked_for_strip:
+		_looked_for_strip = true
+		var path: String = CreatureView.SHARED + CreatureView.RAMP_FILE
+		if ResourceLoader.exists(path):
+			_strip = ResourceLoader.load(path, "Texture2D") as Texture2D
+	return _strip
 
 
 ## The look the game is wearing.

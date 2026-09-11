@@ -46,8 +46,8 @@ const STYLE_FILE: String = "style.txt"
 ## The value of `style` that means "whatever the roster is wearing".
 const STYLE_ROSTER: String = "roster"
 
-## The shading curve `ramp.gdshader` reads, if one is installed beside the
-## shaders. Absent, that shader falls back to plain lighting rather than black.
+## The shading curve the `ramp` look reads, if one is installed beside the
+## shaders. Absent, that look falls back to plain lighting rather than black.
 const RAMP_FILE: String = "shading_ramp.png"
 
 ## Named settings of a shader, offered in the style menu as looks in their own
@@ -58,7 +58,7 @@ const RAMP_FILE: String = "shading_ramp.png"
 ## fixing every bug in it five times over.
 const PRESET_FILE: String = "style_presets.json"
 
-## What each element looks like, for `typelit.gdshader`.
+## What each element looks like, for the `typelit` look.
 ##
 ## The seventeen names are the project's own — `content/type-chart.yaml`, Gen 4
 ## without Fairy, decision 0003 — so nothing here invents a vocabulary. The
@@ -231,6 +231,9 @@ var _surfaces: Array[ShaderMaterial] = []
 ## block's timeline, kept for a placeholder exported before blocks existed.
 var _eye_clips: Dictionary[String, PackedFloat32Array] = {}
 
+## Which look the current style resolves to, pushed onto every surface.
+var _mode: int = 0
+
 ## The current style's uniforms, empty when the style names a shader directly.
 ## Held rather than looked up twice: `_push_look` has to re-apply them after the
 ## sliders, and re-reading the file on every slider drag would parse JSON once per
@@ -378,6 +381,34 @@ func _apply_preset(material: ShaderMaterial) -> void:
 		material.set_shader_parameter(name, _preset[name])
 
 
+## The looks the shared shader carries, in the order `look_mode` numbers them.
+##
+## A style either names one of these, or names a preset whose `shader` field does.
+## Anything unknown is the first, which is the same fallback a missing shader file
+## used to get.
+const MODES: PackedStringArray = ["comic", "toon", "bd", "vinyl", "ramp", "typelit"]
+
+
+## Which mode a style resolves to.
+##
+## Static and by name because the world asks the same question about the same
+## file: `Look` dresses a map from this, and a second copy of the mapping is how
+## the creatures and the ground would end up in different looks.
+##
+## `named_style` rather than `style`, which is the name of this node's own
+## property.
+static func mode_of(named_style: String) -> int:
+	var wanted: String = named_style
+	var named: Variant = presets().get(named_style)
+	if typeof(named) == TYPE_DICTIONARY:
+		@warning_ignore("unsafe_cast")
+		var entry: Dictionary = named as Dictionary
+		var base: Variant = entry.get("shader")
+		if typeof(base) == TYPE_STRING:
+			wanted = str(base)
+	return maxi(MODES.find(wanted), 0)
+
+
 ## The look the whole set is wearing, from the store beside the shaders.
 ##
 ## Static so a tool that has no creature to hand — the editor plugin — can read
@@ -449,15 +480,18 @@ func _rebuild_look() -> void:
 func _push_look() -> void:
 	for material: ShaderMaterial in _surfaces:
 		material.set_shader_parameter("saturation", saturation)
-		material.set_shader_parameter("bands", light_bands)
-		material.set_shader_parameter("crease_strength", crease_strength)
-		material.set_shader_parameter("rim_strength", rim_strength)
-		material.set_shader_parameter("spec_adapt", highlight_adapt)
+		# Named for the look that owns them. Six looks in one shader means six sets
+		# of settings, and `bands` alone would have said nothing about which.
+		material.set_shader_parameter("look_mode", _mode)
+		material.set_shader_parameter("toon_bands", light_bands)
+		material.set_shader_parameter("toon_crease_strength", crease_strength)
+		material.set_shader_parameter("toon_rim_strength", rim_strength)
+		material.set_shader_parameter("toon_spec_adapt", highlight_adapt)
 		# The eye artwork is painted with its own glint. A second highlight on
 		# top of it reads as a smear, so those surfaces get a fraction.
 		var face: bool = _eye_materials.has(material)
 		var share: float = EYE_HIGHLIGHT if face else 1.0
-		material.set_shader_parameter("spec_strength", highlight * share)
+		material.set_shader_parameter("toon_spec_strength", highlight * share)
 		# Same reasoning one step further for the printed look: a face sheet is
 		# already a drawing, and laying screentone over it fills the whites of
 		# the eyes with dots. A shader with no such parameter ignores this.
@@ -585,11 +619,12 @@ func _apply_shaders() -> void:
 		if typeof(base) == TYPE_STRING:
 			wanted = str(base)
 
-	var toon: Shader = _shared_load(wanted + ".gdshader") as Shader
-	if toon == null and wanted != DEFAULT_STYLE:
-		push_warning("no shader called %s.gdshader — falling back to %s"
-			% [wanted, DEFAULT_STYLE])
-		toon = _shared_load(DEFAULT_STYLE + ".gdshader") as Shader
+	# One shader, whichever look is wanted. The looks used to be six files and the
+	# world could wear only one of them: the world reaches the screen through five
+	# shaders that differ by `render_mode`, so a look per shader would have meant
+	# thirty. They are modes of the shared look now, and `look_mode` picks one.
+	_mode = mode_of(wanted)
+	var toon: Shader = _shared_load(DEFAULT_STYLE + ".gdshader") as Shader
 	var outline: Shader = _shared_load("outline.gdshader") as Shader
 	if toon == null:
 		return
@@ -599,7 +634,7 @@ func _apply_shaders() -> void:
 		ink = ShaderMaterial.new()
 		ink.shader = outline
 
-	# The shading curve `ramp.gdshader` reads. Bound to every surface rather than
+	# The shading curve the `ramp` look reads. Bound to every surface rather than
 	# only to that one: a material carrying a parameter no shader declares simply
 	# ignores it, and testing which shader is in use here would be a second place
 	# that has to learn about a third.

@@ -58,6 +58,7 @@ void vertex() {
 	from_bare = UV2.x;
 	on_ground = VERTEX.xz;
 
+	world_normal = comic_normal(NORMAL, MODEL_MATRIX);
 	world_here = comic_point(VERTEX, MODEL_MATRIX);
 	round_normal = world_here - comic_point(shape_centre, MODEL_MATRIX);
 	model_up = comic_up(VERTEX.y);
@@ -93,6 +94,6 @@ void light() {
 	// Through `comic_paint`, so the mat picks up the same world-space grain the
 	// ground under it has — the two are read at the same world position, so the
 	// patches line up exactly rather than merely resembling each other.
-	comic_shade(comic_paint() * (1.0 - mat_shade), NORMAL, LIGHT, LIGHT_COLOR,
+	comic_shade(comic_paint() * (1.0 - mat_shade), NORMAL, LIGHT, VIEW, LIGHT_COLOR,
 			ATTENUATION, LIGHT_IS_DIRECTIONAL, FRAGCOORD.xy, DIFFUSE_LIGHT);
 }

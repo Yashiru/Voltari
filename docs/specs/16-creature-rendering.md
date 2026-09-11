@@ -373,6 +373,22 @@ than a pixel is not a material, it is per-pixel noise that changes every frame t
 camera moves, and that crawl is what gives a stylised surface away. Measured, a
 wall goes to exactly zero local contrast by four times the reference distance.
 
+### The other five looks are modes of the same shader
+
+**Settled by decision 0066.** `toon`, `bd`, `vinyl`, `ramp` and `typelit` were
+separate creature shaders and could not dress the world: none had a flat colour,
+so a tile wore white, and `bd` was unshaded, so a world wearing it lost every cast
+shadow. They are branches of the shared look now, selected by `look_mode`, and
+every one of them takes the sun's shadow.
+
+One shader and not six because the world reaches the screen through five shaders
+that differ only by `render_mode` — a look per shader would be thirty files of the
+same maths.
+
+**This does not reopen the art direction.** The game wears comic-manga. What
+changed is that trying another look is a click rather than an impossibility, which
+is what a search for one needs.
+
 **Known limitation.** A creature keeps screentone off its face by raising
 `face_flat` on the surfaces that carry the eye and mouth sheets. The character's
 face is painted into its body texture and has no surface of its own, so the coarse

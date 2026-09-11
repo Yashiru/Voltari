@@ -158,6 +158,7 @@ void vertex() {
 	// the wind left it. Handing it the upright one would shade a leaning tuft as
 	// though it were standing, which is the usual way animated foliage ends up
 	// looking painted on.
+	world_normal = comic_normal(NORMAL, MODEL_MATRIX);
 	world_here = comic_point(VERTEX, MODEL_MATRIX);
 	round_normal = world_here - comic_point(shape_centre, MODEL_MATRIX);
 	model_up = comic_up(VERTEX.y);
@@ -185,6 +186,6 @@ void light() {
 	paint *= mix(1.0 - root_shade, 1.0, model_up);
 	paint = mix(paint, tip_tint.rgb, tip_tint_amount * model_up * model_up);
 
-	comic_shade(paint, NORMAL, LIGHT, LIGHT_COLOR, ATTENUATION,
+	comic_shade(paint, NORMAL, LIGHT, VIEW, LIGHT_COLOR, ATTENUATION,
 			LIGHT_IS_DIRECTIONAL, FRAGCOORD.xy, DIFFUSE_LIGHT);
 }

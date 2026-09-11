@@ -80,6 +80,7 @@ void vertex() {
 	VERTEX.z += push.y;
 
 	// Last, and in that order: the look is handed the leaf as the wind left it.
+	world_normal = comic_normal(NORMAL, MODEL_MATRIX);
 	world_here = comic_point(VERTEX, MODEL_MATRIX);
 	round_normal = world_here - comic_point(shape_centre, MODEL_MATRIX);
 	model_up = comic_up(VERTEX.y);
@@ -99,6 +100,6 @@ void light() {
 	// the grain uses, so the saturation treats it as a colour of its own instead
 	// of as a film laid on top.
 	float tone = mix(1.0 - tone_spread, 1.0, leaf_tone);
-	comic_shade(comic_paint() * tone, NORMAL, LIGHT, LIGHT_COLOR, ATTENUATION,
+	comic_shade(comic_paint() * tone, NORMAL, LIGHT, VIEW, LIGHT_COLOR, ATTENUATION,
 			LIGHT_IS_DIRECTIONAL, FRAGCOORD.xy, DIFFUSE_LIGHT);
 }

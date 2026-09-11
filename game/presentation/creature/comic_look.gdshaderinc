@@ -65,13 +65,14 @@
 //   #include "res://game/presentation/creature/comic_look.gdshaderinc"
 //
 //   void vertex() {
+//       world_normal = comic_normal(NORMAL, MODEL_MATRIX);
 //       world_here = comic_point(VERTEX, MODEL_MATRIX);
 //       round_normal = world_here - comic_point(shape_centre, MODEL_MATRIX);
 //       model_up = comic_up(VERTEX.y);
 //       look_uv = UV;
 //   }
 //   void fragment() { comic_fragment(NORMAL, VIEW_MATRIX); }
-//   void light()    { comic_shade(comic_paint(), NORMAL, LIGHT, LIGHT_COLOR,
+//   void light()    { comic_shade(comic_paint(), NORMAL, LIGHT, VIEW, LIGHT_COLOR,
 //                             ATTENUATION, LIGHT_IS_DIRECTIONAL, FRAGCOORD.xy,
 //                             DIFFUSE_LIGHT); }
 //
@@ -96,6 +97,29 @@ uniform vec2 uv_offset = vec2(0.0, 0.0);
 // is already a drawing — laying tone over it fills the whites of the eyes with
 // dots and ages the face by twenty years.
 uniform float face_flat : hint_range(0.0, 1.0) = 0.0;
+
+group_uniforms look;
+
+// Which of the looks this surface wears.
+//
+// **One shader, six looks, and that is not a preference.** The world reaches the
+// screen through five shaders which differ only by `render_mode` — a blade of
+// grass draws from both sides, a crate does not — and `render_mode` is per shader,
+// not per material. A look per shader would therefore be thirty files, each a
+// copy of the same maths, and they would drift within a month. A branch on a
+// uniform is coherent across a draw call and costs nothing measurable.
+//
+// The looks below `comic` began as separate creature shaders. They are ported
+// here unchanged in what they do, and two things changed in how they do it: each
+// takes the sun's shadow through `shadowed`, so every one of them now has cast
+// shadows; and each returns a finished colour rather than writing `ALBEDO` and a
+// tint separately, because the surface declares itself white.
+//
+// They share `saturation` and `lift` with `comic` rather than keeping their own.
+// Each had its own default and the paint is one question, not six — a look is how
+// a surface is *shaded*, and a surface that changed colour as well would make the
+// two impossible to judge apart.
+uniform int look_mode : hint_enum("comic", "toon", "bd", "vinyl", "ramp", "typelit") = 0;
 
 group_uniforms paint;
 // Brought down from 1.34 when the look became lit. That number was tuned against
@@ -215,6 +239,92 @@ group_uniforms lamp;
 uniform float lamp_warmth : hint_range(0.0, 2.0) = 0.85;
 uniform float lamp_steps : hint_range(1.0, 5.0) = 2.0;
 
+group_uniforms toon;
+// Bands rather than a ramp, wrapped so the unlit side keeps its colour instead of
+// going black, and a terminator that is a statement rather than a gradient.
+uniform float toon_bands : hint_range(1.0, 8.0) = 3.0;
+uniform float toon_band_softness : hint_range(0.0, 0.2) = 0.035;
+uniform float toon_wrap : hint_range(0.0, 1.0) = 0.35;
+uniform vec4 toon_shadow_tint : source_color = vec4(0.42, 0.47, 0.68, 1.0);
+// How fast the normal turns across one pixel: high on a fold, near zero on a flat
+// panel. A curvature signal that needs no baked map, which matters because none of
+// these models ship one.
+uniform float toon_crease_strength : hint_range(0.0, 4.0) = 1.15;
+uniform float toon_crease_bias : hint_range(0.0, 0.2) = 0.02;
+uniform vec4 toon_crease_tint : source_color = vec4(0.30, 0.36, 0.52, 1.0);
+// Undersides sit down, tops catch the sky. Subtle on purpose: enough to give a
+// chibi body weight, not enough to read as a second light.
+uniform float toon_ground_shade : hint_range(0.0, 0.6) = 0.22;
+uniform float toon_spec_sharpness : hint_range(1.0, 128.0) = 28.0;
+uniform float toon_spec_edge : hint_range(0.0, 1.0) = 0.42;
+uniform float toon_spec_strength : hint_range(0.0, 2.0) = 0.35;
+uniform float toon_spec_softness : hint_range(0.0, 0.5) = 0.08;
+// A pale surface has less room for a highlight than a dark one.
+uniform float toon_spec_adapt : hint_range(0.0, 1.0) = 0.65;
+uniform float toon_spec_tint : hint_range(0.0, 1.0) = 0.35;
+uniform float toon_spec_fresnel : hint_range(0.0, 1.0) = 0.40;
+uniform float toon_rim_width : hint_range(0.0, 1.0) = 0.42;
+uniform float toon_rim_strength : hint_range(0.0, 2.0) = 0.55;
+uniform vec4 toon_rim_colour : source_color = vec4(1.0, 0.97, 0.88, 1.0);
+
+group_uniforms bd;
+// Lit or shadow, and nothing in between, on a term remapped to 0..1 — which is
+// why this terminator sits near the middle where the others sit near zero.
+uniform float bd_levels : hint_range(0.0, 24.0) = 6.0;
+uniform float bd_terminator : hint_range(0.0, 1.0) = 0.46;
+uniform float bd_terminator_softness : hint_range(0.0, 0.2) = 0.018;
+uniform vec4 bd_shadow_tint : source_color = vec4(0.66, 0.68, 0.86, 1.0);
+uniform float bd_shadow_depth : hint_range(0.0, 1.0) = 0.26;
+uniform float bd_dots_amount : hint_range(0.0, 1.0) = 0.45;
+uniform float bd_dots_size : hint_range(1.0, 40.0) = 11.0;
+uniform float bd_dots_angle : hint_range(0.0, 90.0) = 45.0;
+uniform float bd_dots_max : hint_range(0.0, 1.0) = 0.60;
+uniform float bd_dots_softness : hint_range(0.0, 0.5) = 0.12;
+// The toon look tints a fold; this one inks it.
+uniform vec4 bd_ink_colour : source_color = vec4(0.09, 0.08, 0.13, 1.0);
+uniform float bd_crease_ink : hint_range(0.0, 1.0) = 0.70;
+uniform float bd_crease_bias : hint_range(0.0, 0.2) = 0.025;
+uniform float bd_crease_width : hint_range(0.0, 0.2) = 0.045;
+
+group_uniforms vinyl;
+// Left as a gradient, and no banding: the whole point of this look is that the
+// terminator is not a statement.
+uniform float vinyl_wrap : hint_range(0.0, 1.0) = 0.55;
+uniform vec4 vinyl_shadow_hue : source_color = vec4(0.54, 0.60, 0.80, 1.0);
+uniform float vinyl_shadow_hue_mix : hint_range(0.0, 1.0) = 0.28;
+uniform vec4 vinyl_light_hue : source_color = vec4(1.0, 0.96, 0.88, 1.0);
+uniform float vinyl_light_hue_mix : hint_range(0.0, 1.0) = 0.10;
+uniform float vinyl_ground_shade : hint_range(0.0, 0.6) = 0.08;
+
+group_uniforms ramp;
+// The whole light response, read off a strip. Nothing else shades this look.
+uniform sampler2D shading_ramp : source_color, hint_default_white,
+		filter_linear, repeat_disable;
+uniform float ramp_wrap : hint_range(0.0, 1.0) = 0.30;
+uniform float ramp_row : hint_range(0.0, 1.0) = 0.5;
+uniform float ramp_ground_shade : hint_range(0.0, 0.6) = 0.08;
+
+group_uniforms typelit;
+// The element's colour, pushed in by the creature runtime. Two tones, and the
+// shadow is the element darkened rather than grey.
+uniform vec4 accent : source_color = vec4(0.72, 0.75, 0.82, 1.0);
+uniform float typelit_wrap : hint_range(0.0, 1.0) = 0.22;
+uniform float typelit_terminator : hint_range(0.0, 1.0) = 0.46;
+uniform float typelit_terminator_softness : hint_range(0.0, 0.2) = 0.03;
+uniform float typelit_shadow_depth : hint_range(0.0, 1.0) = 0.34;
+// Neither tone reaches full light: at 1.0 the lit side is white on anything pale,
+// and a two-tone look has no third step to rescue it.
+uniform float typelit_lit_level : hint_range(0.0, 1.0) = 0.86;
+uniform float typelit_shadow_accent : hint_range(0.0, 1.0) = 0.45;
+uniform float typelit_rim_strength : hint_range(0.0, 2.0) = 0.55;
+uniform float typelit_rim_width : hint_range(0.0, 1.0) = 0.30;
+
+// How fast a normal has to be turning for an edge to count as one.
+//
+// Shared by the two looks that draw a rim, because it answers the same question
+// for both: is this a silhouette, or merely a surface seen at a glancing angle?
+uniform float rim_turn : hint_range(0.001, 0.2) = 0.02;
+
 group_uniforms form;
 // Blend the shading normal towards the one a sphere would have at this point,
 // around the mesh's own centre — pushed in by the runtime script.
@@ -266,6 +376,12 @@ uniform float contact_reach : hint_range(0.01, 0.5) = 0.10;
 
 // World position, for the grain and the chatter.
 varying vec3 world_here;
+
+// The surface normal in world space. Not the same thing as `NORMAL`, which the
+// engine hands to `light()` in view space: three of the looks darken undersides
+// and lighten tops, and that question only means anything against the world's
+// own up.
+varying vec3 world_normal;
 // The point's offset from the model's centre, for `shape_round`.
 varying vec3 round_normal;
 // Where this fragment sits up the model, 0 at its base and 1 at its top.
@@ -327,6 +443,26 @@ vec3 shaded(vec3 paint, float depth) {
 	return clamp(mix(vec3(luma), cooled, 1.0 + shadow_saturate),
 			vec3(0.0), vec3(1.0));
 }
+
+// A value quantised into `count` steps, each edge softened. The toon look's
+// terminator, and the only place a band count means anything.
+float step_bands(float value, float count, float softness) {
+	float scaled = value * count;
+	float lower = floor(scaled);
+	float edge = smoothstep(0.5 - softness, 0.5 + softness, scaled - lower);
+	return clamp((lower + edge) / count, 0.0, 1.0);
+}
+
+
+// `posterise` against a level count that is not the shared one. The `bd` look
+// flattens its paint hard where the others leave it alone.
+vec3 posterise_at(vec3 colour, float levels) {
+	if (levels < 2.0) {
+		return colour;
+	}
+	return floor(colour * levels + 0.5) / levels;
+}
+
 
 // One halftone cell's coverage, for a dot of `radius` in cell units.
 //
@@ -395,6 +531,12 @@ vec3 comic_paint() {
 // --- what a shader wires up ---------------------------------------------------
 
 
+// A normal of the model in world space.
+vec3 comic_normal(vec3 normal, mat4 model) {
+	return normalize((model * vec4(normal, 0.0)).xyz);
+}
+
+
 // A point of the model in world space.
 //
 // Kept as its own function because a shader often needs the world position before
@@ -420,30 +562,173 @@ void comic_fragment(inout vec3 normal, mat4 view) {
 }
 
 
+
+
+// --- the looks ----------------------------------------------------------------
+//
+// Each takes the paint and the light, and hands back a finished colour. None of
+// them writes a built-in: the surface is white and `comic_shade` multiplies the
+// result by the light's own colour, so a look is a pure function of what it is
+// given. That is what lets six of them live in one shader without any of them
+// having to know that the others exist.
+//
+// `shadowed` is the sun's shadow term, 1 in the light and 0 in something's
+// shadow. Every look multiplies by it, which is how five looks that never had a
+// cast shadow acquired one.
+
+const int LOOK_COMIC = 0;
+const int LOOK_TOON = 1;
+const int LOOK_BD = 2;
+const int LOOK_VINYL = 3;
+const int LOOK_RAMP = 4;
+const int LOOK_TYPELIT = 5;
+
+
+// Bands, a fold tint, a sky gradient, a highlight and a rim.
+vec3 look_toon(vec3 paint, vec3 normal, vec3 towards, vec3 eye, float shadowed) {
+	// The fold tint and the sky, which used to sit in the fragment stage. They
+	// belong to the paint rather than to the light, so they go in first.
+	float bend = length(fwidth(normal));
+	float crease = clamp((bend - toon_crease_bias) * toon_crease_strength, 0.0, 1.0);
+	vec3 colour = mix(paint, paint * toon_crease_tint.rgb, crease);
+	float sky = normalize(world_normal).y * 0.5 + 0.5;
+	colour *= mix(1.0 - toon_ground_shade, 1.0, sky);
+
+	// Wrapped so the unlit side keeps its colour instead of going black, then
+	// banded so the terminator is a statement rather than a gradient.
+	float raw = dot(normal, towards);
+	float wrapped = (raw + toon_wrap) / (1.0 + toon_wrap);
+	float level = step_bands(clamp(wrapped, 0.0, 1.0), toon_bands, toon_band_softness);
+	colour = colour * mix(toon_shadow_tint.rgb, vec3(1.0), level) * shadowed;
+
+	vec3 half_vector = normalize(eye + towards);
+	float gloss = pow(clamp(dot(normal, half_vector), 0.0, 1.0), toon_spec_sharpness);
+	float edge = max(toon_spec_edge * toon_spec_softness, 0.001);
+	float blob = smoothstep(toon_spec_edge - edge, toon_spec_edge + edge, gloss);
+	// Grazing angles keep more of the highlight, so it hugs the silhouette.
+	float grazing = 1.0 - clamp(dot(normal, eye), 0.0, 1.0);
+	blob *= mix(1.0, grazing, toon_spec_fresnel);
+	float luma = dot(paint, vec3(0.2126, 0.7152, 0.0722));
+	float room = mix(1.0, 1.0 - luma, toon_spec_adapt);
+	// Lifted towards white before tinting, or a dark surface would drag its own
+	// highlight down to nothing and the adaptation would be counted twice.
+	vec3 hue = mix(vec3(1.0), clamp(paint + vec3(0.35), 0.0, 1.0), toon_spec_tint);
+	colour += blob * toon_spec_strength * room * hue * shadowed;
+
+	// The rim was emission, which the engine adds after the light. Added here
+	// instead, which comes to the same thing on a white surface and keeps the look
+	// a single function.
+	// **Gated by how fast the surface turns**, which is what keeps a rim on a
+	// silhouette instead of across a floor. `1 - dot(N, V)` reaches one at any
+	// grazing angle, and on a creature that is only the silhouette — but a ground
+	// plane is grazing for half its area, so the ungated rim washed the far side
+	// of the world white. A normal that is not turning is not an edge.
+	float turning = clamp(length(fwidth(normal)) / max(rim_turn, 1e-4), 0.0, 1.0);
+	float rim = 1.0 - clamp(dot(normal, eye), 0.0, 1.0);
+	colour += toon_rim_colour.rgb * smoothstep(1.0 - toon_rim_width, 1.0, rim)
+		* toon_rim_strength * turning;
+	return colour;
+}
+
+
+// Two tones, a screentone and an inked fold. Was the one look here that lit
+// itself; it takes the sun now like the rest.
+vec3 look_bd(vec3 paint, vec3 normal, vec3 towards, float shadowed, vec2 pixel) {
+	vec3 paper = posterise_at(paint, bd_levels);
+
+	// Remapped to 0..1, which is why this terminator sits near the middle.
+	float facing = dot(normal, towards) * 0.5 + 0.5;
+	float lit = smoothstep(bd_terminator - bd_terminator_softness,
+			bd_terminator + bd_terminator_softness, facing) * shadowed;
+
+	vec3 shade = paper * mix(vec3(1.0), bd_shadow_tint.rgb, bd_shadow_depth);
+	vec3 colour = mix(shade, paper, lit);
+
+	// The dots grow with how far past the terminator the surface has turned, not
+	// with the stepped tone — that is what gives a screentone its ramp instead of
+	// a flat field of identical dots.
+	float depth = clamp((bd_terminator - facing) / max(bd_terminator, 0.001), 0.0, 1.0);
+	// A thrown shadow is as deep as the far side, so it takes the same screen.
+	depth = max(depth, 1.0 - shadowed);
+	float soft = max(bd_dots_softness, 0.001);
+	float angle = radians(bd_dots_angle);
+	mat2 turn = mat2(vec2(cos(angle), -sin(angle)), vec2(sin(angle), cos(angle)));
+	vec2 cell = fract(turn * (pixel / max(bd_dots_size, 1.0))) - 0.5;
+	float reading = length(cell) * 2.0;
+	float radius = depth * bd_dots_max;
+	float dots = smoothstep(radius + soft, radius - soft, reading);
+	colour = mix(colour, bd_ink_colour.rgb, dots * bd_dots_amount * (1.0 - lit));
+
+	float bend = length(fwidth(normal));
+	float line = smoothstep(bd_crease_bias, bd_crease_bias + bd_crease_width, bend);
+	return mix(colour, bd_ink_colour.rgb, line * bd_crease_ink);
+}
+
+
+// A gradient, warm into cool, and nothing stepped anywhere.
+vec3 look_vinyl(vec3 paint, vec3 normal, vec3 towards, float shadowed) {
+	float sky = normalize(world_normal).y * 0.5 + 0.5;
+	vec3 colour = paint * mix(1.0 - vinyl_ground_shade, 1.0, sky);
+
+	float level = clamp((dot(normal, towards) + vinyl_wrap) / (1.0 + vinyl_wrap),
+			0.0, 1.0) * shadowed;
+	vec3 cool = mix(vec3(1.0), vinyl_shadow_hue.rgb, vinyl_shadow_hue_mix);
+	vec3 warm = mix(vec3(1.0), vinyl_light_hue.rgb, vinyl_light_hue_mix);
+	return colour * mix(cool, warm, level) * level;
+}
+
+
+// The light response read off a strip, and nothing else.
+vec3 look_ramp(vec3 paint, vec3 normal, vec3 towards, float shadowed) {
+	float sky = normalize(world_normal).y * 0.5 + 0.5;
+	vec3 colour = paint * mix(1.0 - ramp_ground_shade, 1.0, sky);
+
+	float level = clamp((dot(normal, towards) + ramp_wrap) / (1.0 + ramp_wrap),
+			0.0, 1.0) * shadowed;
+	// Clamped off both edges: sampling exactly at 0 or 1 with a linear filter
+	// bleeds the strip's border texel, which shows as a hairline of the wrong
+	// colour right where the shadow is deepest.
+	return colour * texture(shading_ramp,
+			vec2(clamp(level, 0.002, 0.998), ramp_row)).rgb;
+}
+
+
+// Two tones in the creature's own element colour, and a rim that survives shadow.
+vec3 look_typelit(vec3 paint, vec3 normal, vec3 towards, vec3 eye, float shadowed) {
+	float level = clamp((dot(normal, towards) + typelit_wrap) / (1.0 + typelit_wrap),
+			0.0, 1.0);
+	float lit = smoothstep(typelit_terminator - typelit_terminator_softness,
+			typelit_terminator + typelit_terminator_softness, level) * shadowed;
+
+	// The shadow is the element's colour, darkened — not grey. That is what makes
+	// the two tones read as one creature rather than as a creature and a stain.
+	vec3 shade = mix(vec3(1.0 - typelit_shadow_depth),
+			accent.rgb * (1.0 - typelit_shadow_depth * 0.6), typelit_shadow_accent);
+	vec3 colour = paint * mix(shade, vec3(typelit_lit_level), lit);
+
+	// The rim was emission, so it survived being in shadow — which is the whole
+	// reason it reads at thumbnail size. Added after the light for the same effect.
+	// **Gated by how fast the surface turns**, which is what keeps a rim on a
+	// silhouette instead of across a floor. `1 - dot(N, V)` reaches one at any
+	// grazing angle, and on a creature that is only the silhouette — but a ground
+	// plane is grazing for half its area, so the ungated rim washed the far side
+	// of the world white. A normal that is not turning is not an edge.
+	float turning = clamp(length(fwidth(normal)) / max(rim_turn, 1e-4), 0.0, 1.0);
+	float facing = 1.0 - clamp(dot(normal, eye), 0.0, 1.0);
+	float band = smoothstep(1.0 - typelit_rim_width, 1.0, facing);
+	return colour
+		+ accent.rgb * band * typelit_rim_strength * turning * (1.0 - face_flat);
+}
+
+
 // The printed surface, for one light.
 //
 // `shadowed` is the engine's shadow term: 1 in the sun, 0 in a thrown shadow, and
 // soft in between until `cast_hardness` snaps it. That one value is what the whole
 // rework was for.
-// `paint` is the surface's finished flat colour. Passed in rather than computed
-// here because each shader has its own to add — a blade is darker in the thatch,
-// a leaf carries its own tone, the mat under the turf is darker than the ground.
-// All of it is computed from varyings, which `light()` can see, so every caller
-// builds its paint at the call site and the look stays the only thing shared.
-void comic_shade(
-	vec3 paint, vec3 normal, vec3 towards_light, vec3 light_colour, float shadowed,
-	bool is_sun, vec2 pixel, inout vec3 diffuse
-) {
-	float facing = dot(normalize(normal), normalize(towards_light));
-
-	if (!is_sun) {
-		// A lamp adds and never re-shades. Stepped like everything else, so a pool
-		// of light has an edge rather than a falloff.
-		float pool = clamp(facing, 0.0, 1.0) * shadowed;
-		pool = ceil(pool * lamp_steps) / max(lamp_steps, 1.0);
-		diffuse += paint * light_colour * pool * lamp_warmth;
-		return;
-	}
+// The printed look itself: two steps, two screens and a stroke.
+vec3 look_comic(vec3 paint, vec3 normal, vec3 towards, float shadowed, vec2 pixel) {
+	float facing = dot(normal, towards);
 
 	// The wobble goes in before the steps, so both tones and the edge line pick it
 	// up together and the shadow keeps one boundary rather than three.
@@ -498,7 +783,51 @@ void comic_shade(
 	// step: it is drawn where the shadow term is crossing, which is exactly where
 	// an inker would put a heavier stroke.
 	float rim = (1.0 - abs(thrown * 2.0 - 1.0));
-	colour = mix(colour, colour * (1.0 - cast_line), rim * rim * printable);
+	return mix(colour, colour * (1.0 - cast_line), rim * rim * printable);
+}
 
+
+// One surface, one light, whichever look is chosen.
+//
+// `paint` is the surface's finished flat colour. Passed in rather than computed
+// here because each shader has its own to add — a blade is darker in the thatch,
+// a leaf carries its own tone, the mat under the turf is darker than the ground.
+// All of it is built from varyings, which `light()` can see, so every caller
+// builds its paint at the call site and the look stays the only thing shared.
+// `towards_eye` is `VIEW`, handed over rather than read: a built-in belongs to
+// the stage it is declared in, and an include has no stage of its own. Three of
+// the looks need it — a rim, a highlight, a grazing angle.
+void comic_shade(
+	vec3 paint, vec3 normal, vec3 towards_light, vec3 towards_eye,
+	vec3 light_colour, float shadowed, bool is_sun, vec2 pixel, inout vec3 diffuse
+) {
+	vec3 towards = normalize(towards_light);
+	vec3 facing_normal = normalize(normal);
+	vec3 eye = normalize(towards_eye);
+
+	if (!is_sun) {
+		// A lamp adds and never re-shades, whatever the look. Stepped so a pool of
+		// light has an edge rather than a falloff — the one thing every look here
+		// agrees on is that a boundary should be visible.
+		float pool = clamp(dot(facing_normal, towards), 0.0, 1.0) * shadowed;
+		pool = ceil(pool * lamp_steps) / max(lamp_steps, 1.0);
+		diffuse += paint * light_colour * pool * lamp_warmth;
+		return;
+	}
+
+	vec3 colour;
+	if (look_mode == LOOK_TOON) {
+		colour = look_toon(paint, facing_normal, towards, eye, shadowed);
+	} else if (look_mode == LOOK_BD) {
+		colour = look_bd(paint, facing_normal, towards, shadowed, pixel);
+	} else if (look_mode == LOOK_VINYL) {
+		colour = look_vinyl(paint, facing_normal, towards, shadowed);
+	} else if (look_mode == LOOK_RAMP) {
+		colour = look_ramp(paint, facing_normal, towards, shadowed);
+	} else if (look_mode == LOOK_TYPELIT) {
+		colour = look_typelit(paint, facing_normal, towards, eye, shadowed);
+	} else {
+		colour = look_comic(paint, facing_normal, towards, shadowed, pixel);
+	}
 	diffuse += colour * light_colour;
 }

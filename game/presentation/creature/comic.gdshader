@@ -24,6 +24,7 @@ render_mode blend_mix, cull_back, specular_disabled, ambient_light_disabled;
 #include "comic_look.gdshaderinc"
 
 void vertex() {
+	world_normal = comic_normal(NORMAL, MODEL_MATRIX);
 	world_here = comic_point(VERTEX, MODEL_MATRIX);
 	round_normal = world_here - comic_point(shape_centre, MODEL_MATRIX);
 	model_up = comic_up(VERTEX.y);
@@ -38,6 +39,6 @@ void fragment() {
 }
 
 void light() {
-	comic_shade(comic_paint(), NORMAL, LIGHT, LIGHT_COLOR, ATTENUATION,
+	comic_shade(comic_paint(), NORMAL, LIGHT, VIEW, LIGHT_COLOR, ATTENUATION,
 			LIGHT_IS_DIRECTIONAL, FRAGCOORD.xy, DIFFUSE_LIGHT);
 }

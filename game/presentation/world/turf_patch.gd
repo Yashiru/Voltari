@@ -710,7 +710,7 @@ func _footprints(grid: GridMap) -> Array[PackedVector2Array]:
 			# ground the grass stands on, to the top of the tallest blade. In the
 			# model's own space, because that is where its vertices are — and a
 			# `GridMap` draws an item at `cell_scale` about the cell's origin.
-			var ground: float = _ground_under(grid, sown, cell, floor_y)
+			var ground: float = _ground_under(grid, sown, at, floor_y)
 			var scale: float = maxf(layer_grid.cell_scale, 0.0001)
 			# **From where the thing stands, up to where the grass ends.**
 			#
@@ -774,12 +774,18 @@ func _footprints(grid: GridMap) -> Array[PackedVector2Array]:
 ## own floor when nothing was sown under it — an obstacle on the far side of a
 ## hole still needs an answer.
 func _ground_under(
-	grid: GridMap, sown: Dictionary[Vector3i, bool], cell: Vector3i, floor_y: float
+	grid: GridMap, sown: Dictionary[Vector3i, bool], at: Vector3, floor_y: float
 ) -> float:
-	for step: int in range(1, 4):
-		var under: Vector3i = Vector3i(cell.x, cell.y - step, cell.z)
-		if sown.has(under):
-			return _surface_of(grid, under)
+	# **Found by where it is, not by counting cells down.** A layer carries its own
+	# transform, so a prop painted at cell y = 0 on the blocking layer can stand at
+	# 1.65 in the terrain's space. Stepping down in grid coordinates then looks for
+	# a sown cell at y = -1 and finds nothing, and the ground falls back to the
+	# patch's floor — which put the slice more than two metres below every model on
+	# the map and made the delimitation stamp nothing at all.
+	var mapped: Vector3i = grid.local_to_map(at)
+	var under: Vector3i = Vector3i(mapped.x, _filled[0].y, mapped.z)
+	if sown.has(under):
+		return _surface_of(grid, under)
 	return floor_y
 
 

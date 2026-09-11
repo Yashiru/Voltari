@@ -27,7 +27,12 @@ func _library() -> MeshLibrary:
 
 
 ## A grid with `cells` filled, and a patch over them, both in the tree.
-func _patch(cells: Array[Vector3i], filled: Array[Vector3i]) -> VltFoliagePatch:
+##
+## `turned` is the orthogonal orientation every filled cell is painted with — 0 is
+## the unrotated one a `GridMap` uses unless the author says otherwise.
+func _patch(
+	cells: Array[Vector3i], filled: Array[Vector3i], turned: int = 0
+) -> VltFoliagePatch:
 	var holder: Node3D = auto_free(Node3D.new())
 	add_child(holder)
 
@@ -36,7 +41,7 @@ func _patch(cells: Array[Vector3i], filled: Array[Vector3i]) -> VltFoliagePatch:
 	grid.mesh_library = _library()
 	holder.add_child(grid)
 	for cell: Vector3i in filled:
-		grid.set_cell_item(cell, 0)
+		grid.set_cell_item(cell, 0, turned)
 
 	var patch: VltFoliagePatch = VltFoliagePatch.new()
 	patch.seed = SEED
@@ -145,3 +150,44 @@ func test_turning_the_density_up_grows_more_leaves() -> void:
 
 	patch.density = patch.density * 3.0
 	assert_int(patch.leaf_total()).is_greater(before)
+
+
+# --- a turned cell grows turned leaves ---------------------------------------
+
+
+func test_leaves_follow_a_cell_that_was_painted_turned() -> void:
+	# The defect this exists for: a cell stores an item *and* one of twenty-four
+	# orientations. Sown against an identity basis, the leaves stayed in the
+	# model's untouched pose while the GridMap drew the model turned — foliage
+	# crossways to the thing it grew on. On an unrotated cell the two agree, which
+	# is why every render made here missed it.
+	var cells: Array[Vector3i] = [Vector3i(0, 0, 0)]
+	var upright: VltFoliagePatch = _patch(cells, cells)
+	# 16 is a quarter turn about Y in Godot's orthogonal table.
+	var sideways: VltFoliagePatch = _patch(cells, cells, 16)
+
+	var straight: PackedVector3Array = _points(upright)
+	var turned: PackedVector3Array = _points(sideways)
+	assert_int(turned.size()).is_equal(straight.size())
+
+	# Asked of the grid rather than written out: which way orientation 16 turns is
+	# the engine's convention, and a test that guesses it is testing the guess.
+	var grid: GridMap = sideways.get_node(sideways.layer) as GridMap
+	var quarter: Basis = grid.get_basis_with_orthogonal_index(16)
+	# A cell turns about its own centre, not about the world origin.
+	var centre: Vector3 = grid.map_to_local(Vector3i.ZERO)
+
+	var moved: int = 0
+	for point: int in range(straight.size()):
+		if not straight[point].is_equal_approx(turned[point]):
+			moved += 1
+	assert_int(moved).override_failure_message(
+		"turning the cell moved no leaf, so the cell's orientation is being ignored"
+	).is_greater(0)
+
+	# And it is the cell's turn exactly, not some other transform: every leaf of
+	# the turned cell is a leaf of the upright one, rotated.
+	for point: int in range(straight.size()):
+		assert_vector(turned[point]).is_equal_approx(
+			centre + quarter * (straight[point] - centre), Vector3.ONE * 0.001
+		)

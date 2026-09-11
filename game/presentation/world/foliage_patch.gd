@@ -172,11 +172,19 @@ func _regrow() -> void:
 		if sprigs.get_surface_count() == 0:
 			continue
 
-		# The grid's own placement: the cell's centre, and the scale it draws its
-		# palette at. Asked of the grid rather than assumed, because both are
-		# settings somebody can change.
+		# The grid's own placement: the cell's centre, the scale it draws its
+		# palette at, **and the way the item was turned when it was painted**.
+		#
+		# That last one was missing, and it is the whole of why foliage could come
+		# out crossways to the model it grew on. A cell stores an item and one of
+		# twenty-four orientations; the mesh is sown in its own space, so leaves
+		# placed against an identity basis stayed in the model's untouched pose
+		# while the `GridMap` drew the model turned. On an unrotated cell the two
+		# agree and nothing looks wrong — which is exactly why it survived every
+		# render made here, none of which had turned anything.
 		var placed: Transform3D = Transform3D(
-			Basis.IDENTITY.scaled(Vector3.ONE * grid.cell_scale), grid.map_to_local(cell)
+			grid.get_cell_item_basis(cell).scaled(Vector3.ONE * grid.cell_scale),
+			grid.map_to_local(cell)
 		)
 		_merge(grown, sprigs, placed)
 

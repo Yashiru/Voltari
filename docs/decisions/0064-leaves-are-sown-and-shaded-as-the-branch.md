@@ -92,6 +92,19 @@ vertices**: the six points are shared and four triangles become eight. Both side
 carry the same normal — the support's — so they shade identically and there is no
 seam to see.
 
+### A cell's orientation is part of its placement
+
+A `GridMap` cell stores an item **and one of twenty-four orientations**. The mesh
+is sown in its own space, so leaves placed against an identity basis stay in the
+model's untouched pose while the grid draws the model turned — foliage crossways
+to the thing it grew on, which is what the maintainer reported and correctly
+guessed the cause of.
+
+The reason it survived every render made here is that **none of them had turned
+anything**: on an unrotated cell the two poses agree exactly. A test now paints
+one cell upright and one turned a quarter, and holds that the turned cell's leaves
+are the upright cell's rotated about the cell's own centre.
+
 ### Only the surface that is the foliage
 
 The first render settled this: sown on every surface, a palm's **trunk grew brown

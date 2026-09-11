@@ -444,12 +444,21 @@ func _advance_event() -> void:
 # --- maps --------------------------------------------------------------------
 
 
-## Every map in the folder, by the id it declares.
+## Every map in the folder, by its id.
 ##
-## Each one is opened to be asked. The filename is not trusted to be the id —
-## the two agree for everything the tools produce and nothing enforces it, and a
-## map that answered to the wrong name would be a save pointing at the wrong
-## place.
+## **The filename is the id**, and nothing here is opened to check. That used to
+## be the other way around: each map was loaded and instantiated to be asked its
+## `map_id`, on the grounds that a filename is not enforced and a map answering to
+## the wrong name would be a save pointing at the wrong place.
+##
+## The objection was right and the remedy was in the wrong place. `Validate maps`
+## enforces it now, which costs nothing at run time and says so out loud when it
+## is broken — where opening every map cost the *size* of every map, every time a
+## world was built. A single 66 MB scratch map made that six seconds a world, and
+## the test suite builds one per test.
+##
+## So the price of trusting the filename is one check in the validator, and the
+## price of not trusting it was paid on every startup forever.
 func _discover() -> Dictionary[String, String]:
 	var found: Dictionary[String, String] = {}
 	var directory: DirAccess = DirAccess.open(MAPS_FOLDER)
@@ -462,17 +471,9 @@ func _discover() -> Dictionary[String, String]:
 	for file: String in files:
 		if not file.ends_with(".tscn"):
 			continue
-		var path: String = "%s/%s" % [MAPS_FOLDER, file]
-		var packed: PackedScene = load(path) as PackedScene
-		if packed == null:
-			continue
-
-		var map: VltWorldMap = packed.instantiate() as VltWorldMap
-		if map == null:
-			continue
-		if not map.map_id.is_empty() and not found.has(map.map_id):
-			found[map.map_id] = path
-		map.free()
+		var id: String = file.get_basename()
+		if not found.has(id):
+			found[id] = "%s/%s" % [MAPS_FOLDER, file]
 
 	return found
 

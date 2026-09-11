@@ -130,6 +130,12 @@ The id is an identifier, not a title: lower case, digits and underscores,
 starting with a letter. A save holds it (decision 0040), so renaming a map later
 is a migration rather than a rename.
 
+**The file must be named after the id** — `starter_field.tscn` holds
+`starter_field`. The game lists this folder and takes each filename as an id
+without opening anything, so a map whose file says otherwise is one it can never
+find, and a save holding that id loads into nothing. **Validate maps** reports it.
+Rename the file and the `map_id` together, or neither.
+
 **It refuses to overwrite.** Everything else it refuses is a typo caught early;
 writing over a painted map destroys work that has no other copy.
 

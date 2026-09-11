@@ -39,6 +39,7 @@ static func check(
 			# means a loaded save can land on either.
 			problems.append("two maps claim the id \"%s\"" % map.map_id)
 			continue
+		problems.append_array(_check_filename(map))
 		by_id[map.map_id] = map
 
 	for map: VltWorldMap in by_id.values():
@@ -51,6 +52,33 @@ static func check(
 
 	problems.append_array(_check_flags(by_id))
 	problems.append_array(_check_recovery(by_id))
+	return problems
+
+
+## The file a map lives in has to be named after its id.
+##
+## **This is what lets the game find a map without opening it.** The overworld
+## lists the folder and takes each filename as an id; the alternative was loading
+## and instantiating every map on every startup to ask, which costs the size of
+## every map in the folder rather than the count. So the rule is not cosmetic, and
+## it is enforced here rather than assumed there.
+##
+## A map whose id disagrees with its filename is not merely untidy: the game will
+## never find it, and a save holding that id (decision 0040) loads into nothing.
+##
+## Skipped for a map with no file. A fixture built in code is a real map to every
+## other check here, and this one is about files.
+static func _check_filename(map: VltWorldMap) -> PackedStringArray:
+	var problems: PackedStringArray = PackedStringArray()
+	if map.scene_file_path.is_empty():
+		return problems
+
+	var named: String = map.scene_file_path.get_file().get_basename()
+	if named != map.map_id:
+		problems.append(
+			"map \"%s\" is in a file called \"%s\" — the game finds maps by filename, so it will never be found"
+			% [map.map_id, named]
+		)
 	return problems
 
 

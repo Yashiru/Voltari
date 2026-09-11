@@ -41,6 +41,40 @@ func _complains_about(problems: PackedStringArray, fragment: String) -> bool:
 	return false
 
 
+# --- the filename is the id --------------------------------------------------
+
+
+func test_a_map_whose_file_is_named_something_else_is_caught() -> void:
+	# The overworld lists the folder and takes each filename as an id, without
+	# opening anything. So a disagreement here is not untidiness: the map does not
+	# exist as far as the game is concerned, and a save holding its id (decision
+	# 0040) loads into nothing.
+	var map: VltWorldMap = _field("starter_field")
+	map.scene_file_path = "res://game/maps/an_older_name.tscn"
+
+	assert_bool(
+		_complains_about(_problems(_maps([map])), "an_older_name")
+	).override_failure_message(
+		"a map the game can never find was not reported"
+	).is_true()
+
+
+func test_a_map_named_after_its_id_passes() -> void:
+	var map: VltWorldMap = _field("starter_field")
+	map.scene_file_path = "res://game/maps/starter_field.tscn"
+
+	assert_array(_problems(_maps([map]))).is_empty()
+
+
+func test_a_map_with_no_file_is_not_asked() -> void:
+	# Every other fixture in this suite is built in code and has no file at all.
+	# The rule is about files, so it has to leave those alone — otherwise it would
+	# fire on every case here and say nothing about any of them.
+	var map: VltWorldMap = _field("built_in_code")
+
+	assert_array(_problems(_maps([map]))).is_empty()
+
+
 # --- a map that is fine ------------------------------------------------------
 
 

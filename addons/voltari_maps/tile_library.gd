@@ -223,6 +223,8 @@ static func build(
 		report.added.append(item_name)
 		next_id += 1
 
+	next_id = _reserve_blocker(library, by_name, produced, next_id, report)
+
 	for item_name: String in by_name:
 		if not produced.has(item_name):
 			report.orphaned.append(item_name)
@@ -518,6 +520,40 @@ static func _index(library: MeshLibrary) -> Dictionary[String, int]:
 	for id: int in library.get_item_list():
 		by_name[library.get_item_name(id)] = id
 	return by_name
+
+
+## Keeps one item in the palette that draws nothing.
+##
+## **The blocking layer is a `GridMap` like the others, so painting a cell paints
+## a model.** Until this existed there was no way to say "you cannot walk here"
+## about a cell that is supposed to look like nothing — so the footprint of a
+## house could not be painted at all, only the one cell the house stands on.
+##
+## The one item this tool makes rather than reads. Held by `produced` so it is not
+## reported as an orphan every build for having no file, and named with a leading
+## underscore so it sorts away from the models and reads as what it is.
+##
+## An `ArrayMesh` with no surfaces rather than no mesh at all: the palette shows a
+## blank swatch and everything that walks a library's meshes finds one.
+##
+## Reported as added and kept like anything else. It is an item in the palette an
+## author can paint with, so a report that left it out would be a report of a
+## palette that is not the one they are looking at.
+static func _reserve_blocker(
+	library: MeshLibrary, by_name: Dictionary[String, int],
+	produced: Dictionary[String, bool], next_id: int, report: Report
+) -> int:
+	produced[VltMapBlocking.BLOCKER] = true
+	if by_name.has(VltMapBlocking.BLOCKER):
+		report.kept.append(VltMapBlocking.BLOCKER)
+		return next_id
+
+	library.create_item(next_id)
+	library.set_item_name(next_id, VltMapBlocking.BLOCKER)
+	library.set_item_mesh(next_id, ArrayMesh.new())
+	by_name[VltMapBlocking.BLOCKER] = next_id
+	report.added.append(VltMapBlocking.BLOCKER)
+	return next_id + 1
 
 
 ## Puts every item's transform back to identity.

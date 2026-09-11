@@ -142,7 +142,9 @@ func test_an_added_model_lands_past_the_highest_id() -> void:
 	_build()
 	var after: Dictionary[String, int] = _ids_by_name(_library())
 
-	assert_int(after.size()).is_equal(2)
+	# The reserved item, the one fixture model, and the invisible blocker the tool
+	# keeps in every palette.
+	assert_int(after.size()).is_equal(3)
 	for item_name: String in after:
 		if item_name == "reserved":
 			continue

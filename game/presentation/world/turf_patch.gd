@@ -158,12 +158,20 @@ const BUILT: Array[String] = [
 		_rebuild()
 
 ## How far a blade may wander off its own spot, as a share of the gap between
-## spots. At zero the grid shows as rows the moment the camera looks along one.
-@export_range(0.0, 1.0, 0.01) var scatter: float = 0.1:
+## spots.
+##
+## **The only thing standing between the lawn and a lattice.** Blades are laid out
+## on a sub-grid inside each cell — that is what makes the coverage even and what
+## lets a patch of any shape be drawn without storing a single position — and at
+## zero that grid is exactly what is drawn. At one each blade fills its own square
+## of it and nothing about the layout survives.
+##
+## Past one they cross into each other's squares, which trades the even coverage
+## for clumps and bare ground. A wild verge wants that; a lawn does not.
+@export_range(0.0, 2.0, 0.01) var scatter: float = 1.0:
 	set(value):
-		scatter = clampf(value, 0.0, 1.0)
+		scatter = clampf(value, 0.0, 2.0)
 		_rebuild()
-
 
 ## How far the wind lays a blade over, on top of what the shared wind already
 ## says. Turf is shorter and stiffer than a tuft, so it takes less of one gust.

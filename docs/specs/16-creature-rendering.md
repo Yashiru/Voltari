@@ -510,6 +510,11 @@ line. The blades **cut** at that line, at both boundaries; only the darkened
 ground under them fades, over a width of its own, on the inside of it. A cell wall
 between two sown cells is neither boundary and draws nothing.
 
+Within a patch, blades sit on a sub-grid per cell and are jittered off it by one
+dial. At zero that grid is what is drawn; at one each blade fills its own square
+of it. **It is the only thing between the lawn and a lattice**, so it defaults to
+one.
+
 The ground under a patch is a mat in the colour of the blade roots, wearing the
 roughcast of decision 0065 at the blades' own scale.
 

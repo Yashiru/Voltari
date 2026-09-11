@@ -70,8 +70,13 @@ uniform float cell_width = 1.0;
 uniform float cell_depth = 1.0;
 
 // How far a blade may wander off its spot, as a share of the gap between spots.
-// At zero the sub-grid is visible as rows the moment the camera looks along one.
-uniform float blade_scatter : hint_range(0.0, 1.0) = 0.85;
+//
+// **This is the only thing standing between the lawn and a lattice.** At zero the
+// blades sit on a perfect grid; at one each fills its own square of that grid and
+// nothing about the layout survives. Past one they start crossing into each
+// other's squares, which trades the even coverage for clumps and bare patches —
+// available, because a wild verge wants it, and not the default.
+uniform float blade_scatter : hint_range(0.0, 2.0) = 1.0;
 
 group_uniforms blade;
 
@@ -127,16 +132,35 @@ void process() {
 	vec3 middle = texture(cell_spots, vec2(column, 0.25)).rgb;
 	vec4 corners = texture(cell_spots, vec2(column, 0.75));
 
-	// A square sub-grid inside the cell, then pushed off it. The grid is what
-	// makes the coverage even; the scatter is what stops it reading as a grid.
+	// A sub-grid inside the cell, then pushed off it. The grid is what makes the
+	// coverage even; the scatter is what stops it reading as a grid.
+	//
+	// **The rows are counted, not assumed square.** A cell holding 650 blades was
+	// laid out on a 26-wide grid and filled 25 rows of it, leaving the last row of
+	// every cell empty — a bald strip four centimetres wide, on the same side of
+	// every cell, repeating across the map at exactly the cell spacing. It read as
+	// a boundary drawn between two cells that are both grass, which is the one
+	// place there is no boundary to draw. Spacing the rows by how many there are
+	// makes the lawn continuous across a cell wall.
 	float side = max(ceil(sqrt(max(per_cell, 1.0))), 1.0);
+	float rows = max(ceil(per_cell / side), 1.0);
 	float col = mod(within, side);
 	float row = floor(within / side);
 
-	vec2 mine = blade_hash(vec2(col, row) + slot * 7.0);
-	vec2 more = blade_hash(vec2(row, col) + slot * 13.0 + 17.0);
+	// Seeded from where the cell *is*, not from its place in the list.
+	//
+	// `slot * 7` put the neighbouring cell's hash inputs seven sub-cells along a
+	// grid twenty-six wide, so consecutive cells drew from an overlapping range
+	// and reused each other's numbers shifted diagonally. Multiplying the cell's
+	// own position by the sub-grid makes the input a blade's index on one grid
+	// covering the whole world: every blade anywhere gets its own number, and two
+	// patches sown separately agree along their seam for free.
+	vec2 mine = blade_hash(vec2(col, row) + middle.xz * vec2(side, rows));
+	vec2 more = blade_hash(
+		vec2(col, row) + middle.xz * vec2(side, rows) + vec2(137.0, 311.0)
+	);
 
-	vec2 step_by = vec2(cell_width, cell_depth) / side;
+	vec2 step_by = vec2(cell_width / side, cell_depth / rows);
 	vec2 spot = (vec2(col, row) + 0.5) * step_by - vec2(cell_width, cell_depth) * 0.5;
 	spot += (mine - 0.5) * step_by * blade_scatter;
 

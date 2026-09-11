@@ -81,6 +81,20 @@ The wander can only eat into the patch edge — there are no blades outside the 
 cells for it to hand back — so the border sits a centimetre or two inside a
 straight edge. That is the trade, and it is the right way round.
 
+### Between two sown cells there is no boundary at all
+
+Both boundaries are measured against something outside the grass: bare ground, or
+an obstacle. A cell wall between two sown cells is neither, and nothing in the
+measurement can produce one.
+
+Something else could, and did. Blades are laid out on a sub-grid inside each cell,
+sized `ceil(sqrt(per_cell))` on a side — and 650 blades on a 26-wide grid fill 25
+rows of it. The last row of every cell was empty: a bald strip four centimetres
+wide, on the same side of every cell, repeating across the map at exactly the cell
+spacing, which reads as a line drawn between two cells that are both grass.
+Spacing the rows by how many there are rather than by the side of the square makes
+the lawn continuous across a cell wall.
+
 ## What this fixed on the way
 
 Measuring to the **middle** of the nearest bare cell and subtracting half a cell

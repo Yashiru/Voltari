@@ -79,18 +79,28 @@ void vertex() {
 
 
 void fragment() {
-	vec3 paint = comic_paint(UV);
-
-	// Darker in the thatch, warmer at the tip. Both follow the blade rather than
-	// a random number, so two blades side by side agree about where the light is.
-	paint *= mix(1.0 - root_shade, 1.0, up_the_blade);
-	paint = mix(
-		paint, tip_tint.rgb, tip_tint_amount * up_the_blade * up_the_blade
+	// **The blade's own colour first, the ground's grain last.** The order is the
+	// whole of it: `tip_tint_amount` is driven to one, so the mix at the tip
+	// *replaces* the colour rather than tinting it — and a grain applied before
+	// that is erased by it. Seen from above a lawn is nearly all tips, so the
+	// variation vanished exactly where it would have been looked at.
+	vec3 own = mix(
+		albedo.rgb, tip_tint.rgb, tip_tint_amount * up_the_blade * up_the_blade
 	);
 
-	// Only then the per-blade number, and only as a darkening. Letting it brighten
-	// as well would put pale blades among green ones, which reads as dead grass.
-	paint *= 1.0 - blade_variation * blade_roll;
+	// Darker in the thatch. Follows the blade rather than a random number, so two
+	// blades side by side agree about where the light is.
+	own *= mix(1.0 - root_shade, 1.0, up_the_blade);
+
+	// Then the per-blade number, and only as a darkening. Letting it brighten as
+	// well would put pale blades among green ones, which reads as dead grass.
+	own *= 1.0 - blade_variation * blade_roll;
+
+	// And last the ground's own variation, read at this blade's feet. A blade
+	// standing in a darker patch of ground is darker by the same amount as the
+	// ground it came out of — they line up exactly rather than resembling each
+	// other, because both read one function at one world position.
+	vec3 paint = posterise(enrich(own)) * comic_grain(world_here) * comic_contact();
 
 	ALBEDO = comic_shade(paint, SCREEN_UV * VIEWPORT_SIZE, INV_VIEW_MATRIX);
 }

@@ -1,6 +1,10 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://game/scenes/world/world_sandbox.gd" id="1_sandbox"]
+[ext_resource type="Script" path="res://game/presentation/world/daylight.gd" id="2_daylight"]
 
 [node name="WorldSandbox" type="Node3D"]
 script = ExtResource("1_sandbox")
+
+[node name="Daylight" type="Node3D" parent="."]
+script = ExtResource("2_daylight")

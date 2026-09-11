@@ -576,6 +576,16 @@ func _enter(into: String, at: Vector2i, facing: VltFacing.Direction) -> void:
 	_place_body()
 	_body.face_at_once(_walker.heading)
 
+	# The look the editor's control last chose, put on everything this map brought
+	# with it. The tile library already baked a look in at build time; this is what
+	# makes switching to another one a restart rather than a rebuild, and it is why
+	# the picker in the toolbar does something at all.
+	#
+	# Here rather than at startup because a map arrives with its own `GridMap`, and
+	# a library dressed before it is in the tree is a library nothing is wearing.
+	@warning_ignore("return_value_discarded")
+	Look.wear(_map, Look.chosen())
+
 	# A different map means different materials, and a swing left over from the
 	# one you came from would ring a cell nobody has stepped on.
 	_grass.of_map(_map)
@@ -710,9 +720,15 @@ func _build_interface() -> void:
 	_camera = Camera3D.new()
 	add_child(_camera)
 
-	# The sun, the page, and the shadows everything throws on it. One node, and
-	# exactly one directional light in the scene — see `daylight.gd`.
-	add_child(Daylight.new())
+	# The sun, the page, and the shadows everything throws on it. Taken from the
+	# scene when it is there rather than built here, and that is the whole point:
+	# a node in the scene has an inspector, and `Daylight` is a `@tool`, so its
+	# direction, its warmth and its brightness are sliders that move the editor
+	# viewport as you drag them. Built here only when a scene forgot one, because
+	# a scene with no directional light renders black rather than dim.
+	if get_node_or_null("Daylight") == null:
+		push_warning("no Daylight in the scene — adding a default one")
+		add_child(Daylight.new())
 
 	_walker = VltFreeWalker.new()
 	_walker.tables = _tables

@@ -509,7 +509,8 @@ under them, and displaced by one world-space noise so neither reads as a drawn
 line. The blades **cut** at that line; only the darkened ground under them fades
 across it.
 
-The ground under a patch is a mat in the colour of the blade roots.
+The ground under a patch is a mat in the colour of the blade roots, wearing the
+roughcast of decision 0065 at the blades' own scale.
 
 **Not measured: what a patch costs.** A blade is five triangles, and the low tier
 allows 150,000 for a whole frame — so the density an author sets is the whole

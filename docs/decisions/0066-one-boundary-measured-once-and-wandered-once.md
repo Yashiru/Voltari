@@ -75,6 +75,21 @@ reached the tile's own colour, and no wander small enough to be tasteful could
 reach a boundary it believed was somewhere else. It is now a distance to the bare
 cell's **square**. A test pins it.
 
+## The grain on the ground is the look's own
+
+The mat is one flat colour, and a flat colour under a lawn full of blades reads as
+paper showing through. It now wears the roughcast of decision 0065 — two octaves
+of world-space noise cut into specks and faded out on their own screen footprint —
+at the blades' own scale rather than a wall's.
+
+**Not a second stipple.** Writing a turf-specific one would have been a dozen
+lines and would have put two implementations of one idea in the same directory,
+which is the failure mode this project spends most of its rules avoiding. What is
+turf's own here is only the scale it is asked for at, and a tenth of a metre is
+where it was settled: twice that and the specks become blotches the size of a
+footprint, and the ground stops looking like ground with a grain and starts
+looking like ground with a pattern on it.
+
 ## Rejected
 
 **A second distance transform for the patch edge.** The obvious way to give the

@@ -242,6 +242,38 @@ const BUILT: Array[String] = [
 		blade_bend = clampf(value, 0.0, 1.2)
 		_rebuild()
 
+@export_group("ground")
+
+## How much darker a speck of the ground under the blades is than the ground
+## around it.
+##
+## The mat is one flat colour, and a flat colour under a lawn full of blades reads
+## as paper showing through. This stipples it at the blades' own scale, so what
+## shows between them has the same busyness they do.
+##
+## **The look's own roughcast, not a second one.** `comic_look.gdshaderinc` already
+## carries a stipple — two octaves of world-space noise cut into specks and faded
+## out on their own screen footprint (decision 0065) — built for rendered walls and
+## exactly as right for trodden ground. What is turf's own here is only the scale
+## it is asked for at.
+@export_range(0.0, 0.6, 0.01) var stipple: float = 0.22:
+	set(value):
+		stipple = clampf(value, 0.0, 0.6)
+		_rebuild()
+
+## Metres across one speck. The blades are a couple of centimetres wide and the
+## camera is seven metres up, where a pixel covers about seventeen millimetres —
+## so below about four centimetres there is nothing left to see and the look's own
+## fade correctly removes it.
+##
+## A tenth of a metre, rendered and looked at. Twice that reads as camouflage: the
+## specks become blotches the size of a footprint and the ground stops looking like
+## ground with a grain and starts looking like ground with a pattern on it.
+@export_range(0.04, 1.0, 0.01) var stipple_size: float = 0.1:
+	set(value):
+		stipple_size = maxf(value, 0.04)
+		_rebuild()
+
 @export_group("colour")
 
 ## The colour at the root, and the colour at the tip.
@@ -560,6 +592,13 @@ func _lay_mat(grid: GridMap) -> void:
 		if name != "albedo":
 			_mat_paint.set_shader_parameter(name, look[name])
 	_wear_ground_grain(_mat_paint, grid)
+	# After the preset, so the patch's own scale wins over whatever the shared look
+	# is currently tuned for. Two octaves an octave apart, which is the spacing the
+	# roughcast is tuned at everywhere else: an aggregate you can see and a sand you
+	# can only feel.
+	_mat_paint.set_shader_parameter("stucco_amount", stipple)
+	_mat_paint.set_shader_parameter("stucco_coarse", 1.0 / stipple_size)
+	_mat_paint.set_shader_parameter("stucco_fine", 2.0 / stipple_size)
 
 	_mat.mesh = _mat_mesh(grid)
 	_mat.material_override = _mat_paint

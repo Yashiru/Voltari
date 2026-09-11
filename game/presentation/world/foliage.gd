@@ -62,12 +62,16 @@ class Settings:
 	## expressed in metres would be wrong by four on every one of them.
 	var density: float = 3.0
 
-	## How long a leaf is, stem to tip, in the same units. Drawn between the two.
+	## How long a leaf is, stem to tip, **as a share of the model's own height**.
+	## Drawn between the two.
 	##
-	## Swept against the palm at 0.15, 0.45 and 1.3: under about a third of a unit
-	## the leaves stop reading as leaves and turn into fuzz on the silhouette.
-	var smallest: float = 0.55
-	var largest: float = 1.05
+	## A share and not a length, because a length is only ever right for one model.
+	## Set for a palm eight units tall, an absolute size put leaves a third the
+	## height of a three-unit cactus on it — each one sticking far outside the
+	## volume it grew on, which reads as a flat sheet of shards planted through the
+	## plant rather than as foliage. One share works on both.
+	var smallest: float = 0.07
+	var largest: float = 0.13
 
 	## How far a leaf may lean off the surface normal, in degrees.
 	##
@@ -140,12 +144,13 @@ static func leaves(source: Mesh, seed: int, settings: Settings) -> ArrayMesh:
 	var scatter: RandomNumberGenerator = RandomNumberGenerator.new()
 	scatter.seed = seed
 	var enough: float = _dominant(array_source) * settings.dominant_share
+	var span: float = _span_of(array_source)
 
 	for surface: int in range(array_source.get_surface_count()):
 		var arrays: Array = array_source.surface_get_arrays(surface)
 		if _area_of(arrays) < enough:
 			continue
-		var sprigs: Array = _leaves_over(arrays, scatter, settings)
+		var sprigs: Array = _leaves_over(arrays, scatter, settings, span)
 		if sprigs.is_empty():
 			continue
 		grown.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, sprigs)
@@ -236,6 +241,13 @@ static func leaf_count(source: Mesh, settings: Settings) -> int:
 	return total
 
 
+## What a leaf's size is a share of: the model's own height, or its widest side
+## when it is a low, broad thing with barely any height to speak of.
+static func _span_of(source: ArrayMesh) -> float:
+	var box: AABB = source.get_aabb()
+	return maxf(box.size.y, maxf(box.size.x, box.size.z) * 0.5)
+
+
 ## The area of the largest surface, which is what the others are measured against.
 static func _dominant(source: ArrayMesh) -> float:
 	var largest: float = 0.0
@@ -245,7 +257,9 @@ static func _dominant(source: ArrayMesh) -> float:
 
 
 ## One surface's worth of leaves, as arrays ready to become a surface.
-static func _leaves_over(arrays: Array, scatter: RandomNumberGenerator, settings: Settings) -> Array:
+static func _leaves_over(
+	arrays: Array, scatter: RandomNumberGenerator, settings: Settings, span: float
+) -> Array:
 	if typeof(arrays[Mesh.ARRAY_VERTEX]) != TYPE_PACKED_VECTOR3_ARRAY:
 		return []
 	if typeof(arrays[Mesh.ARRAY_INDEX]) != TYPE_PACKED_INT32_ARRAY:
@@ -297,7 +311,7 @@ static func _leaves_over(arrays: Array, scatter: RandomNumberGenerator, settings
 			continue
 		out = out.normalized()
 
-		_grow(grown, facing, stitched, root, out, scatter, settings)
+		_grow(grown, facing, stitched, root, out, scatter, settings, span)
 
 	if grown.is_empty():
 		return []
@@ -318,7 +332,8 @@ static func _grow(
 	root: Vector3,
 	out: Vector3,
 	scatter: RandomNumberGenerator,
-	settings: Settings
+	settings: Settings,
+	span: float
 ) -> void:
 	# The leaf's own frame: its face points out of the surface, leaned over by a
 	# little, and it is spun freely about that face so no two are alike.
@@ -329,7 +344,7 @@ static func _grow(
 	var right: Vector3 = sideways * cos(spin) + upwards * sin(spin)
 	var up: Vector3 = upwards * cos(spin) - sideways * sin(spin)
 
-	var size: float = lerpf(settings.smallest, settings.largest, scatter.randf())
+	var size: float = lerpf(settings.smallest, settings.largest, scatter.randf()) * span
 	var stem: Vector3 = root + out * (size * settings.lift)
 	var first: int = grown.size()
 

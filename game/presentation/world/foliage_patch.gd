@@ -73,12 +73,14 @@ extends MeshInstance3D
 		colour_amount = value
 		_regrow()
 
-@export_range(0.05, 4.0, 0.01) var smallest: float = 0.55:
+## Leaf length as a share of the model's own height, so one setting suits a palm
+## and a cactus alike.
+@export_range(0.005, 0.5, 0.005) var smallest: float = 0.07:
 	set(value):
 		smallest = value
 		_regrow()
 
-@export_range(0.05, 4.0, 0.01) var largest: float = 1.05:
+@export_range(0.005, 0.5, 0.005) var largest: float = 0.13:
 	set(value):
 		largest = value
 		_regrow()

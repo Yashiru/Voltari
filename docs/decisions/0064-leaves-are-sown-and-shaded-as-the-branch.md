@@ -105,6 +105,14 @@ can correct; at zero every surface is sown again.
 
 ## Consequences
 
+**A leaf's length is a share of the model, not a length.** Set as an absolute size
+it was right for exactly one model: tuned on an eight-unit palm, it put leaves a
+third the height of a three-unit cactus on it, each sticking far outside the volume
+it grew on. Reported from the editor as foliage applied *perpendiculairement* to
+the mesh rather than on it — which is what a leaf far larger than the curvature it
+sits on looks like. A share of the model's own height suits a palm and a cactus
+with one number.
+
 **Density is per square unit of the mesh's own space, not per game metre.** A
 `GridMap` draws an item at `ART_SCALE`, so these models are authored about twice
 the size they appear at, and a density in metres would be wrong by four on every

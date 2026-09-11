@@ -4,12 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://c7sbnkg6ybguf"
-path="res://.godot/imported/pm0537_00.glb-cbc2e154701d65cd135c4154c759d100.scn"
+path="res://.godot/imported/pm0537_00.glb-2aab913a1af2ca4e02088625a72fa475.scn"
 
 [deps]
 
 source_file="res://game/assets/species/pm0537_00/pm0537_00.glb"
-dest_files=["res://.godot/imported/pm0537_00.glb-cbc2e154701d65cd135c4154c759d100.scn"]
+dest_files=["res://.godot/imported/pm0537_00.glb-2aab913a1af2ca4e02088625a72fa475.scn"]
 
 [params]
 

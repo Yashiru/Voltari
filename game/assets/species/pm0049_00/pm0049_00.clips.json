@@ -1,0 +1,32 @@
+{
+ "eyes": {
+  "driver": null,
+  "rest_y": null,
+  "fps": 25,
+  "row_v": 0.25,
+  "column_u": 0.25,
+  "clips": {},
+  "blocks": {
+   "Block0": {
+    "driver": null,
+    "sheet": "MatCapEye.png_opaque",
+    "column_u": 0.25,
+    "columns": 4,
+    "cell": [
+     0,
+     3
+    ],
+    "clips": {}
+   }
+  }
+ },
+ "parts": {
+  "driver": null,
+  "parts": [],
+  "clips": {}
+ },
+ "shiny": {
+  "BodyA00": "BodyA00.png",
+  "BodyBKurumiruVco": "BodyBKurumiruVco.png"
+ }
+}

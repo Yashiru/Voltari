@@ -20,8 +20,13 @@ node_modules/
 .DS_Store
 Thumbs.db
 
-# Third-party species models, used to test gameplay until the real assets
-# arrive. They must never enter this repository — the IP is 100% original.
-# Installed by pogo_assets/_tools/pipeline.py, which refuses to write here
-# unless git confirms this path is ignored.
-/game/assets/species/
+# The creature models are the project's own and are committed, through LFS.
+#
+# What stays out is the tile pack: `brawl_arena/` is two Unity Asset Store packs,
+# and the `.meshlib` is built from them and is therefore derived from them. A
+# licence to use an asset in a game is not a licence to redistribute the asset,
+# and a repository redistributes. The maps painted with it still work for a
+# clone — a `GridMap` keeps its cells with no library at all, so the world stays
+# walkable and turns invisible.
+/game/assets/species/brawl_arena/
+/game/assets/species/brawl_arena.meshlib

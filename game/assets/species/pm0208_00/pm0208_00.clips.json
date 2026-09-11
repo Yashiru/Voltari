@@ -1,0 +1,22 @@
+{
+ "eyes": {
+  "driver": null,
+  "rest_y": null,
+  "fps": 25,
+  "row_v": 0.25,
+  "column_u": 0.5,
+  "clips": {},
+  "blocks": {}
+ },
+ "parts": {
+  "driver": null,
+  "parts": [],
+  "clips": {}
+ },
+ "shiny": {
+  "BodyANutrey_Lan": "BodyANutrey_Lan.png",
+  "BodyBNutrey_Lan": "BodyBNutrey_Lan.png",
+  "BodyCNutrey_Lan": "BodyCNutrey_Lan.png",
+  "BodyDNutrey_Lan": "BodyDNutrey_Lan.png"
+ }
+}

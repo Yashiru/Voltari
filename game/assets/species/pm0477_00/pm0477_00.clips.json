@@ -1,0 +1,33 @@
+{
+ "eyes": {
+  "driver": null,
+  "rest_y": null,
+  "fps": 25,
+  "row_v": 0.25,
+  "column_u": 0.25,
+  "clips": {},
+  "blocks": {
+   "Block0": {
+    "driver": null,
+    "sheet": "pm0477_00_Eye_Col.png_opaque",
+    "column_u": 0.25,
+    "columns": 4,
+    "cell": [
+     0,
+     3
+    ],
+    "clips": {}
+   }
+  }
+ },
+ "parts": {
+  "driver": null,
+  "parts": [],
+  "clips": {}
+ },
+ "shiny": {
+  "Body00": "Body00.png",
+  "Body01": "Body01.png",
+  "EyeOverlay_Block0": "EyeOverlay_Block0.png"
+ }
+}

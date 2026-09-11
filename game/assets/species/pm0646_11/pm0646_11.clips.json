@@ -1,0 +1,55 @@
+{
+ "eyes": {
+  "driver": "_jnt_Eye",
+  "rest_y": -1.89185,
+  "fps": 25,
+  "row_v": 0.25,
+  "column_u": 0.5,
+  "clips": {
+   "ba30_damageS01": [
+    0.0,
+    1.0,
+    0.5733,
+    0.0
+   ],
+   "ba41_down01": [
+    0.0,
+    0.0,
+    0.3067,
+    1.0
+   ]
+  },
+  "blocks": {
+   "Eye": {
+    "driver": "_jnt_Eye",
+    "sheet": "pm0646_11_Eye_Col.png_opaque",
+    "column_u": 0.5,
+    "columns": 2,
+    "cell": [
+     0,
+     3
+    ],
+    "clips": {
+     "ba30_damageS01": [
+      0.0,
+      1.0,
+      0.5733,
+      0.0
+     ],
+     "ba41_down01": [
+      0.0,
+      0.0,
+      0.3067,
+      1.0
+     ]
+    },
+    "rest_y": -1.89185
+   }
+  }
+ },
+ "parts": {
+  "driver": null,
+  "parts": [],
+  "clips": {}
+ }
+}

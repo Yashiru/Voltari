@@ -1,0 +1,38 @@
+{
+ "eyes": {
+  "driver": null,
+  "rest_y": null,
+  "fps": 25,
+  "row_v": 0.25,
+  "column_u": 0.5,
+  "clips": {},
+  "blocks": {
+   "Block0": {
+    "driver": null,
+    "sheet": "pm0327_00_Mouth1.png",
+    "column_u": 0.5,
+    "columns": 2,
+    "cell": [
+     0,
+     3
+    ],
+    "clips": {}
+   }
+  }
+ },
+ "parts": {
+  "driver": null,
+  "parts": [],
+  "clips": {}
+ },
+ "shiny": {
+  "APatch_15": "APatch_15.png",
+  "BPatch_15": "BPatch_15.png",
+  "Body": "Body.png",
+  "CPatch_15": "CPatch_15.png",
+  "DPatch_15": "DPatch_15.png",
+  "EyeOverlay_Block0": "EyeOverlay_Block0.png",
+  "Line": "Line.png",
+  "Mouth": "Mouth.png"
+ }
+}

@@ -1,0 +1,20 @@
+{
+ "eyes": {
+  "driver": null,
+  "rest_y": null,
+  "fps": 25,
+  "row_v": 0.25,
+  "column_u": 0.5,
+  "clips": {},
+  "blocks": {}
+ },
+ "parts": {
+  "driver": null,
+  "parts": [],
+  "clips": {}
+ },
+ "shiny": {
+  "Body_01": "Body_01.png",
+  "Eye": "Eye.png"
+ }
+}

@@ -1,0 +1,16 @@
+# Heavy binary assets go to LFS. Git stores compressed deltas, and a `.glb` or a
+# `.png` is already compressed — so a normal commit of one is the whole file
+# again, kept forever. A pointer is 130 bytes.
+#
+# `-text` on every line: these are binary and must never be line-ending
+# normalised. A `.glb` that goes through CRLF conversion is a corrupt `.glb`.
+*.glb     filter=lfs diff=lfs merge=lfs -text
+*.fbx     filter=lfs diff=lfs merge=lfs -text
+*.blend   filter=lfs diff=lfs merge=lfs -text
+*.meshlib filter=lfs diff=lfs merge=lfs -text
+
+# Textures only where they arrive in bulk. The handful in `game/presentation/`
+# are a few kilobytes each and are better off as ordinary blobs — a pointer file
+# is friction for anything that has to read one without LFS installed.
+game/assets/species/**/*.png filter=lfs diff=lfs merge=lfs -text
+game/assets/species/**/*.jpg filter=lfs diff=lfs merge=lfs -text

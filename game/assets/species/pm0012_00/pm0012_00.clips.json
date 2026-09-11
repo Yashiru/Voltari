@@ -1,0 +1,22 @@
+{
+ "eyes": {
+  "driver": null,
+  "rest_y": null,
+  "fps": 25,
+  "row_v": 0.25,
+  "column_u": 0.5,
+  "clips": {},
+  "blocks": {}
+ },
+ "parts": {
+  "driver": null,
+  "parts": [],
+  "clips": {}
+ },
+ "shiny": {
+  "BodyA00": "BodyA00.png",
+  "BodyBSpc00": "BodyBSpc00.png",
+  "BodyCKurumiru_LeafVco00": "BodyCKurumiru_LeafVco00.png",
+  "BodyCKurumiru_LeafVco01": "BodyCKurumiru_LeafVco01.png"
+ }
+}

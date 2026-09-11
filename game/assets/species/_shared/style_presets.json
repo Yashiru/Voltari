@@ -1,0 +1,125 @@
+{
+ "_comment": [
+  "Named settings of a shader, offered in the style menu as looks in their own",
+  "right. A variation is a different set of numbers, not a different shader:",
+  "duplicating comic.gdshader five times would mean fixing every bug five times.",
+  "",
+  "A value is read by its JSON type. A number is a float; a \"#rrggbb\" string is",
+  "a colour. Nothing else is accepted, so a typo here is inert rather than a",
+  "creature that quietly looks wrong.",
+  "",
+  "These win over the sliders on the creature — saturation and the rest. A preset",
+  "is a deliberate statement about a look, and a slider is not a good reason to",
+  "half-undo it."
+ ],
+
+ "comic-clear": {
+  "shader": "comic",
+  "_note": "Ligne claire. No tone at all, two flat fills, and the whole read carried by the line. Tintin, Spirou: the discipline is that nothing is hatched, so the drawing has to be right.",
+  "uniforms": {
+   "saturation": 1.42,
+   "terminator": 0.10,
+   "core_extra": 0.0,
+   "shadow_depth": 0.26,
+   "shadow_hue_mix": 0.30,
+   "shadow_saturate": 0.15,
+   "dots_amount": 0.0,
+   "core_dots_amount": 0.0,
+   "edge_line": 0.42,
+   "edge_line_width": 0.14,
+   "chatter_amount": 0.05
+  }
+ },
+
+ "comic-manga": {
+  "shader": "comic",
+  "_note": "Tone does the structural work, in fine screens over a deep core — but the paint keeps its colour. Swept 0.85 / 1.05 / 1.25 / 1.45 on two creatures: under 1.05 the difference from the desaturated original barely reads, over 1.35 the warm bodies go hot and the screen starts fighting the fill. Brought back to 1.05 when the look became lit (decision 0064): 1.25 was tuned against a pass where nothing was ever fully lit, and a real sun on the same number reads neon.",
+  "uniforms": {
+   "saturation": 1.0,
+   "lift": 0.0,
+   "terminator": 0.18,
+   "shadow_depth": 0.42,
+   "shadow_hue_mix": 0.18,
+   "core_extra": 0.22,
+   "dots_amount": 1.0,
+   "dots_size": 6.0,
+   "dots_max": 0.82,
+   "dots_reach": 0.90,
+   "dots_darken": 0.34,
+   "core_dots_amount": 0.90,
+   "core_dots_size": 3.5,
+   "core_dots_max": 0.78,
+   "core_dots_darken": 0.30,
+   "edge_line": 0.34
+  }
+ },
+
+ "comic-noir": {
+  "shader": "comic",
+  "_note": "Most of the form in shadow and the light as the exception. The terminator is pushed past the middle, so the lit side becomes a shape rather than a default.",
+  "uniforms": {
+   "saturation": 1.05,
+   "terminator": 0.38,
+   "core_level": -0.10,
+   "shadow_depth": 0.58,
+   "shadow_hue": "#39406b",
+   "shadow_hue_mix": 0.55,
+   "shadow_saturate": 0.10,
+   "core_extra": 0.30,
+   "dots_amount": 0.80,
+   "dots_size": 11.0,
+   "dots_max": 0.85,
+   "dots_darken": 0.34,
+   "core_dots_amount": 0.40,
+   "edge_line": 0.45,
+   "edge_line_width": 0.16,
+   "chatter_amount": 0.05
+  }
+ },
+
+ "comic-newsprint": {
+  "shader": "comic",
+  "_note": "Cheap press: a coarse screen you are meant to see, four inks, warm paper grey in the shadow. The posterise is on here and nowhere else.",
+  "uniforms": {
+   "saturation": 1.0,
+   "lift": 0.08,
+   "flat_levels": 6.0,
+   "shadow_hue": "#8a8272",
+   "shadow_hue_mix": 0.42,
+   "shadow_saturate": 0.0,
+   "dots_amount": 0.90,
+   "dots_size": 16.0,
+   "dots_max": 0.90,
+   "dots_reach": 1.10,
+   "dots_darken": 0.36,
+   "core_dots_amount": 0.70,
+   "core_dots_size": 9.0,
+   "core_dots_turn": 15.0,
+   "edge_line": 0.22,
+   "chatter_amount": 0.06,
+   "chatter_scale": 30.0
+  }
+ },
+
+ "comic-sunday": {
+  "shader": "comic",
+  "_note": "The bright end. Little shadow, saturated fills, a light screen at a shallow angle. Closest of the family to what a game for children would actually ship.",
+  "uniforms": {
+   "saturation": 1.55,
+   "lift": 0.10,
+   "terminator": 0.06,
+   "shadow_depth": 0.24,
+   "shadow_hue": "#7f8fd8",
+   "shadow_hue_mix": 0.45,
+   "shadow_saturate": 0.35,
+   "core_extra": 0.10,
+   "dots_amount": 0.55,
+   "dots_size": 10.0,
+   "dots_angle": 15.0,
+   "dots_max": 0.60,
+   "dots_darken": 0.18,
+   "core_dots_amount": 0.30,
+   "edge_line": 0.20
+  }
+ }
+}

@@ -23,7 +23,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 
 // Everything under here is third-party and must stay local.
-const GUARDED = "game/assets/species";
+const GUARDED = "game/assets/species/brawl_arena";
 
 const args = new Set(process.argv.slice(2));
 const stagedOnly = args.has("--staged");

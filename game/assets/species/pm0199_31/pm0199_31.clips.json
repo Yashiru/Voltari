@@ -1,0 +1,43 @@
+{
+ "eyes": {
+  "driver": null,
+  "rest_y": null,
+  "fps": 60,
+  "row_v": 0.25,
+  "column_u": 0.5,
+  "clips": {},
+  "blocks": {
+   "Block0": {
+    "driver": null,
+    "sheet": "pm0199_31_Eye_col.png_opaque",
+    "column_u": 0.5,
+    "columns": 2,
+    "cell": [
+     1,
+     3
+    ],
+    "clips": {}
+   },
+   "Block1": {
+    "driver": null,
+    "sheet": "pm0199_31_Eye_col.png_opaque",
+    "column_u": 0.5,
+    "columns": 2,
+    "cell": [
+     1,
+     2
+    ],
+    "clips": {}
+   }
+  }
+ },
+ "parts": {
+  "driver": "_jnt_Visibility",
+  "parts": [],
+  "clips": {}
+ },
+ "shiny": {
+  "EyeOverlay_Block0": "EyeOverlay_Block0.png",
+  "EyeOverlay_Block1": "EyeOverlay_Block1.png"
+ }
+}

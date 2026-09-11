@@ -38,6 +38,10 @@ const REACH_OF_A_CELL: float = 0.62
 const OVER: float = 999.0
 
 var _materials: Array[ShaderMaterial] = []
+
+## The layer the tufts are painted on, kept so a position can be expressed the way
+## the shader sees it. See `_as_painted`.
+var _painted: GridMap = null
 var _newest: Vector3 = Vector3.ZERO
 var _newest_age: float = OVER
 var _older: Vector3 = Vector3.ZERO
@@ -64,8 +68,11 @@ func of_map(map: VltWorldMap) -> void:
 ## to be wrong about.
 func of_layers(layers: Array[GridMap]) -> void:
 	_materials = []
+	_painted = null
 	for layer: GridMap in layers:
 		_collect(layer)
+		if _painted == null and layer != null and layer.mesh_library != null:
+			_painted = layer
 
 
 func _collect(layer: GridMap) -> void:
@@ -92,6 +99,7 @@ func _collect(layer: GridMap) -> void:
 func enter_cell(centre: Vector3) -> void:
 	if not centre.is_finite():
 		return
+	centre = _as_painted(centre)
 
 	_older = _newest
 	_older_age = _newest_age
@@ -147,6 +155,25 @@ func set_strength(strength: float) -> void:
 
 ## Tells the grass how wide a cell is. Called by whoever knows — a map, or a
 ## harness that built its own grid.
+## The same place, expressed the way the shader sees it.
+##
+## **Two conventions had to be bridged and nobody noticed.** A tuft is drawn at
+## its `GridMap` instance origin, which is what the shader compares against; the
+## world hands over a cell centre computed by the map, which is half a cell away
+## on each axis. That is 0.707 of a cell apart on the diagonal, and a jostle
+## reaches 0.62 — so the swing never once fired, on any cell, in any map.
+##
+## Snapping through the grid the tufts are actually painted on makes the question
+## convention-free: whatever the caller means by a position, this is the origin of
+## the cell containing it.
+func _as_painted(where: Vector3) -> Vector3:
+	if _painted == null:
+		return where
+	return _painted.to_global(
+		_painted.map_to_local(_painted.local_to_map(_painted.to_local(where)))
+	)
+
+
 func set_cell_size(metres: float) -> void:
 	if metres <= 0.0:
 		return

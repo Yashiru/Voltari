@@ -114,10 +114,10 @@ carry the terminator stroke and stop there.
 
 **The include must reach the quarantine.** `comic.gdshader` exists in two copies —
 the tracked one and a copy the out-of-repo asset pipeline writes into
-`game/assets/placeholders/_shared/` (decision 0027), which a standalone flat viewer
+`game/assets/species/_shared/` (decision 0027), which a standalone flat viewer
 also uses. A relative include resolves in all three places only if the file sits
 beside the shader, which is why it lives at `game/presentation/creature/` and the
 world shaders reach it by absolute path. **The pipeline's copy step must carry
-`*.gdshaderinc`**, or the placeholder viewer stops compiling the next time it runs.
+`*.gdshaderinc`**, or the quarantined viewer stops compiling the next time it runs.
 The address says `creature`; the contents are the whole game's, and the include
 says so at the top.

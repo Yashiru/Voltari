@@ -7,7 +7,7 @@
 
 ## Context
 
-The placeholder pack, and the pack the maintainer was considering buying, read as
+The quarantined pack, and the pack the maintainer was considering buying, read as
 flat. The request was a shader that adds irregularity to the textures.
 
 Measuring first changed the question:

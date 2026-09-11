@@ -1,19 +1,19 @@
 extends SceneTree
 
-## Headless check of the placeholder eye wiring.
+## Headless check of the species eye wiring.
 ##
 ## Godot cannot render without a display, so this asserts the three things that
 ## can be observed without one: the overlay surface is found and rebound to the
 ## shader, the expression timeline loads, and the state looked up at a given
 ## moment of a clip is the one the export recorded.
 ##
-##     godot --headless --script game/assets/placeholders/_shared/check_eye_states.gd
+##     godot --headless --script game/assets/species/_shared/check_eye_states.gd
 ##
 ## The assertions run on the first processed frame, not in _initialize: a node
 ## added to the tree is not ready until the loop turns over once, and checking
 ## earlier reads empty state and reports a failure that is not there.
 
-const SCENE: String = "res://game/assets/placeholders/pm0001_00/pm0001_00.tscn"
+const SCENE: String = "res://game/assets/species/pm0001_00/pm0001_00.tscn"
 
 ## The damage clip stays inside the atlas's first column, which is exactly why it
 ## could not catch the column mapping being wrong. The faint clip reaches state

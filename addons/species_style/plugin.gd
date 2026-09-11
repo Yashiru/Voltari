@@ -4,7 +4,7 @@ extends EditorPlugin
 ## The look control: which look the game wears, and a panel to push it around.
 ##
 ## **The picker used to do nothing**, and the reason was one line: it wrote the
-## chosen name to `game/assets/placeholders/_shared/style.txt` while the runtime
+## chosen name to `game/assets/species/_shared/style.txt` while the runtime
 ## read `game/presentation/creature/style.txt`. Two files, two values, and a
 ## control that looked like it worked. It writes where the game reads now, through
 ## `Look.choose`, so there is one path and no way for them to drift again.
@@ -41,7 +41,7 @@ extends EditorPlugin
 ## chosen look for itself on load. The count under the picker says which case you
 ## are in rather than pretending.
 ##
-## The addon is still called `placeholder_style` because its folder is named in
+## The addon is still called `species_style` because its folder is named in
 ## `project.godot`, and that file carries the maintainer's editor state. The name
 ## is a wart, not a scope.
 

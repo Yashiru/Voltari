@@ -1,4 +1,4 @@
 #!/bin/sh
-# Third-party placeholders must never be committed. See
-# tools/placeholder-guard/placeholder-guard.mjs for what this checks and why.
-exec node "$(git rev-parse --show-toplevel)/tools/placeholder-guard/placeholder-guard.mjs" --staged --quiet
+# Third-party species must never be committed. See
+# tools/species-guard/species-guard.mjs for what this checks and why.
+exec node "$(git rev-parse --show-toplevel)/tools/species-guard/species-guard.mjs" --staged --quiet

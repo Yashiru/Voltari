@@ -15,8 +15,8 @@ func _table(rate: int = 32) -> VltEncounterTable:
 	return (
 		VltEncounterTable
 		. create("meadow", rate)
-		. holds("placeholder_base", 2, 4, 60)
-		. holds("placeholder_evolved", 5, 5, 30)
+		. holds("species_base", 2, 4, 60)
+		. holds("species_evolved", 5, 5, 30)
 	)
 
 
@@ -49,13 +49,13 @@ func test_a_slot_with_no_weight_is_never_drawn() -> void:
 		VltEncounterTable
 		. create("meadow", 32)
 		. holds("never_here", 2, 4, 0)
-		. holds("placeholder_base", 2, 4, 10)
+		. holds("species_base", 2, 4, 10)
 	)
 
 	for point: int in range(table.total_weight()):
 		assert_str(VltEncounter.slot_at(table, point).species_id).override_failure_message(
 			"a slot with no weight was drawn"
-		).is_equal("placeholder_base")
+		).is_equal("species_base")
 
 
 func test_the_boundary_between_two_slots_falls_where_the_weights_say() -> void:
@@ -63,10 +63,10 @@ func test_the_boundary_between_two_slots_falls_where_the_weights_say() -> void:
 	# test to catch anonymously.
 	var table: VltEncounterTable = _table()
 
-	assert_str(VltEncounter.slot_at(table, 59).species_id).is_equal("placeholder_base")
+	assert_str(VltEncounter.slot_at(table, 59).species_id).is_equal("species_base")
 	assert_str(VltEncounter.slot_at(table, 60).species_id).override_failure_message(
 		"the second slot does not begin where the first one ends"
-	).is_equal("placeholder_evolved")
+	).is_equal("species_evolved")
 
 
 func test_a_seeded_draw_follows_the_weights() -> void:
@@ -78,7 +78,7 @@ func test_a_seeded_draw_follows_the_weights() -> void:
 	var base: int = 0
 
 	for step: int in range(STEPS):
-		if VltEncounter.draw(table, decider).species_id == "placeholder_base":
+		if VltEncounter.draw(table, decider).species_id == "species_base":
 			base += 1
 
 	var share: float = float(base) / float(STEPS)
@@ -96,7 +96,7 @@ func test_a_level_lands_inside_its_slot_range() -> void:
 
 	for step: int in range(STEPS):
 		var outcome: VltEncounter.Outcome = VltEncounter.draw(table, decider)
-		if outcome.species_id == "placeholder_base":
+		if outcome.species_id == "species_base":
 			assert_int(outcome.level).is_between(2, 4)
 		else:
 			assert_int(outcome.level).is_equal(5)
@@ -106,7 +106,7 @@ func test_a_slot_spanning_one_level_gives_that_level() -> void:
 	# The degenerate range, where an implementation that assumes a span greater
 	# than one divides by zero or reads past the end.
 	var table: VltEncounterTable = VltEncounterTable.create("cave", 32).holds(
-		"placeholder_base", 7, 7, 1
+		"species_base", 7, 7, 1
 	)
 	var decider: VltSeededEncounterDecider = VltSeededEncounterDecider.new(SEED)
 
@@ -118,7 +118,7 @@ func test_the_whole_range_is_reachable() -> void:
 	# Both ends inclusive. An implementation that never produces the maximum
 	# passes every other test in this file.
 	var table: VltEncounterTable = VltEncounterTable.create("cave", 32).holds(
-		"placeholder_base", 3, 6, 1
+		"species_base", 3, 6, 1
 	)
 	var decider: VltSeededEncounterDecider = VltSeededEncounterDecider.new(SEED)
 	var seen: Dictionary[int, bool] = {}
@@ -227,7 +227,7 @@ func test_a_scripted_decider_answers_what_it_was_told() -> void:
 	decider.level_offset = 1
 
 	var outcome: VltEncounter.Outcome = VltEncounter.draw(_table(), decider)
-	assert_str(outcome.species_id).is_equal("placeholder_evolved")
+	assert_str(outcome.species_id).is_equal("species_evolved")
 	assert_int(outcome.level).is_equal(5)
 
 
@@ -250,10 +250,10 @@ func test_a_scripted_draw_stays_inside_the_weight_space() -> void:
 	# A draw past the total would read off the end of the table, far from here —
 	# the same guard the nature table and the policy options already have.
 	var decider: VltScriptedEncounterDecider = VltScriptedEncounterDecider.new(true, 999)
-	assert_str(VltEncounter.draw(_table(), decider).species_id).is_equal("placeholder_evolved")
+	assert_str(VltEncounter.draw(_table(), decider).species_id).is_equal("species_evolved")
 
 	decider.slot_draw = -7
-	assert_str(VltEncounter.draw(_table(), decider).species_id).is_equal("placeholder_base")
+	assert_str(VltEncounter.draw(_table(), decider).species_id).is_equal("species_base")
 
 
 func test_a_level_offset_past_the_range_is_clamped() -> void:

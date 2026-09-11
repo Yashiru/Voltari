@@ -43,7 +43,7 @@ func _battle(sizes: PackedInt32Array, level: int = 25) -> VltBattleState:
 	var state: VltBattleState = VltBattleState.create(1)
 	for side: int in range(VltBattleState.SIDE_COUNT):
 		for _index: int in range(sizes[side]):
-			state.sides[side].party.append(_born("placeholder_base", level))
+			state.sides[side].party.append(_born("species_base", level))
 		state.sides[side].slots[0].occupy(0)
 	return state
 
@@ -61,7 +61,7 @@ func _faint(side: int, slot: int = 0) -> VltLogFaint:
 
 
 func _switch_in(side: int, party: int, slot: int = 0) -> VltLogSwitchIn:
-	return VltLogSwitchIn.create(VltSlotRef.at(side, slot), party, "placeholder_base")
+	return VltLogSwitchIn.create(VltSlotRef.at(side, slot), party, "species_base")
 
 
 # --- the level ladder --------------------------------------------------------
@@ -85,8 +85,8 @@ func test_the_level_never_passes_the_top_of_the_curve() -> void:
 func test_a_creature_is_born_standing_where_its_level_says() -> void:
 	# Without this a creature born at 25 would drop to level 1 the moment it
 	# earned anything at all.
-	var creature: VltBattleCreature = _born("placeholder_base", 25)
-	var curve: PackedInt32Array = _curves[_species["placeholder_base"].growth_rate]
+	var creature: VltBattleCreature = _born("species_base", 25)
+	var curve: PackedInt32Array = _curves[_species["species_base"].growth_rate]
 
 	assert_int(creature.experience).is_equal(curve[24])
 	assert_int(VltPostBattle.level_for(curve, creature.experience)).is_equal(25)
@@ -282,7 +282,7 @@ func _raise_to(start: int, target: int) -> VltPostBattle.Award:
 
 
 func test_a_move_learnable_on_the_way_up_is_taken() -> void:
-	# placeholder_base learns at 1, 7 and 13. A creature born at 1 with room to
+	# species_base learns at 1, 7 and 13. A creature born at 1 with room to
 	# spare takes them as it passes.
 	var award: VltPostBattle.Award = _raise_to(1, 13)
 
@@ -332,7 +332,7 @@ func test_a_full_moveset_is_offered_rather_than_overwritten() -> void:
 
 
 func test_answering_an_offer_replaces_exactly_one_move() -> void:
-	var creature: VltBattleCreature = _born("placeholder_base", 13)
+	var creature: VltBattleCreature = _born("species_base", 13)
 	var slot_count: int = creature.moves.size()
 	var replaced: String = creature.moves[0].move_id
 
@@ -349,14 +349,14 @@ func test_answering_an_offer_replaces_exactly_one_move() -> void:
 
 
 func test_a_creature_evolves_when_its_level_says_so() -> void:
-	# placeholder_base evolves at 16. Driven there by fighting, so the trigger is
+	# species_base evolves at 16. Driven there by fighting, so the trigger is
 	# reached the way it will be in play.
 	var award: VltPostBattle.Award = _raise_to(13, 16)
 
 	assert_object(award).is_not_null()
 	assert_str(award.evolved_into).override_failure_message(
 		"reaching the evolution level should have changed the species"
-	).is_equal("placeholder_evolved")
+	).is_equal("species_evolved")
 
 
 func test_evolving_keeps_the_individual_and_changes_the_species() -> void:
@@ -369,17 +369,17 @@ func test_evolving_keeps_the_individual_and_changes_the_species() -> void:
 	var known: int = creature.moves.size()
 
 	for _fight: int in range(200):
-		if creature.species_id != "placeholder_base":
+		if creature.species_id != "species_base":
 			break
 		var log: VltBattleLog = VltBattleLog.new()
 		log.append(_faint(THEIRS))
 		VltPostBattle.resolve(state, log, working, OURS, _species, _curves, _moves, false)
 
-	assert_str(creature.species_id).is_equal("placeholder_evolved")
+	assert_str(creature.species_id).is_equal("species_evolved")
 	assert_array(creature.types).is_equal(
-		_species["placeholder_evolved"].types
+		_species["species_evolved"].types
 	)
-	assert_array(creature.base).is_equal(_species["placeholder_evolved"].base_stats)
+	assert_array(creature.base).is_equal(_species["species_evolved"].base_stats)
 
 	# The same individual, wearing a different species (spec 10, section 8).
 	assert_array(creature.ivs).is_equal(ivs)
@@ -397,7 +397,7 @@ func test_a_trigger_nothing_implements_does_not_fire() -> void:
 		PackedStringArray(["normal"]),
 		PackedInt32Array([45, 49, 49, 65, 65, 45])
 	)
-	odd.learns(1, "basic_physical").evolves("placeholder_evolved", "friendship", 1)
+	odd.learns(1, "basic_physical").evolves("species_evolved", "friendship", 1)
 	odd.growth_rate = "medium_fast"
 	odd.base_experience = 64
 
@@ -446,7 +446,7 @@ func test_the_other_side_can_be_the_earning_one() -> void:
 
 func test_a_species_with_nowhere_to_go_does_not_evolve() -> void:
 	var award: VltPostBattle.Award = _award_for_species(
-		_species["placeholder_evolved"], 30
+		_species["species_evolved"], 30
 	)
 	assert_str(award.evolved_into).is_equal("")
 
@@ -499,7 +499,7 @@ func test_the_awards_come_back_in_party_order() -> void:
 func test_an_offered_move_replaces_the_slot_it_was_given() -> void:
 	# The answer to the question `offered` asks. A creature with room learns
 	# without being asked; this is only for the case where there is none.
-	var creature: VltBattleCreature = _born("placeholder_base", 20)
+	var creature: VltBattleCreature = _born("species_base", 20)
 	creature.moves.clear()
 	for index: int in range(VltBirth.MOVE_LIMIT):
 		creature.moves.append(VltMoveSlot.create("basic_physical", 5))
@@ -515,7 +515,7 @@ func test_an_offered_move_replaces_the_slot_it_was_given() -> void:
 
 func test_a_learned_move_arrives_on_full_pp() -> void:
 	# It is a new move, not a refilled one, so it starts where a new move starts.
-	var creature: VltBattleCreature = _born("placeholder_base", 20)
+	var creature: VltBattleCreature = _born("species_base", 20)
 	creature.moves.clear()
 	creature.moves.append(VltMoveSlot.create("basic_physical", 1))
 
@@ -527,15 +527,15 @@ func test_a_learned_move_arrives_on_full_pp() -> void:
 func test_an_award_remembers_what_the_creature_was() -> void:
 	# "It evolved into Y" names two species and the creature keeps only one of
 	# them, so the award has to carry the other.
-	# The placeholder evolves at 16, so it has to be there for the trigger to
+	# The species evolves at 16, so it has to be there for the trigger to
 	# fire — an award saying it reached 16 is not the same as a creature that has.
-	var creature: VltBattleCreature = _born("placeholder_base", 16)
+	var creature: VltBattleCreature = _born("species_base", 16)
 	var award: VltPostBattle.Award = VltPostBattle.Award.new(0, 0, 15, 16)
 
 	VltPostBattle._evolve(creature, _species, award)
 
 	assert_str(award.evolved_from).override_failure_message(
 		"the award forgot which species evolved"
-	).is_equal("placeholder_base")
+	).is_equal("species_base")
 	assert_str(award.evolved_into).is_equal(creature.species_id)
 	assert_str(award.evolved_into).is_not_equal(award.evolved_from)

@@ -20,7 +20,7 @@ extends SceneTree
 ## It reads the quarantined library (decision 0027) and runs on one machine only,
 ## which is the same footing as the manifest builder.
 
-const LIBRARY: String = "res://game/assets/placeholders/brawl_arena.meshlib"
+const LIBRARY: String = "res://game/assets/species/brawl_arena.meshlib"
 const ITEM: String = "GrassB"
 const OUT: String = "user://grass"
 

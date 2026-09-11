@@ -1,6 +1,6 @@
 {
-  "id": "placeholder_base",
-  "scene": "res://game/assets/placeholders/pm0001_00/pm0001_00.tscn",
+  "id": "species_base",
+  "scene": "res://game/assets/species/pm0001_00/pm0001_00.tscn",
   "height": 1,
   "clips": {
     "attack_physical": [

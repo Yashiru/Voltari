@@ -1,11 +1,11 @@
 class_name ClipMap
 extends RefCounted
 
-## The placeholder-era bridge from a model's clip names to our vocabulary
+## The quarantine-era bridge from a model's clip names to our vocabulary
 ## (spec 16, section 4).
 ##
 ## For a fakemon this does nothing: the manifest already names our slots. It
-## exists because the placeholder library carries its own naming — a two-letter
+## exists because the quarantined library carries its own naming — a two-letter
 ## context and a two-digit slot — and 856 models is too many to map by hand.
 ##
 ## **Nothing is dropped.** Every name that goes in comes out somewhere: a slot's

@@ -58,7 +58,7 @@ argument.
   footprint look like a coincidence rather than a weight, and grass in a
   depression is grass in its own shadow.
 - **Each item carries its own hinge and height**, written by the tile library
-  builder from the mesh's own bounds. The grass in the placeholder pack runs from
+  builder from the mesh's own bounds. The grass in the quarantined pack runs from
   0.55 m to 3.4 m tall; one guessed number would put the bend in the wrong place
   on all but one of them.
 

@@ -1,6 +1,6 @@
 {
-  "id": "placeholder_genderless",
-  "scene": "res://game/assets/placeholders/pm0025_00/pm0025_00.tscn",
+  "id": "species_genderless",
+  "scene": "res://game/assets/species/pm0025_00/pm0025_00.tscn",
   "height": 1,
   "clips": {
     "attack_physical": [

@@ -1,18 +1,18 @@
-# 0046 — Creature runtime code leaves the placeholder quarantine
+# 0046 — Creature runtime code leaves the species quarantine
 
 **Status:** Accepted
 **Date:** 2026-09-09
-**Refines:** decision 0027 (placeholder containment)
+**Refines:** decision 0027 (species containment)
 **Recorded in:** spec 16, section 6
 
 ## Context
 
-Decision 0027 keeps `game/assets/placeholders/` out of the index, out of the
+Decision 0027 keeps `game/assets/species/` out of the index, out of the
 history, and out of every export preset. It was written for third-party models:
 not ours, not licensed to us, and useful only until the artist's arrive.
 
 The runtime script that makes a creature work, and the shaders it assigns, were
-installed into `game/assets/placeholders/_shared/` — inside that quarantine.
+installed into `game/assets/species/_shared/` — inside that quarantine.
 
 They are not third-party. They are the project's own code, contained by
 proximity rather than by nature.
@@ -51,7 +51,7 @@ particular mechanism is the one every creature in the game depends on.
 working tree, the whole history and any export preset that does not exclude the
 directory. It simply now guards only what is actually not ours.
 
-**A placeholder and a fakemon differ in exactly one way: provenance.** Same scene
+**A species and a fakemon differ in exactly one way: provenance.** Same scene
 shape, same script, same manifest. That is what makes replacing the roster a
 content change rather than a port — and it is only true because the shared half
 lives outside the quarantine.

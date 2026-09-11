@@ -23,7 +23,7 @@ learnset:
       move: inert_status
 
 evolutions:
-  - into: placeholder_evolved
+  - into: species_evolved
     trigger: level
     level: 16
 

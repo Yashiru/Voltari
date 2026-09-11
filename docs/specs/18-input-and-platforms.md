@@ -127,7 +127,7 @@ addressed to it.
 **The save location is the platform's, and nothing else knows.** Spec 13 put file
 handling in one class precisely so that this is one line rather than a rule.
 
-**Every export preset excludes the placeholder directory.** The guard of decision
+**Every export preset excludes the species directory.** The guard of decision
 0027 checks each of them, so adding a platform means adding a preset the guard
 will immediately have an opinion about.
 
@@ -145,7 +145,7 @@ will immediately have an opinion about.
   writes a save. Both proven, because the interesting one is the refusal.
 - **Settings round-trip**, and a malformed settings file starts the game with
   defaults rather than not at all.
-- **Every export preset excludes the placeholders** — already the guard's, and
+- **Every export preset excludes the species** — already the guard's, and
   named here because adding a platform is when it matters.
 
 ## Open points

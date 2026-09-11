@@ -1,4 +1,4 @@
-# 0027 — Third-party placeholders stay on one machine
+# 0027 — Third-party species stay on one machine
 
 ## Context
 
@@ -10,7 +10,7 @@ The risk is not deliberate misuse. It is a `git add -A`, a forgotten export
 preset, a file committed months ago and removed since — history keeps it. Any
 one of those turns a local testing convenience into distribution.
 
-An earlier incident makes the point: 21 placeholder files, 1.7 MB, were
+An earlier incident makes the point: 21 species files, 1.7 MB, were
 committed to a feature branch by a `git add .` that predated the ignore rule.
 Ignoring a directory does nothing for files already tracked.
 
@@ -41,14 +41,14 @@ being added here first.
 Containment is enforced, at every point an asset could leave the machine, by one
 check with several triggers.
 
-`tools/placeholder-guard/placeholder-guard.mjs` refuses:
+`tools/species-guard/species-guard.mjs` refuses:
 
-1. **the index** — anything staged under `game/assets/placeholders`
+1. **the index** — anything staged under `game/assets/species`
 2. **the working tree** — anything git currently tracks there
 3. **the whole history** — the path appearing in any commit, since a push
    carries them all
 4. **export presets** — a preset that does not exclude the directory, because
-   Godot follows scene dependencies and would compile a referenced placeholder
+   Godot follows scene dependencies and would compile a referenced species
    into the `.pck` no matter what git thinks
 
 It runs from three places, so no single bypass is enough:
@@ -79,14 +79,14 @@ before.
 export, and a preset added later would silently miss the exclusion. The guard
 fails on a preset that lacks it, so the omission is loud.
 
-**Keeping the placeholders outside the project tree entirely**, loaded from an
+**Keeping the species outside the project tree entirely**, loaded from an
 absolute path. Safest, and rejected: it breaks dragging a creature into a scene,
 which is the entire point of having them. Containment is enforced instead of
 avoided.
 
 ## Consequence
 
-A placeholder cannot be committed, pushed, or exported without deliberately
+A species cannot be committed, pushed, or exported without deliberately
 disabling several independent checks. If an export preset is added later without
 the exclusion, CI fails rather than shipping the asset.
 

@@ -17,7 +17,7 @@ what production looks like.
 **A vocabulary name a creature has not got is refused at build, unless the
 manifest declares a fallback** — `hurt: use idle` is accepted; silence is not.
 
-The placeholder era keeps its own rule and is not covered by this: source take
+The quarantine era keeps its own rule and is not covered by this: source take
 names differ between models — `waitA01` on one, `ba10_waitA01` on another — so
 loop selection there is a substring test on `wait`. An exact-match list was tried
 first and matched nothing at all, silently, on the second model exported. That
@@ -33,7 +33,7 @@ and it would guarantee every committed creature is complete.
 Rejected on what it does to production. No creature could enter the repository
 until fully animated, so the roster would arrive in one late lump and nothing
 could be played with in the meantime — which is the opposite of why the
-placeholders exist at all.
+species exist at all.
 
 **Falling back automatically and silently**, idle standing in for whatever is
 missing. Nothing ever blocks.

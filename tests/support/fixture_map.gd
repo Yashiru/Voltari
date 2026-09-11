@@ -89,4 +89,4 @@ static func zone(table_id: String, origin: Vector2i, size: Vector2i) -> VltEncou
 
 
 static func table(id: String, rate: int) -> VltEncounterTable:
-	return VltEncounterTable.create(id, rate).holds("placeholder_base", 3, 5, 1)
+	return VltEncounterTable.create(id, rate).holds("species_base", 3, 5, 1)

@@ -313,7 +313,7 @@ func test_a_lost_battle_earns_nothing() -> void:
 	assert_int(battle.awards().size()).is_greater(0)
 
 	# The other direction is hard to arrange honestly — a level 12 starter does
-	# not lose to anything the placeholder roster has. What can be checked is
+	# not lose to anything the species roster has. What can be checked is
 	# that the awards come from the pipeline rather than from winning itself.
 	assert_int(battle.awards()[0].experience).is_greater(0)
 
@@ -448,7 +448,7 @@ func test_losing_sends_the_party_to_the_camp() -> void:
 
 
 func test_losing_heals_the_party() -> void:
-	# The placeholder half of the decision, and the reason a defeat is not a
+	# The species half of the decision, and the reason a defeat is not a
 	# dead end: nothing else in the game can heal yet.
 	var world: WorldSandbox = _sandbox()
 

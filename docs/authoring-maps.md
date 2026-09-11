@@ -22,7 +22,7 @@ Models are **third-party until they are not**, and third-party assets never ente
 this repository (decision 0027). Put them in the quarantine:
 
 ```
-game/assets/placeholders/<pack-name>/
+game/assets/species/<pack-name>/
 ```
 
 That path is git-ignored and guarded on the index, the tree, the whole history

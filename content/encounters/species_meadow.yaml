@@ -6,12 +6,12 @@
 rate: 32
 
 slots:
-  - species: placeholder_base
+  - species: species_base
     levels:
       min: 2
       max: 4
     weight: 60
-  - species: placeholder_evolved
+  - species: species_evolved
     levels:
       min: 5
       max: 7

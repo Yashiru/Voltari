@@ -156,7 +156,7 @@ func test_a_species_capture_rate_reaches_the_formula() -> void:
 	var species: Dictionary[String, VltSpecies] = VltSpeciesLoader.from_entries(
 		VltContentPayloads.read_indexed(SPECIES_DIR)
 	)
-	var subject: VltSpecies = species["placeholder_base"]
+	var subject: VltSpecies = species["species_base"]
 
 	assert_int(subject.catch_rate).is_greater(0)
 	assert_int(_rate(300, 300, subject.catch_rate)).is_greater(0)

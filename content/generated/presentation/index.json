@@ -1,8 +1,8 @@
 {
   "version": 1,
   "ids": [
-    "placeholder_base",
-    "placeholder_evolved",
-    "placeholder_genderless"
+    "species_base",
+    "species_evolved",
+    "species_genderless"
   ]
 }

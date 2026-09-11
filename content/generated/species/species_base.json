@@ -1,5 +1,5 @@
 {
-  "id": "placeholder_base",
+  "id": "species_base",
   "types": [
     "normal"
   ],
@@ -29,7 +29,7 @@
   },
   "evolutions": [
     {
-      "into": "placeholder_evolved",
+      "into": "species_evolved",
       "trigger": "level",
       "level": 16
     }

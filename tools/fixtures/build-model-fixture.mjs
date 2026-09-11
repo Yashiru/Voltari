@@ -3,7 +3,7 @@
 // (spec 16, section 10).
 //
 // Generated rather than authored, and generated rather than borrowed. The
-// placeholder models never leave one machine (decision 0027), so a test that
+// species models never leave one machine (decision 0027), so a test that
 // opened one could not run in CI — and a fixture nobody can regenerate is a
 // fixture nobody can change.
 //

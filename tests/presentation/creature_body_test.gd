@@ -2,7 +2,7 @@ extends GdUnitTestSuite
 
 ## One creature on screen (spec 16, section 1).
 ##
-## The load-bearing case is the missing model. Placeholder models live on one
+## The load-bearing case is the missing model. Species models live on one
 ## machine (decision 0027), so every clone has manifests naming scenes it has
 ## not got — and a battle that refused to draw would be a battle nobody else
 ## could run.

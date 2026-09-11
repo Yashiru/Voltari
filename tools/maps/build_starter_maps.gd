@@ -80,7 +80,7 @@ func _write_field() -> void:
 
 	var zone: VltEncounterZone = VltEncounterZone.new()
 	zone.name = "Meadow"
-	zone.table_id = "placeholder_meadow"
+	zone.table_id = "species_meadow"
 	zone.origin = Vector2i(0, 4)
 	zone.size = Vector2i(3, 2)
 	_own(map, map, zone)

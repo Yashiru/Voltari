@@ -1,8 +1,8 @@
-// Refuses to let third-party placeholder assets enter the repository or a build.
+// Refuses to let third-party species assets enter the repository or a build.
 //
-//   node tools/placeholder-guard/placeholder-guard.mjs [--staged] [--quiet]
+//   node tools/species-guard/species-guard.mjs [--staged] [--quiet]
 //
-// The placeholders are Pokemon GO models used to test gameplay until the real
+// The species are Pokemon GO models used to test gameplay until the real
 // assets arrive. They are not ours, they are not licensed to us, and they must
 // never be committed, pushed, or compiled into an export.
 //
@@ -23,7 +23,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 
 // Everything under here is third-party and must stay local.
-const GUARDED = "game/assets/placeholders";
+const GUARDED = "game/assets/species";
 
 const args = new Set(process.argv.slice(2));
 const stagedOnly = args.has("--staged");
@@ -49,7 +49,7 @@ const staged = lines(git("diff", "--cached", "--name-only")).filter((p) =>
 );
 if (staged.length) {
   failures.push({
-    what: `${staged.length} placeholder file(s) staged for commit`,
+    what: `${staged.length} species file(s) staged for commit`,
     sample: staged.slice(0, 5),
     fix: `git restore --staged ${GUARDED}`,
   });
@@ -60,7 +60,7 @@ if (!stagedOnly) {
   const tracked = lines(git("ls-files", "--", GUARDED));
   if (tracked.length) {
     failures.push({
-      what: `${tracked.length} placeholder file(s) tracked in the working tree`,
+      what: `${tracked.length} species file(s) tracked in the working tree`,
       sample: tracked.slice(0, 5),
       fix: `git rm -r --cached ${GUARDED}`,
     });
@@ -73,14 +73,14 @@ if (!stagedOnly) {
   );
   if (historical.size) {
     failures.push({
-      what: `${historical.size} placeholder path(s) present somewhere in history`,
+      what: `${historical.size} species path(s) present somewhere in history`,
       sample: [...historical].slice(0, 5),
       fix: "history rewrite required - git filter-repo, then force-push",
     });
   }
 
   // 4. What a build would include. Godot follows scene dependencies, so a
-  //    placeholder dragged into a game scene ships with the export unless the
+  //    species dragged into a game scene ships with the export unless the
   //    preset excludes it outright.
   if (existsSync("export_presets.cfg")) {
     const config = readFileSync("export_presets.cfg", "utf8");
@@ -90,7 +90,7 @@ if (!stagedOnly) {
       const exclude = /exclude_filter="([^"]*)"/.exec(preset)?.[1] ?? "";
       if (!exclude.includes(GUARDED)) {
         failures.push({
-          what: `export preset ${name} does not exclude the placeholders`,
+          what: `export preset ${name} does not exclude the species`,
           sample: [`exclude_filter="${exclude}"`],
           fix: `add ${GUARDED}/* to that preset's exclude_filter`,
         });
@@ -101,13 +101,13 @@ if (!stagedOnly) {
 
 if (!failures.length) {
   if (!quiet) {
-    console.log(`placeholder guard: clean (${GUARDED} is not in the index, ` +
+    console.log(`species guard: clean (${GUARDED} is not in the index, ` +
       "the tree, the history, or any export preset)");
   }
   process.exit(0);
 }
 
-console.error("\nPLACEHOLDER GUARD FAILED\n");
+console.error("\nSPECIES GUARD FAILED\n");
 console.error("Third-party assets must never leave this machine.\n");
 for (const failure of failures) {
   console.error(`  ${failure.what}`);

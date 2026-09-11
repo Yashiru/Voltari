@@ -2,7 +2,7 @@
 class_name CreatureView
 extends Node3D
 
-## Runtime wiring for an imported placeholder creature.
+## Runtime wiring for an imported species creature.
 ##
 ## Named so that the two tools which need the look without having a creature to
 ## hand can ask for it: the editor plugin that switches it, and the tile library
@@ -11,7 +11,7 @@ extends Node3D
 ##
 ## What a glTF cannot carry is reattached here: the cartoon shader and its ink
 ## outline, the scrolling flame, per-clip loop modes, the eye expressions, and
-## which parts are stowed. One script covers every placeholder — there is no
+## which parts are stowed. One script covers every species — there is no
 ## per-model code.
 ##
 ## The expressions follow the AnimationPlayer's position, in the editor as well
@@ -128,7 +128,7 @@ class FaceBlock:
 ## live, because the script is @tool.
 @export_group("Look")
 ## Which surface shader this creature wears, without the extension. `roster`
-## follows whatever the whole set is wearing and is what every placeholder ships
+## follows whatever the whole set is wearing and is what every species ships
 ## with; naming a shader here pins this one creature to it and it stops following
 ## the set. All the shaders live side by side in `_shared/` and none is removed
 ## when another is added — comparing them on the same creature is the only way to
@@ -144,8 +144,8 @@ var style: String = STYLE_ROSTER:
 ## silhouette with it and tints the shadow towards it. Ignored by every other
 ## shader, which simply has no such parameter.
 ##
-## Set by hand for now. These are placeholders named after dex numbers, and the
-## project's own `content/species/` holds three placeholder species, so there is
+## Set by hand for now. These are species named after dex numbers, and the
+## project's own `content/species/` holds three species species, so there is
 ## nothing yet to read a real type from.
 ## Wear the second colouring, when the model ships one.
 ##
@@ -207,7 +207,7 @@ var accent_type: String = "neutral":
 @export_group("")
 
 ## Where to read the per-clip data from. Left empty it is derived from the scene
-## file, which is how an installed placeholder works. The standalone viewer
+## file, which is how an installed species works. The standalone viewer
 ## instantiates a bare GLB, which has no scene file, so it sets this.
 var clip_data_path: String = ""
 
@@ -238,7 +238,7 @@ var _eye_labels: PackedStringArray = PackedStringArray()
 var _surfaces: Array[ShaderMaterial] = []
 
 ## Clip name -> flat [time, state, time, state, …], held stepwise. The primary
-## block's timeline, kept for a placeholder exported before blocks existed.
+## block's timeline, kept for a species exported before blocks existed.
 var _eye_clips: Dictionary[String, PackedFloat32Array] = {}
 
 ## Which look the current style resolves to, pushed onto every surface.
@@ -796,7 +796,7 @@ func _load_clip_data() -> void:
 ## Build one FaceBlock per entry of the clip data's `blocks` map and hand each
 ## the surfaces that carry it.
 ##
-## A placeholder exported before blocks existed has no such map and a single
+## A species exported before blocks existed has no such map and a single
 ## surface called `EyeOverlay`. That case is not special-cased: it becomes one
 ## block holding every overlay surface, on the flat `clips` and `column_u` — the
 ## same shape the whole library had until the sheets were read properly.

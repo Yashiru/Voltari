@@ -1,6 +1,6 @@
 {
-  "id": "placeholder_evolved",
-  "scene": "res://game/assets/placeholders/pm0004_00/pm0004_00.tscn",
+  "id": "species_evolved",
+  "scene": "res://game/assets/species/pm0004_00/pm0004_00.tscn",
   "height": 1,
   "clips": {
     "attack_physical": [

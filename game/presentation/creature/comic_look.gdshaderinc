@@ -82,7 +82,7 @@
 // ## Why it lives at this address
 //
 // `comic.gdshader` exists in two copies: the tracked one, and a copy written into
-// the gitignored placeholder quarantine by the asset pipeline (decision 0027),
+// the gitignored species quarantine by the asset pipeline (decision 0027),
 // which a standalone flat viewer also uses. A relative include resolves in all
 // three places only if the file sits beside the shader that includes it — so it
 // sits here, and the world shaders reach it by absolute path. The address says
@@ -259,7 +259,7 @@ group_uniforms grain;
 // the surface instead of belonging to it.
 //
 // World space and not UV space is not a preference: the ground tile in the
-// placeholder pack carries no UVs at all. It also means the pattern crosses a
+// quarantined pack carries no UVs at all. It also means the pattern crosses a
 // tile boundary without a seam, so a floor of a hundred identical tiles stops
 // reading as a hundred identical tiles.
 uniform float grain_amount : hint_range(0.0, 0.6) = 0.0;

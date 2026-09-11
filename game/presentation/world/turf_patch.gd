@@ -984,7 +984,7 @@ func _footprints(grid: GridMap) -> Array[PackedVector2Array]:
 			#
 			# The grass surface alone is not enough, and the reason is worth
 			# keeping: a leafy ground tile's surface is the top of its own leaves —
-			# 1.13 m above the cell on the placeholder pack — while a prop is drawn
+			# 1.13 m above the cell on the quarantined pack — while a prop is drawn
 			# at its cell's origin. Slicing only at the grass height put the slab a
 			# metre above every prop on the map, so nothing was ever stamped and the
 			# delimitation quietly did nothing at all.
@@ -1082,7 +1082,7 @@ static func _layers(grid: GridMap) -> Array[GridMap]:
 ##
 ## The first rule was "the bottom fifth of the model". That is a proportion of the
 ## *object*, and it has nothing to do with where the grass is. Measured across the
-## placeholder pack it is wrong more often than right: `Gem_Spawner` starts 0.73 m
+## quarantined pack it is wrong more often than right: `Gem_Spawner` starts 0.73 m
 ## below the ground and its bottom fifth is entirely inside its own pit, so the
 ## rim at ground level was never seen and grass grew over the well and into the
 ## hole. `Spawn_Gem` is the same. `SpawnZone` has zero height and the rule is

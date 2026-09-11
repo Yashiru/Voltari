@@ -35,17 +35,17 @@ const MARK: String = "cast_screen"
 ## Where the chosen look is recorded, and what it falls back to.
 ##
 ## The same file `CreatureView` reads, which is the whole point: the editor
-## control used to write to a different path in the placeholder quarantine, so
+## control used to write to a different path in the species quarantine, so
 ## switching a look changed a file nothing read and appeared to do nothing at all.
 const STORE: String = "res://game/presentation/creature/style.txt"
 
-## The placeholder quarantine's own copy of the store.
+## The species quarantine's own copy of the store.
 ##
 ## The quarantined creature runtime reads from beside itself, so a look recorded
-## only in the tracked file would leave the placeholders wearing the previous one
+## only in the tracked file would leave the species wearing the previous one
 ## — which is the split this whole control existed to end. Written when the folder
 ## is there and ignored when it is not, because a fresh checkout has no `_shared/`.
-const QUARANTINE: String = "res://game/assets/placeholders/_shared/style.txt"
+const QUARANTINE: String = "res://game/assets/species/_shared/style.txt"
 
 
 ## What the look never owns: this surface's own description.

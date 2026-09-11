@@ -9,7 +9,7 @@ const MANIFESTS: String = "res://content/generated/presentation"
 
 func _payload(clips: Dictionary, extras: Array = [], stow: Array = []) -> Dictionary:
 	return {
-		"id": "placeholder_base",
+		"id": "species_base",
 		"scene": "res://game/presentation/creature/example.tscn",
 		"height": 1.2,
 		"clips": clips,
@@ -75,7 +75,7 @@ func test_a_manifest_round_trips_into_its_typed_form() -> void:
 		_payload({"idle": ["ba10_waitA01", "ba10_waitB01"], "faint": ["ba41_down01"]})
 	)
 
-	assert_str(entry.id).is_equal("placeholder_base")
+	assert_str(entry.id).is_equal("species_base")
 	assert_float(entry.height).is_equal_approx(1.2, 0.001)
 	assert_array(entry.takes_for("idle")).is_equal(["ba10_waitA01", "ba10_waitB01"])
 	assert_bool(entry.has("faint")).is_true()
@@ -158,7 +158,7 @@ func test_a_manifest_built_from_a_real_model_loses_nothing() -> void:
 	for slot: String in mapping.takes:
 		by_slot[slot] = Array(mapping.takes[slot])
 	var payload: Dictionary = {
-		"id": "placeholder_base",
+		"id": "species_base",
 		"scene": "res://tests/fixtures/models/clip_shapes.glb",
 		"height": 0.4,
 		"clips": by_slot,
@@ -186,7 +186,7 @@ func test_a_manifest_built_from_a_real_model_loses_nothing() -> void:
 
 
 func test_every_authored_manifest_loads() -> void:
-	# None are authored yet: a manifest naming a placeholder scene would name a
+	# None are authored yet: a manifest naming a quarantined scene would name a
 	# file CI cannot see (decision 0027), so they arrive with the fakemon. The
 	# test is here so the day one lands, it is already covered.
 	var manifests: Dictionary[String, PresentationEntry] = (

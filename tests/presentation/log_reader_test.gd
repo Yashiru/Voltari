@@ -61,8 +61,8 @@ func _creature(species: String) -> VltBattleCreature:
 func _battle() -> VltBattleState:
 	var state: VltBattleState = VltBattleState.create(1)
 	for side: int in range(VltBattleState.SIDE_COUNT):
-		state.sides[side].party.append(_creature("placeholder_base"))
-		state.sides[side].party.append(_creature("placeholder_evolved"))
+		state.sides[side].party.append(_creature("species_base"))
+		state.sides[side].party.append(_creature("species_evolved"))
 		state.sides[side].slots[0].occupy(0)
 	return state
 

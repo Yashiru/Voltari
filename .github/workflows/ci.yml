@@ -6,8 +6,8 @@ on:
   pull_request:
 
 jobs:
-  placeholder-guard:
-    name: No third-party placeholders
+  species-guard:
+    name: No third-party species
     runs-on: ubuntu-latest
     steps:
       # The whole history, not just this commit: a push carries every commit,
@@ -18,7 +18,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: node tools/placeholder-guard/placeholder-guard.mjs
+      - run: node tools/species-guard/species-guard.mjs
 
   purity-lint:
     name: Core purity lint
@@ -55,7 +55,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      # It measures the committed model fixture, not the roster: the placeholder
+      # It measures the committed model fixture, not the roster: the species
       # models never leave one machine (decision 0027), so there is nothing else
       # here to weigh. What this catches is the reporter breaking — it exits
       # non-zero when it reads no triangles at all, which is the one way a

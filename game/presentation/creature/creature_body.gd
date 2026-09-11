@@ -13,13 +13,13 @@ extends Node3D
 ## pose between attacks is the thing that makes a battle look broken, and it is
 ## what this did before.
 ##
-## **A missing model is not an error here.** The placeholder models live on one
+## **A missing model is not an error here.** The species models live on one
 ## machine (decision 0027), so a clone has manifests naming scenes it has not
 ## got — and a battle that refused to draw would be a battle nobody else could
 ## run. It shows a shape instead, and says so once.
 
 ## What stands in when there is no model. Deliberately not creature-shaped:
-## something obviously a placeholder is better than something that could be
+## something obviously a species is better than something that could be
 ## mistaken for art nobody finished.
 const STAND_IN_RADIUS: float = 0.45
 const STAND_IN_HEIGHT: float = 1.6

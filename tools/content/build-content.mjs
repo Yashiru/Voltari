@@ -283,7 +283,7 @@ const EVERY_SLOT = new Set(Object.values(SLOTS).flat());
 const FALLBACK = /^use\s+(\S+)$/;
 
 /// Where the quarantined models live (decision 0027).
-const QUARANTINE = "res://game/assets/placeholders/";
+const QUARANTINE = "res://game/assets/species/";
 
 /// Whether a scene is really there.
 ///

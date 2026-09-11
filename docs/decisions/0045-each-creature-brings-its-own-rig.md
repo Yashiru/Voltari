@@ -28,7 +28,7 @@ reproducing.
 It is not that the argument was wrong. It is that the thing it measured is not
 the thing that happened.
 
-The placeholders **arrive already rigged**. The cost 0020 worried about had been
+The species **arrive already rigged**. The cost 0020 worried about had been
 paid by somebody else before the pipeline saw the file, so scaling to 860 models
 says nothing about the cost of authoring 860 rigs.
 

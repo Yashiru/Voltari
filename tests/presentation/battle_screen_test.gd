@@ -189,7 +189,7 @@ func test_two_offers_are_asked_one_at_a_time() -> void:
 ## enough to cross a level by accident — but arranged out of real content, so
 ## what reaches the queue is a real award and not a fixture.
 func _about_to_learn(library: ContentLibrary) -> VltBattleCreature:
-	var species: VltSpecies = library.species["placeholder_base"]
+	var species: VltSpecies = library.species["species_base"]
 	var curve: PackedInt32Array = library.curves[species.growth_rate]
 
 	var creature: VltBattleCreature = VltBirth.at_level(
@@ -209,7 +209,7 @@ func _about_to_learn(library: ContentLibrary) -> VltBattleCreature:
 
 
 func _weak_foe(library: ContentLibrary) -> VltBattleCreature:
-	var species: VltSpecies = library.species["placeholder_base"]
+	var species: VltSpecies = library.species["species_base"]
 	return VltBirth.at_level(
 		species, 2, library.natures, library.moves,
 		library.curves[species.growth_rate], VltSeededGenerationDecider.new(3)
@@ -305,7 +305,7 @@ func test_a_throw_that_lands_takes_the_creature() -> void:
 	var packed: PackedScene = load(SCREEN)
 	var screen: BattleScreen = auto_free(packed.instantiate() as BattleScreen)
 
-	var species: VltSpecies = library.species["placeholder_base"]
+	var species: VltSpecies = library.species["species_base"]
 	var wild: VltBattleCreature = VltBirth.at_level(
 		species, 3, library.natures, library.moves,
 		library.curves[species.growth_rate], VltSeededGenerationDecider.new(7)
@@ -336,7 +336,7 @@ func test_a_caught_creature_joins_the_party_that_threw() -> void:
 	var packed: PackedScene = load(SCREEN)
 	var screen: BattleScreen = auto_free(packed.instantiate() as BattleScreen)
 
-	var species: VltSpecies = library.species["placeholder_base"]
+	var species: VltSpecies = library.species["species_base"]
 	var mine: VltBattleCreature = VltBirth.at_level(
 		species, 20, library.natures, library.moves,
 		library.curves[species.growth_rate], VltSeededGenerationDecider.new(1)
@@ -370,7 +370,7 @@ func test_a_caught_creature_joins_the_party_that_threw() -> void:
 
 func _two_against_one() -> BattleScreen:
 	var library: ContentLibrary = ContentLibrary.load_all()
-	var species: VltSpecies = library.species["placeholder_base"]
+	var species: VltSpecies = library.species["species_base"]
 	var curve: PackedInt32Array = library.curves[species.growth_rate]
 
 	var party: Array[VltBattleCreature] = []
@@ -458,9 +458,9 @@ func test_an_evolution_is_a_moment_rather_than_a_line_in_a_summary() -> void:
 	var ended: Array[bool] = []
 	screen.ended.connect(func(won: bool) -> void: ended.append(won))
 
-	_evolving(screen, "placeholder_base", "placeholder_evolved")
+	_evolving(screen, "species_base", "species_evolved")
 
-	assert_str(screen.evolution_shown()).is_equal("placeholder_evolved")
+	assert_str(screen.evolution_shown()).is_equal("species_evolved")
 	assert_array(ended).override_failure_message(
 		"the battle ended before anybody saw the evolution"
 	).is_empty()
@@ -487,11 +487,11 @@ func test_an_evolution_is_shown_before_the_question_that_follows() -> void:
 	# move offer names it.
 	var screen: BattleScreen = _screen()
 	screen._won = true
-	screen._evolutions = [["placeholder_base", "placeholder_evolved"]]
+	screen._evolutions = [["species_base", "species_evolved"]]
 	screen._offers = [[0, "water_special"]]
 	screen._ask_next()
 
-	assert_str(screen.evolution_shown()).is_equal("placeholder_evolved")
+	assert_str(screen.evolution_shown()).is_equal("species_evolved")
 	assert_str(screen.offered_move()).override_failure_message(
 		"the question was put before the evolution it renames"
 	).is_empty()

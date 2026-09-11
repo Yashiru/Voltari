@@ -57,7 +57,7 @@ class Settings:
 	extends RefCounted
 
 	## Leaves per square unit of surface, **in the mesh's own space** — not in
-	## game metres. A `GridMap` draws an item at `ART_SCALE`, so the placeholder
+	## game metres. A `GridMap` draws an item at `ART_SCALE`, so the species
 	## models are authored about twice the size they appear at, and a density
 	## expressed in metres would be wrong by four on every one of them.
 	var density: float = 500.0

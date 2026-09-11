@@ -25,8 +25,8 @@ const ENCOUNTERS: String = "res://content/generated/encounters"
 ## third-party models live and a library built from them is derived from them. A
 ## clone gets the maps and not the palette — a `GridMap` keeps its cells with no
 ## library at all, so the world stays walkable and turns invisible.
-const MODELS: String = "res://game/assets/placeholders/brawl_arena"
-const LIBRARY: String = "res://game/assets/placeholders/brawl_arena.meshlib"
+const MODELS: String = "res://game/assets/species/brawl_arena"
+const LIBRARY: String = "res://game/assets/species/brawl_arena.meshlib"
 
 ## Which items get the shader that opens around a walker, by a fragment of their
 ## name. Typed rather than guessed from the geometry: a rule nobody can see is a

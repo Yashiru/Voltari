@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://c62ab3fft71ac"]
 
 [ext_resource type="Script" uid="uid://hteh4vb60ula" path="res://addons/voltari/world/world_map.gd" id="1_svf8j"]
-[ext_resource type="MeshLibrary" uid="uid://con6r40ecdqb1" path="res://game/assets/placeholders/brawl_arena.meshlib" id="2_0se00"]
+[ext_resource type="MeshLibrary" uid="uid://con6r40ecdqb1" path="res://game/assets/species/brawl_arena.meshlib" id="2_0se00"]
 [ext_resource type="Script" uid="uid://bw2sjnqhgjyut" path="res://addons/voltari/world/warp.gd" id="3_0se00"]
 [ext_resource type="Script" uid="uid://b8qte8v1m6dkx" path="res://addons/voltari/world/rest_point.gd" id="4_w0mj4"]
 

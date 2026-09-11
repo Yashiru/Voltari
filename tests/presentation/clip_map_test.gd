@@ -1,6 +1,6 @@
 extends GdUnitTestSuite
 
-## The placeholder clip bridge (spec 16, section 4).
+## The species clip bridge (spec 16, section 4).
 ##
 ## Every case here is a shape the library actually contains, and each exists
 ## because getting it wrong is a real failure rather than a hypothetical one.
@@ -194,7 +194,7 @@ func test_the_map_holds_against_a_file_a_parser_actually_read() -> void:
 
 
 func test_looping_follows_the_slot_not_a_substring() -> void:
-	# The placeholder era decided this by looking for `wait` in the name, because
+	# The quarantine era decided this by looking for `wait` in the name, because
 	# take names could not be trusted. The slot is the answer now.
 	assert_bool(ClipMap.loops("idle")).is_true()
 	assert_bool(ClipMap.loops("walk")).is_true()

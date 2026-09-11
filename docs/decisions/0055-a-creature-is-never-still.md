@@ -18,7 +18,7 @@ Watching a real battle settled it. A creature played its entry clip and then
 froze in its rest pose until it was hit — which does not read as a still frame,
 it reads as a crash.
 
-Every placeholder model carries two battle idles, `waitA` and `waitB`, so the
+Every species model carries two battle idles, `waitA` and `waitB`, so the
 material for the answer was already there.
 
 ## Decision
@@ -55,7 +55,7 @@ format added on top.
 
 **Leaving it as it was until an art direction exists.** The position spec 16
 took. Overtaken by the screen being used: a frozen creature is not a neutral
-placeholder, it is a bug report.
+species, it is a bug report.
 
 ## Consequences
 

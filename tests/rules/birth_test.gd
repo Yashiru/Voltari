@@ -55,16 +55,16 @@ func test_the_genderless_sentinel_cannot_be_a_real_ratio() -> void:
 		assert_int(VltSpecies.GENDERLESS).is_not_equal(eighths)
 
 	# And the authored species that declares none reads back as none.
-	assert_int(_species["placeholder_genderless"].gender_ratio).is_equal(VltSpecies.GENDERLESS)
-	assert_int(_species["placeholder_base"].gender_ratio).is_equal(4)
+	assert_int(_species["species_genderless"].gender_ratio).is_equal(VltSpecies.GENDERLESS)
+	assert_int(_species["species_base"].gender_ratio).is_equal(4)
 
 
 func test_a_creature_is_born_complete() -> void:
 	# Nothing may be left to decide later: a half-built creature reaching the
 	# core is a defect the core has no vocabulary to describe.
-	var creature: VltBattleCreature = _born("placeholder_base", 25, _decider())
+	var creature: VltBattleCreature = _born("species_base", 25, _decider())
 
-	assert_str(creature.species_id).is_equal("placeholder_base")
+	assert_str(creature.species_id).is_equal("species_base")
 	assert_int(creature.level).is_equal(25)
 	assert_int(creature.stats.size()).is_equal(VltStats.STAT_COUNT)
 	assert_int(creature.current_hp).is_equal(creature.max_hp())
@@ -80,8 +80,8 @@ func test_a_creature_is_born_complete() -> void:
 func test_the_same_answers_give_the_same_creature() -> void:
 	# The property the whole decision interface exists for: no draw, so a birth
 	# is reproducible from what was declared.
-	var first: VltBattleCreature = _born("placeholder_base", 40, _decider(17, 3))
-	var second: VltBattleCreature = _born("placeholder_base", 40, _decider(17, 3))
+	var first: VltBattleCreature = _born("species_base", 40, _decider(17, 3))
+	var second: VltBattleCreature = _born("species_base", 40, _decider(17, 3))
 
 	assert_str(JSON.stringify(first.to_dict())).is_equal(JSON.stringify(second.to_dict()))
 
@@ -89,8 +89,8 @@ func test_the_same_answers_give_the_same_creature() -> void:
 func test_the_individual_values_reach_the_stats() -> void:
 	# A creature born with perfect values must outclass one born with none, or
 	# the decider's answers are being collected and thrown away.
-	var perfect: VltBattleCreature = _born("placeholder_base", 50, _decider(31))
-	var poorest: VltBattleCreature = _born("placeholder_base", 50, _decider(0))
+	var perfect: VltBattleCreature = _born("species_base", 50, _decider(31))
+	var poorest: VltBattleCreature = _born("species_base", 50, _decider(0))
 
 	for stat: int in range(VltStats.STAT_COUNT):
 		assert_int(perfect.stats[stat]).override_failure_message(
@@ -103,7 +103,7 @@ func test_the_nature_reaches_the_stats() -> void:
 	# moves a stat away from neutral.
 	var spreads: Array[String] = []
 	for index: int in range(_natures.size()):
-		var creature: VltBattleCreature = _born("placeholder_base", 50, _decider(31, index))
+		var creature: VltBattleCreature = _born("species_base", 50, _decider(31, index))
 		spreads.append(str(creature.stats))
 
 	assert_int(spreads.size()).is_equal(_natures.size())
@@ -116,16 +116,16 @@ func test_the_nature_reaches_the_stats() -> void:
 
 
 func test_a_creature_knows_the_moves_of_its_level() -> void:
-	var early: VltBattleCreature = _born("placeholder_base", 1, _decider())
+	var early: VltBattleCreature = _born("species_base", 1, _decider())
 	assert_int(early.moves.size()).is_equal(1)
 	assert_str(early.moves[0].move_id).is_equal("basic_physical")
 
-	var later: VltBattleCreature = _born("placeholder_base", 13, _decider())
+	var later: VltBattleCreature = _born("species_base", 13, _decider())
 	assert_int(later.moves.size()).is_equal(3)
 
 
 func test_a_move_starts_on_full_pp() -> void:
-	var creature: VltBattleCreature = _born("placeholder_base", 13, _decider())
+	var creature: VltBattleCreature = _born("species_base", 13, _decider())
 	for slot: VltMoveSlot in creature.moves:
 		assert_int(slot.pp).is_equal(_moves[slot.move_id].max_pp)
 		assert_int(slot.pp).is_greater(0)
@@ -145,7 +145,7 @@ func test_only_the_last_four_moves_are_kept() -> void:
 	crowded.learns(17, "ghost_special")
 
 	var creature: VltBattleCreature = VltBirth.at_level(
-		crowded, 20, _natures, _moves, _curve_of("placeholder_base"), _decider()
+		crowded, 20, _natures, _moves, _curve_of("species_base"), _decider()
 	)
 
 	assert_int(creature.moves.size()).is_equal(VltBirth.MOVE_LIMIT)
@@ -171,7 +171,7 @@ func test_a_move_learned_twice_occupies_one_slot() -> void:
 	repeater.learns(9, "basic_physical")
 
 	var creature: VltBattleCreature = VltBirth.at_level(
-		repeater, 10, _natures, _moves, _curve_of("placeholder_base"), _decider()
+		repeater, 10, _natures, _moves, _curve_of("species_base"), _decider()
 	)
 
 	assert_int(creature.moves.size()).is_equal(2)
@@ -190,7 +190,7 @@ func test_a_move_learned_twice_occupies_one_slot() -> void:
 	later.learns(1, "basic_physical").learns(5, "basic_special")
 	later.learns(9, "basic_special")
 
-	var second: VltBattleCreature = VltBirth.at_level(later, 10, _natures, _moves, _curve_of("placeholder_base"), _decider())
+	var second: VltBattleCreature = VltBirth.at_level(later, 10, _natures, _moves, _curve_of("species_base"), _decider())
 
 	assert_int(second.moves.size()).override_failure_message(
 		"the relearned move was kept twice"

@@ -1,9 +1,9 @@
 {
-  "id": "placeholder_cave",
+  "id": "species_cave",
   "rate": 21,
   "slots": [
     {
-      "species": "placeholder_evolved",
+      "species": "species_evolved",
       "levels": {
         "min": 9,
         "max": 9

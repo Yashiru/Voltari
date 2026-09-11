@@ -42,7 +42,7 @@ data = {
 
 [node name="Meadow" type="Node3D" parent="." unique_id=1107015866]
 script = ExtResource("3_ga7op")
-table_id = "placeholder_meadow"
+table_id = "species_meadow"
 origin = Vector2i(0, 4)
 size = Vector2i(3, 2)
 

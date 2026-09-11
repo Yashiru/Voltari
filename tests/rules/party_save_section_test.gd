@@ -40,13 +40,13 @@ func _round_trip(party: Array[VltBattleCreature]) -> Array[VltBattleCreature]:
 
 func test_a_party_survives_a_round_trip() -> void:
 	var party: Array[VltBattleCreature] = [
-		_creature("placeholder_base", 12), _creature("placeholder_evolved", 30)
+		_creature("species_base", 12), _creature("species_evolved", 30)
 	]
 
 	var back: Array[VltBattleCreature] = _round_trip(party)
 
 	assert_int(back.size()).is_equal(2)
-	assert_str(back[0].species_id).is_equal("placeholder_base")
+	assert_str(back[0].species_id).is_equal("species_base")
 	assert_int(back[1].level).is_equal(30)
 
 
@@ -54,7 +54,7 @@ func test_it_carries_what_a_battle_changed() -> void:
 	# The reason a party section is not the same as a list of species: a save
 	# that lost the wounds would give the player a free heal every time they
 	# quit, which is a bug that plays as a feature until somebody notices.
-	var creature: VltBattleCreature = _creature("placeholder_base", 12)
+	var creature: VltBattleCreature = _creature("species_base", 12)
 	creature.current_hp -= 9
 	creature.moves[0].pp -= 4
 	creature.experience += 250
@@ -76,7 +76,7 @@ func test_it_reads_in_place() -> void:
 	var section: VltPartySaveSection = VltPartySaveSection.new(mine)
 
 	section.read({VltPartySaveSection.MEMBERS_FIELD: [
-		_creature("placeholder_base", 5).to_dict()
+		_creature("species_base", 5).to_dict()
 	]}, VltPartySaveSection.VERSION)
 
 	assert_int(mine.size()).override_failure_message(
@@ -98,13 +98,13 @@ func test_a_creature_that_will_not_read_is_dropped_and_the_rest_kept() -> void:
 	# at.
 	var section: VltPartySaveSection = VltPartySaveSection.new()
 	section.read({VltPartySaveSection.MEMBERS_FIELD: [
-		_creature("placeholder_base", 5).to_dict(),
+		_creature("species_base", 5).to_dict(),
 		"this is not a creature",
-		_creature("placeholder_evolved", 9).to_dict(),
+		_creature("species_evolved", 9).to_dict(),
 	]}, VltPartySaveSection.VERSION)
 
 	assert_int(section.members.size()).is_equal(2)
-	assert_str(section.members[1].species_id).is_equal("placeholder_evolved")
+	assert_str(section.members[1].species_id).is_equal("species_evolved")
 
 
 func test_a_malformed_section_reads_as_no_party() -> void:
@@ -116,7 +116,7 @@ func test_a_malformed_section_reads_as_no_party() -> void:
 func test_a_party_survives_the_json_round_trip() -> void:
 	# JSON turns every integer into a float. A creature is almost entirely
 	# integers, so this is where that would show.
-	var creature: VltBattleCreature = _creature("placeholder_base", 12)
+	var creature: VltBattleCreature = _creature("species_base", 12)
 	creature.current_hp -= 5
 
 	var document: Dictionary = VltSaveCodec.write(

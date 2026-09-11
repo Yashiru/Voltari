@@ -10,7 +10,7 @@ scene that plays correctly in Godot, and it has been run over **860 models**.
 So this document is largely **measured rather than designed**, and where it
 departs from an earlier decision it is because the measurement disagreed.
 
-Nothing here is derived from the placeholder assets themselves. The runtime
+Nothing here is derived from the species assets themselves. The runtime
 contract was established *against* them; it contains nothing *of* them.
 
 ---
@@ -84,7 +84,7 @@ archetype skeletons — biped, quadruped, serpentine, winged — and retargetabl
 animations. The pipeline uses none of that. Each model arrives with its own
 skeleton, of its own size, and its animations are its own.
 
-What made that workable is that **the placeholders arrive already rigged**: the
+What made that workable is that **the species arrive already rigged**: the
 cost 0020 was worried about had already been paid by somebody else. That does not
 transfer to the fakemon, whose rigs the artist authors.
 
@@ -119,7 +119,7 @@ more than this and the extra clips are kept (below); they are not vocabulary
 until a system names them, or every creature would owe a fallback for a clip
 nothing plays.
 
-### Mapping the placeholders onto it
+### Mapping the species onto it
 
 The source library turns out to carry **a standard of its own**, and a better one
 than a word: a two-letter context and a two-digit slot. `ba20` is the physical
@@ -151,7 +151,7 @@ code first and the word second covers both, and neither rule is a guess about
 the other.
 
 For a fakemon the resolver does nothing: the manifest already names our clips.
-The mapping is a placeholder-era bridge and should read as one.
+The mapping is a quarantine-era bridge and should read as one.
 
 ### What is not an animation
 
@@ -185,7 +185,7 @@ first mapping attempt failed unnoticed.
 Loop mode follows from the slot: `idle`, `field_idle`, `companion_idle`, `walk`
 and `run` loop; everything else holds on its last frame. Extras declare their own.
 
-The placeholder era decided this with a substring test on `wait`, because take
+The quarantine era decided this with a substring test on `wait`, because take
 names could not be trusted. That rule is what the bridge replaces, and it should
 not outlive it.
 
@@ -230,9 +230,9 @@ build can check by counting.
 This is the same split spec 09 makes for effect ids and spec 14 makes for map
 scenes: each check lives where the thing being checked can actually be read.
 
-## 6. Runtime code does not live in the placeholder quarantine
+## 6. Runtime code does not live in the species quarantine
 
-Decision 0027 keeps `game/assets/placeholders/` out of the index, out of the
+Decision 0027 keeps `game/assets/species/` out of the index, out of the
 history, and out of **every export preset**. It exists to contain third-party
 models.
 
@@ -283,9 +283,9 @@ report is cumulative, so the trend is visible long before a device says anything
 If the trend is ignored, the ceiling is one line in the build and decision 0048
 is what should be revisited.
 
-## 8. Placeholders and the swap
+## 8. Species and the swap
 
-A placeholder and a fakemon differ in exactly one way: **provenance**. Same scene
+A species and a fakemon differ in exactly one way: **provenance**. Same scene
 shape, same script, same manifest, same vocabulary — which is what makes the swap
 a content change rather than a port.
 
@@ -646,7 +646,7 @@ budget and this file does not choose it for them.
 - **The second colouring is counted apart from the scene budget**, because it
   replaces a texture rather than adding one. Counting it in would overstate every
   scene; leaving it out entirely would understate the download by more than half.
-- **The placeholder mapping resolves by code before word**, proven on both
+- **The species mapping resolves by code before word**, proven on both
   shapes: a prefixed name and a bare one. Getting the order wrong still resolves
   most clips, which is what makes it worth a test rather than a reading.
 - **Every clip of every model is accounted for** — mapped to a slot or recorded

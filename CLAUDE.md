@@ -173,9 +173,9 @@ should not be reintroduced from older notes). A pipeline outside the repository
 takes a rigged FBX to a ready-to-instance `.tscn`; spec 16 describes the contract
 it produces.
 
-**Third-party placeholder models are quarantined** by decision 0027, enforced by
+**Third-party species models are quarantined** by decision 0027, enforced by
 a guard on the index, the tree, the whole history and every export preset. Never
-stage anything under `game/assets/placeholders/`, and prefer path-scoped
+stage anything under `game/assets/species/`, and prefer path-scoped
 `git add` over `-A` at the repository root.
 
 **Presentation lives in `game/presentation/`**, not in the addon: it carries this

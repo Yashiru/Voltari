@@ -41,38 +41,7 @@ shader_type spatial;
 render_mode cull_disabled, unshaded, shadows_disabled;
 
 #include "res://game/presentation/creature/comic_look.gdshaderinc"
-
-group_uniforms wind;
-
-// Which way the wind blows. One direction for the whole world.
-uniform vec2 wind_direction = vec2(0.82, 0.57);
-
-// How far the tip leans, as a fraction of the blade's length, at full gust.
-uniform float wind_strength : hint_range(0.0, 0.6) = 0.22;
-
-// The long wave: the gust itself. Metres between crests, and how fast the crest
-// travels in metres a second.
-//
-// **Long and slow on purpose.** A short wavelength makes neighbouring tufts
-// disagree, which is the difference between wind and static.
-uniform float gust_length : hint_range(1.0, 40.0) = 13.0;
-uniform float gust_speed : hint_range(0.0, 6.0) = 2.5;
-
-// The second wave, which only exists so the sum is not a sine. Shorter, faster,
-// and a fraction of the amplitude.
-uniform float ripple_length : hint_range(0.5, 20.0) = 4.5;
-uniform float ripple_speed : hint_range(0.0, 6.0) = 0.9;
-uniform float ripple_amount : hint_range(0.0, 1.0) = 0.3;
-
-// The slow breath under both, so the wind rises and falls over several seconds
-// instead of running at one strength for ever. Global: the whole field lulls
-// together, because that is what a lull is.
-uniform float breath_seconds : hint_range(1.0, 60.0) = 11.0;
-uniform float breath_depth : hint_range(0.0, 1.0) = 0.45;
-
-// How much of the lean is a steady press downwind rather than a swing either
-// way. Wind pushes; it does not rock.
-uniform float wind_bias : hint_range(0.0, 1.0) = 0.6;
+#include "res://game/presentation/world/wind.gdshaderinc"
 
 group_uniforms jostle;
 
@@ -152,25 +121,12 @@ void vertex() {
 	leverage *= leverage;
 
 	// --- one wind -----------------------------------------------------------
+	//
+	// Asked for the *cell*, not for this vertex: every blade of a tuft leans the
+	// same way by the same amount, so the clump moves as one piece rather than
+	// unfurling. The lawn asks the same function per blade — see `wind.gdshaderinc`.
+	vec2 lean = wind_lean(cell.xz, TIME);
 	vec2 blowing = normalize(wind_direction + vec2(0.0001, 0.0));
-	float along = dot(cell.xz, blowing);
-
-	// Both waves are functions of where the tuft stands and of time. Neighbours
-	// are therefore in step and distant grass is not, which is what makes a gust
-	// cross the field instead of the field pulsing.
-	float gust = sin(along * (TAU / max(gust_length, 0.001)) - TIME * gust_speed);
-	float ripple = sin(along * (TAU / max(ripple_length, 0.001)) - TIME * ripple_speed);
-	float wave = mix(gust, ripple, ripple_amount);
-
-	// Wind pushes downwind and eases; it does not rock evenly about upright.
-	float pressed = mix(wave, wave * 0.5 + 0.5, wind_bias);
-
-	float breath = mix(
-		1.0 - breath_depth, 1.0,
-		0.5 + 0.5 * sin(TIME * TAU / max(breath_seconds, 0.001))
-	);
-
-	vec2 lean = blowing * pressed * breath * wind_strength;
 
 	// --- one footfall -------------------------------------------------------
 	//

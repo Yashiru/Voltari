@@ -1,4 +1,18 @@
 #!/bin/sh
+# Two jobs, and both have to run.
+#
+# `git lfs install` writes its own hook here and will overwrite this file if it
+# is ever run again without `--manual`. It did exactly that once. If the guard
+# below has disappeared, that is why — put it back.
+
 # A push carries the whole history, not just the last commit, so this checks
 # more than the pre-commit hook does.
-exec node "$(git rev-parse --show-toplevel)/tools/species-guard/species-guard.mjs" --quiet
+node "$(git rev-parse --show-toplevel)/tools/species-guard/species-guard.mjs" --quiet || exit 1
+
+# LFS uploads the objects the pointers point at. Without this a push succeeds and
+# lands a repository full of pointers to nothing.
+command -v git-lfs >/dev/null 2>&1 || {
+	printf >&2 "\n%s\n\n" "This repository is configured for Git LFS but 'git-lfs' was not found on your path."
+	exit 2
+}
+git lfs pre-push "$@"

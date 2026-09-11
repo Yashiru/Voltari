@@ -102,7 +102,19 @@ group_uniforms paint;
 // a pass where nothing was ever fully lit; under a real sun the same value reads
 // neon, because a fully lit fill now really is the paint at full strength.
 uniform float saturation : hint_range(0.5, 3.0) = 1.08;
-uniform float lift : hint_range(0.0, 0.5) = 0.05;
+// A little brightness back after the saturation. Zero now that the look is lit:
+// it existed to rescue a desaturated original under a pass that never fully lit
+// anything, and under a real sun it only pushes channels into the ceiling.
+uniform float lift : hint_range(0.0, 0.5) = 0.0;
+
+// How dark the brightest ink is, against the paper it is printed on.
+//
+// **The reason the lit side stopped burning.** The look writes a fully lit surface
+// as the paint at full strength, and on a page nothing is ever as bright as the
+// paper — a fill printed at the paper's own value is exactly what "over-exposed"
+// looks like. Pulling the whole paint down keeps the ratio between lit and shadow
+// and puts the surface back underneath the page.
+uniform float ink : hint_range(0.3, 1.0) = 0.84;
 // Snap each channel to this many levels — the ink count of a press. Off below 2,
 // and off by default: these atlases are already flat, and quantising faithful
 // artwork is a way to lose it, not to stylise it.
@@ -376,7 +388,7 @@ float comic_contact() {
 vec3 comic_paint() {
 	vec3 sampled = texture(albedo_tex, fract(look_uv + uv_offset)).rgb * albedo.rgb;
 	sampled *= comic_grain(world_here) * comic_contact();
-	return posterise(enrich(sampled));
+	return posterise(enrich(sampled)) * ink;
 }
 
 

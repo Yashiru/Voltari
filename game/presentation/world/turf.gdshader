@@ -61,6 +61,9 @@ varying float up_the_blade;
 // This blade's own number, from `CUSTOM.x` in the scatter.
 varying float blade_roll;
 
+// The blade's shading normal, in world space. See `vertex`.
+varying vec3 blade_normal;
+
 
 void vertex() {
 	up_the_blade = UV.y;
@@ -69,7 +72,12 @@ void vertex() {
 	// Built here rather than taken from the mesh: every instance shares one blade,
 	// so a normal off the mesh is the same for all of them. `INSTANCE_CUSTOM.zw`
 	// is this blade's own facing, from the scatter.
-	NORMAL = normalize(vec3(
+	// **World space, and it must not go through `NORMAL`.** A blade is a particle,
+	// so `MODEL_MATRIX` carries its own turn and its own height scale — handing
+	// this to `NORMAL` would let the engine rotate and skew it per blade, and a
+	// lawn whose every blade faces a different way is a lawn entirely in shadow.
+	// Carried instead, and turned into view space in `fragment`.
+	blade_normal = normalize(vec3(
 		INSTANCE_CUSTOM.z * blade_facing, 1.0, INSTANCE_CUSTOM.w * blade_facing
 	));
 	world_here = comic_point(VERTEX, MODEL_MATRIX);
@@ -108,11 +116,18 @@ vec3 blade_paint() {
 	// the same function.
 	own *= comic_grain(world_here) * comic_contact();
 
-	return posterise(enrich(own));
+	// `ink` last, exactly as `comic_paint` applies it: the lawn is printed with the
+	// same ink as everything else, and a blade that skipped the ceiling would be
+	// the one bright thing in a scene deliberately kept under the paper.
+	return posterise(enrich(own)) * ink;
 }
 
 
 void fragment() {
+	// The blade's own normal, brought into the space `light()` works in. Before
+	// `comic_fragment`, which may round it further.
+	NORMAL = normalize((VIEW_MATRIX * vec4(blade_normal, 0.0)).xyz);
+
 	// White, deliberately: the renderer multiplies `DIFFUSE_LIGHT` by this and the
 	// look writes the finished colour. See the top of the include.
 	ALBEDO = vec3(1.0);

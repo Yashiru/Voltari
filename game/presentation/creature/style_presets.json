@@ -36,7 +36,7 @@
   "_note": "Tone does the structural work, in fine screens over a deep core — but the paint keeps its colour. Swept 0.85 / 1.05 / 1.25 / 1.45 on two creatures: under 1.05 the difference from the desaturated original barely reads, over 1.35 the warm bodies go hot and the screen starts fighting the fill. Brought back to 1.05 when the look became lit (decision 0064): 1.25 was tuned against a pass where nothing was ever fully lit, and a real sun on the same number reads neon.",
   "uniforms": {
    "saturation": 1.05,
-   "lift": 0.06,
+   "lift": 0.0,
    "terminator": 0.18,
    "shadow_depth": 0.42,
    "shadow_hue_mix": 0.18,

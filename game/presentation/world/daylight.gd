@@ -47,12 +47,16 @@ extends Node3D
 
 ## How hard the sun is.
 ##
-## Short of 1 on purpose. The look writes the lit tone as the paint at full
-## strength, and a page's brightest thing is its paper, not its ink — a fill
-## printed at the same value as the paper it sits on is what "over-exposed" means
-## here. Swept against 1.0 and 0.80 on a dressed scene; 0.88 is where the greens
-## stop being neon and the shadows still carry.
-@export var brightness: float = 0.88:
+## Short of 1 on purpose, and it does half a job — the other half is `ink` in the
+## shared look, which keeps the paint itself under the paper. A page's brightest
+## thing is its paper, not its ink, and a fill printed at the paper's own value is
+## exactly what "over-exposed" looks like here.
+##
+## Swept at 1.0, 0.88 and 0.72 against a sown lawn. **0.72** is where the greens
+## stop glowing and read as grass, and the trunks go from incandescent back to
+## wood. Both halves matter: the sun alone, taken this low without the ink, dims
+## the shadows as much as the light and the page goes grey.
+@export var brightness: float = 0.72:
 	set(value):
 		brightness = value
 		if _sun != null:

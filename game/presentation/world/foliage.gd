@@ -308,6 +308,25 @@ static func _leaves_over(
 	if points.size() < 3 or indices.size() < 3:
 		return []
 
+	# The mesh's own normals, when it has them.
+	#
+	# **Not the cross product of the triangle's edges.** Which way that points
+	# depends on the winding convention of whoever authored the mesh, and it is
+	# not reliably outwards: on a Godot `SphereMesh` it is inverted, and every
+	# leaf grew *into* the ball — measured, the furthest leaf vertex sat at 0.965
+	# on a sphere of radius 1. On a model where it is inverted the leaf also
+	# carries an inverted normal, so the shading comes out exactly backwards: the
+	# shadow lands on the lit side, which is what the maintainer saw on a cactus
+	# while the rest of the scene agreed with itself.
+	#
+	# A mesh's normals are the mesh's own answer to which way is out. This was
+	# written once, reverted with an unrelated rework, and is back with a test
+	# holding it.
+	var carried: PackedVector3Array = PackedVector3Array()
+	if typeof(arrays[Mesh.ARRAY_NORMAL]) == TYPE_PACKED_VECTOR3_ARRAY:
+		@warning_ignore("unsafe_cast")
+		carried = arrays[Mesh.ARRAY_NORMAL] as PackedVector3Array
+
 	# Running total of triangle area, so a triangle is drawn in proportion to how
 	# much surface it is. Drawing triangles evenly would crowd every sliver and
 	# leave the broad faces bare.
@@ -344,7 +363,17 @@ static func _leaves_over(
 		var across: float = scatter.randf()
 		var root: Vector3 = a + (b - a) * edge * (1.0 - across) + (c - a) * edge * across
 
-		var out: Vector3 = (b - a).cross(c - a)
+		var out: Vector3 = Vector3.ZERO
+		if carried.size() == points.size():
+			# Averaged over the triangle rather than interpolated exactly: a leaf
+			# is small and its triangle's three corners rarely disagree by
+			# anything the eye could find.
+			out = (carried[indices[corner]] + carried[indices[corner + 1]]
+				+ carried[indices[corner + 2]])
+		if out.length_squared() < 1e-12:
+			# No normals on the mesh: fall back to the geometry and take the
+			# winding for what it is.
+			out = (b - a).cross(c - a)
 		if out.length_squared() < 1e-12:
 			continue
 		out = out.normalized()

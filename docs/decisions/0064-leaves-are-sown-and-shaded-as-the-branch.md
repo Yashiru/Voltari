@@ -127,6 +127,24 @@ grass where a blade is most of a metre. A leaf is a few centimetres, so the same
 fraction is sub-pixel. Measured over four tenths of a second on one palm — 3 moves
 64 pixels, 8 moves 239, 18 moves 947, 40 moves 3,701.
 
+### Which way is out comes from the mesh, not from its winding
+
+A leaf grows along the surface normal and carries it for shading, so everything
+rests on knowing which way is out. Taking it from the cross product of a
+triangle's edges is taking the **author's winding convention**, and that is not
+reliably outwards.
+
+Measured: on a Godot `SphereMesh` it is inverted, and every leaf grew *into* the
+ball — the furthest leaf vertex sat at 0.965 on a sphere of radius 1. On a model
+where it is inverted the leaf also carries an inverted normal, so its shading
+comes out exactly backwards. Reported from the editor as one asset lit from the
+right while the whole scene was lit from the left, and that is precisely it.
+
+The mesh's own normals are the mesh's own answer. This was written once and
+reverted by accident along with an unrelated rework; it is back with two tests
+holding it — one on a mesh whose winding contradicts its normals, one that the
+leaves reach above the surface rather than inside it.
+
 ### Only the surface that is the foliage
 
 The first render settled this: sown on every surface, a palm's **trunk grew brown

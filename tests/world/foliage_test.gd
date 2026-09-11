@@ -270,3 +270,60 @@ func test_a_still_sowing_is_asked_for_with_zero() -> void:
 	var sown: Mesh = VltFoliage.sown(_painted(Color(0.2, 0.5, 0.3)), SEED, settings)
 	var leaf: ShaderMaterial = sown.surface_get_material(1) as ShaderMaterial
 	assert_float(leaf.get_shader_parameter("leaf_sway")).is_equal(0.0)
+
+
+# --- which way is out ---------------------------------------------------------
+
+
+## A flat square facing up, wound so that the cross product of its edges points
+## *down*. Contrived on purpose: a real mesh whose winding disagrees with its
+## normals is exactly the case that broke, and nothing else exposes it.
+func _contrary() -> ArrayMesh:
+	var made: Array = []
+	made.resize(Mesh.ARRAY_MAX)
+	made[Mesh.ARRAY_VERTEX] = PackedVector3Array([
+		Vector3(-2, 0, -2), Vector3(2, 0, -2), Vector3(2, 0, 2), Vector3(-2, 0, 2),
+	])
+	made[Mesh.ARRAY_NORMAL] = PackedVector3Array([
+		Vector3.UP, Vector3.UP, Vector3.UP, Vector3.UP,
+	])
+	# The winding that makes (b - a) x (c - a) point at the floor.
+	made[Mesh.ARRAY_INDEX] = PackedInt32Array([0, 1, 2, 0, 2, 3])
+	var mesh: ArrayMesh = ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, made)
+	return mesh
+
+
+func test_out_is_the_meshs_own_normal_and_not_its_winding() -> void:
+	# Taken from the winding, every leaf here would carry a normal pointing down
+	# and be shaded exactly backwards — the shadow on the lit side, which is how
+	# this was reported: one asset lit from the right while the scene was lit from
+	# the left.
+	var settings: VltFoliage.Settings = _settings()
+	settings.lean = 0.0
+	var sprigs: ArrayMesh = VltFoliage.leaves(_contrary(), SEED, settings)
+
+	assert_int(sprigs.get_surface_count()).is_greater(0)
+	var normals: PackedVector3Array = sprigs.surface_get_arrays(0)[Mesh.ARRAY_NORMAL]
+	assert_int(normals.size()).is_greater(0)
+	for normal: Vector3 in normals:
+		assert_float(normal.normalized().y).override_failure_message(
+			"a leaf carries %s, which is the winding rather than the mesh's normal" % normal
+		).is_greater(0.99)
+
+
+func test_leaves_grow_out_of_the_surface_and_not_into_it() -> void:
+	# The same error seen from the other side: an inverted normal also sends the
+	# leaf inwards, so it disappears inside the model it grew on.
+	var settings: VltFoliage.Settings = _settings()
+	settings.lean = 0.0
+	settings.lift = 0.2
+	var sprigs: ArrayMesh = VltFoliage.leaves(_contrary(), SEED, settings)
+	var points: PackedVector3Array = sprigs.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+
+	var highest: float = -1000.0
+	for point: Vector3 in points:
+		highest = maxf(highest, point.y)
+	assert_float(highest).override_failure_message(
+		"no leaf reached above the surface, so they grew into it"
+	).is_greater(0.0)

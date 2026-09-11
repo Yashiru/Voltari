@@ -54,6 +54,15 @@ uniform float cell_count = 1.0;
 // the whole of the layout: a blade finds its cell by dividing its index, and its
 // place within the cell by the remainder.
 uniform float per_cell = 300.0;
+
+// Where the nearest thing to keep away from is, per cell, as an offset from that
+// cell's centre. Read per blade rather than per cell, so the bare ring around a
+// rock comes out round instead of square.
+uniform sampler2D cell_near : filter_nearest, repeat_disable, hint_default_black;
+
+// How far grass keeps away from it, in metres. At zero nothing is kept away from
+// and the whole thing costs one smoothstep that always returns one.
+uniform float clearance : hint_range(0.0, 3.0) = 0.35;
 uniform float cell_width = 1.0;
 uniform float cell_depth = 1.0;
 
@@ -84,6 +93,16 @@ uniform float blade_width : hint_range(0.02, 1.0) = 0.16;
 // a field of grass from a field of spikes.
 uniform float blade_bend : hint_range(0.0, 1.2) = 0.45;
 
+// Where the edge of a patch starts to thin, as a share of how surrounded a cell
+// is, and how far the thinning and the shortening go by the outermost cell.
+//
+// Exposed rather than fixed because how soft an edge should be depends on what is
+// beyond it: a lawn meeting a path wants a sharper one than a lawn meeting bare
+// earth.
+uniform float edge_fade_from : hint_range(0.0, 1.0) = 0.95;
+uniform float edge_thin_to : hint_range(0.0, 1.0) = 0.25;
+uniform float edge_short_to : hint_range(0.0, 1.0) = 0.45;
+
 // How far the wind lays a blade over, on top of what `wind_lean` already says.
 // The turf is shorter and stiffer than a tuft, so it takes less of the same wind.
 uniform float blade_give : hint_range(0.0, 2.0) = 0.55;
@@ -111,7 +130,10 @@ void process() {
 	float slot = min(floor(float(INDEX) / max(per_cell, 1.0)), max(cell_count - 1.0, 0.0));
 	float within = float(INDEX) - slot * max(per_cell, 1.0);
 
-	vec3 middle = texture(cell_spots, vec2((slot + 0.5) / max(cell_count, 1.0), 0.5)).rgb;
+	vec4 found = texture(cell_spots, vec2((slot + 0.5) / max(cell_count, 1.0), 0.5));
+	vec3 middle = found.rgb;
+	// How surrounded this cell is. One inside the patch, less at its edge.
+	float cover = found.a;
 
 	// A square sub-grid inside the cell, then pushed off it. The grid is what
 	// makes the coverage even; the scatter is what stops it reading as a grid.
@@ -136,6 +158,29 @@ void process() {
 	vec3 out_there = (EMISSION_TRANSFORM * vec4(here, 1.0)).xyz;
 
 	float tall = blade_height * mix(1.0 - height_spread, 1.0, more.x);
+
+	// The edge of a patch is not a line. Blades thin out and shorten over the
+	// last cells, so the grass dissolves into the ground instead of stopping at
+	// a cell boundary — which is what makes a sown area read as a place rather
+	// than as a selection.
+	//
+	// Thinned by the blade's own number against the coverage, so which blades go
+	// is stable from frame to frame rather than a flicker.
+	//
+	// Folded into the size rather than returned early: a particle shader forbids
+	// `return` in `process`, and a blade scaled to nothing is a degenerate
+	// triangle — rasterised as no pixels at all, which is the cheapest way there
+	// is to not draw something.
+	float edge = smoothstep(edge_fade_from, 1.0, cover);
+	float kept = step(mine.y, mix(edge_thin_to, 1.0, edge));
+	tall *= mix(edge_short_to, 1.0, edge) * kept;
+
+	// Room around whatever else is standing here. Measured from this blade's own
+	// position rather than from its cell, which is what makes the bare ring round
+	// and not a square the size of a cell.
+	vec2 obstacle = texture(cell_near, vec2((slot + 0.5) / max(cell_count, 1.0), 0.5)).rg;
+	tall *= smoothstep(0.0, max(clearance, 0.0001), length(spot - obstacle));
+
 	float wide = tall * blade_width;
 
 	// Every blade faces its own way. Without this the lawn has a grain, and the

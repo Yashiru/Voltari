@@ -30,6 +30,7 @@ extends GPUParticles3D
 ## warning on one patch and not a scene that refuses to open.
 const SCATTER_SHADER: String = "res://game/presentation/world/turf_scatter.gdshader"
 const BLADE_SHADER: String = "res://game/presentation/world/turf.gdshader"
+const MAT_SHADER: String = "res://game/presentation/world/turf_mat.gdshader"
 
 ## The lawn's colour when nobody has picked one.
 ##
@@ -51,6 +52,16 @@ const TIP: Color = Color(0.42, 0.71, 0.13)
 ## press undo with. A patch held here says so in the output rather than quietly
 ## drawing less than it was asked for.
 const MOST_BLADES: int = 4000000
+
+## Stands for "nothing near enough to matter". Far enough that no blade can be
+## within any clearance of it, and finite so the shader's arithmetic stays sane.
+const FAR_AWAY: Vector2 = Vector2(9999.0, 9999.0)
+
+## How far above the surface the mat is laid, in metres.
+##
+## Just enough to win the depth test against the model it covers. Larger and it
+## floats on a slope; smaller and the two fight and flicker.
+const MAT_LIFT: float = 0.004
 
 ## How far past the cells the blades may reach, for the visibility box. Generous:
 ## a box that is too tight makes the lawn blink out at the edge of the screen,
@@ -96,44 +107,64 @@ const BUILT: Array[String] = [
 ## blade is five triangles, and `tools/budget/tiers.json` allows 150,000 for a
 ## whole frame on the low tier — but where that line falls is the author's to
 ## find, not this file's to impose.
-@export_range(10.0, 2000.0, 1.0, "or_greater") var density: float = 300.0:
+@export_range(10.0, 2000.0, 1.0, "or_greater") var density: float = 650.0:
 	set(value):
 		density = maxf(value, 1.0)
 		_rebuild()
 
-## How tall the tallest blade is, in metres. Five to ten centimetres is what this
-## is for.
-@export_range(0.01, 0.4, 0.005) var blade_height: float = 0.09:
+## How tall the tallest blade is, in metres.
+##
+## The default is what the maintainer settled on by looking at it. Shells were
+## rejected for this feature at five to ten centimetres and instancing wins by a
+## wider margin the taller it gets, so nothing here breaks as it rises — but the
+## triangle count is proportional to the density, not to the height, and the
+## silhouette is what starts costing at a grazing camera.
+@export_range(0.01, 0.4, 0.005) var blade_height: float = 0.2:
 	set(value):
 		blade_height = maxf(value, 0.01)
 		_rebuild()
 
 ## How much shorter the shortest blades are, as a share of the tallest. At zero
 ## the lawn has one height, which reads as a mown carpet.
-@export_range(0.0, 1.0, 0.01) var height_spread: float = 0.45:
+@export_range(0.0, 1.0, 0.01) var height_spread: float = 0.25:
 	set(value):
 		height_spread = clampf(value, 0.0, 1.0)
 		_rebuild()
 
 ## How wide a blade is at its root, as a share of its own height. Proportional
 ## rather than absolute, so a short blade is not a wide stub.
-@export_range(0.02, 1.0, 0.01) var blade_width: float = 0.30:
+@export_range(0.02, 1.0, 0.01) var blade_width: float = 0.35:
 	set(value):
 		blade_width = clampf(value, 0.02, 1.0)
 		_rebuild()
 
 ## How far a blade may wander off its own spot, as a share of the gap between
 ## spots. At zero the grid shows as rows the moment the camera looks along one.
-@export_range(0.0, 1.0, 0.01) var scatter: float = 0.85:
+@export_range(0.0, 1.0, 0.01) var scatter: float = 0.1:
 	set(value):
 		scatter = clampf(value, 0.0, 1.0)
 		_rebuild()
 
 ## How far the wind lays a blade over, on top of what the shared wind already
 ## says. Turf is shorter and stiffer than a tuft, so it takes less of one gust.
-@export_range(0.0, 2.0, 0.01) var wind_give: float = 0.55:
+@export_range(0.0, 2.0, 0.01) var wind_give: float = 2.0:
 	set(value):
 		wind_give = clampf(value, 0.0, 2.0)
+		_rebuild()
+
+## How far grass keeps away from anything else standing on the ground, in metres.
+##
+## Nothing grows right up against a rock or a fence post: there is a bare ring,
+## and drawing it is most of what stops a prop looking dropped on top of a lawn
+## rather than standing in it.
+##
+## What counts as something else: any cell painted on the layer *above* a sown
+## one, and any prop node standing beside the grid. Both, because this editor
+## offers both ways of putting an object down and an author should not have to
+## remember which one they used.
+@export_range(0.0, 3.0, 0.05) var clearance: float = 0.35:
+	set(value):
+		clearance = maxf(value, 0.0)
 		_rebuild()
 
 ## A nudge up or down from the top of whatever is in the cell, in metres.
@@ -153,7 +184,7 @@ const BUILT: Array[String] = [
 ## A straight blade is a spike, and a field of spikes reads as a pin cushion. The
 ## bow is what turns it into grass, and it is geometry rather than wind: it is
 ## there when the air is still.
-@export_range(0.0, 1.2, 0.01) var blade_bend: float = 0.45:
+@export_range(0.0, 1.2, 0.01) var blade_bend: float = 1.0:
 	set(value):
 		blade_bend = clampf(value, 0.0, 1.2)
 		_rebuild()
@@ -182,6 +213,8 @@ var _filled: Array[Vector3i] = []
 
 var _scatter: ShaderMaterial = null
 var _blade: ShaderMaterial = null
+var _mat: MeshInstance3D = null
+var _mat_paint: ShaderMaterial = null
 
 
 func _ready() -> void:
@@ -221,6 +254,7 @@ func _rebuild() -> void:
 	if grid == null or cells.is_empty():
 		amount = 1
 		emitting = false
+		_lay_mat(null)
 		return
 
 	var scatter_shader: Shader = ResourceLoader.load(SCATTER_SHADER, "Shader") as Shader
@@ -243,6 +277,7 @@ func _rebuild() -> void:
 	if filled.is_empty():
 		amount = 1
 		emitting = false
+		_lay_mat(null)
 		return
 	_filled = filled
 
@@ -259,6 +294,8 @@ func _rebuild() -> void:
 		_scatter = ShaderMaterial.new()
 	_scatter.shader = scatter_shader
 	_scatter.set_shader_parameter("cell_spots", _spots(grid))
+	_scatter.set_shader_parameter("cell_near", _near(grid))
+	_scatter.set_shader_parameter("clearance", clearance)
 	_scatter.set_shader_parameter("cell_count", float(filled.size()))
 	_scatter.set_shader_parameter("per_cell", float(per_cell))
 	_scatter.set_shader_parameter("cell_width", absf(grid.cell_size.x))
@@ -288,6 +325,7 @@ func _rebuild() -> void:
 	# Full, because the two exported colours *are* the gradient. A partial mix
 	# would mean the tip colour the author picked is not the colour they get.
 	_blade.set_shader_parameter("tip_tint_amount", 1.0)
+	_wear_ground_grain(_blade, grid)
 	_scatter.set_shader_parameter("blade_bend", blade_bend)
 
 	amount = wanted
@@ -308,6 +346,193 @@ func _rebuild() -> void:
 	cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	visibility_aabb = _box(grid)
 	emitting = true
+	_lay_mat(grid)
+
+
+## The world-space grain the ground under this patch is wearing, copied onto a
+## material so the grass varies with it.
+##
+## The tile library gives world surfaces patches of slightly darker tone, fixed to
+## world space, to break the flatness of a one-colour model. Grass standing on a
+## grained tile and not wearing the grain itself is a flat green sheet over a
+## varied ground, which is worse than neither having it.
+##
+## **They line up exactly rather than merely resembling each other**, because both
+## read the same function at the same world position: a blade in a darker patch of
+## ground is darker by the same amount as the ground it came out of.
+##
+## Read from the ground rather than exposed, because it is not a choice — it is
+## whatever the tile is already doing. A patch whose cells hold nothing grained
+## gets nothing, which is the same rule read the other way.
+func _wear_ground_grain(onto: ShaderMaterial, grid: GridMap) -> void:
+	var amount: float = 0.0
+	var size: float = 0.0
+	var steps: float = 0.0
+
+	for cell: Vector3i in _filled:
+		var material: ShaderMaterial = _ground_material(grid, cell)
+		if material == null:
+			continue
+		var carried: Variant = material.get_shader_parameter("grain_amount")
+		if typeof(carried) != TYPE_FLOAT and typeof(carried) != TYPE_INT:
+			continue
+		# Through a typed variable rather than a cast: the strict warnings refuse
+		# `float()` on a Variant, and an assignment carries the same check.
+		var found: float = carried
+		if found <= amount:
+			continue
+		# The strongest wins, so one grained tile in a selection grains the whole
+		# patch rather than the answer depending on which cell came first.
+		amount = found
+		size = _number_on(material, "grain_size", 4.5)
+		steps = _number_on(material, "grain_steps", 3.0)
+
+	onto.set_shader_parameter("grain_amount", amount)
+	if amount <= 0.0:
+		return
+	onto.set_shader_parameter("grain_size", size)
+	onto.set_shader_parameter("grain_steps", steps)
+
+
+## The material of whatever is drawn in a cell, or nothing.
+func _ground_material(grid: GridMap, cell: Vector3i) -> ShaderMaterial:
+	if grid.mesh_library == null:
+		return null
+	var item: int = grid.get_cell_item(cell)
+	if item == GridMap.INVALID_CELL_ITEM:
+		return null
+	var mesh: Mesh = grid.mesh_library.get_item_mesh(item)
+	if mesh == null or mesh.get_surface_count() == 0:
+		return null
+	return mesh.surface_get_material(0) as ShaderMaterial
+
+
+## One shader value off a material, or the fallback when it carries none.
+static func _number_on(material: ShaderMaterial, name: String, fallback: float) -> float:
+	var carried: Variant = material.get_shader_parameter(name)
+	if typeof(carried) != TYPE_FLOAT and typeof(carried) != TYPE_INT:
+		return fallback
+	var found: float = carried
+	return found
+
+
+## Lays a dark mat over the sown cells, so the ground under the blades is the
+## colour of their roots rather than whatever the tile happens to be.
+##
+## **A mat and not a tint on the tile.** A `GridMap` gives one material to every
+## cell that holds the same item, so darkening it would darken that tile
+## everywhere on the map — including the cells nobody sowed. The mat belongs to
+## this patch, covers exactly the cells this patch sowed, and leaves with it.
+##
+## The node is deliberately not given an owner, so it is never saved: it is grown
+## from the cells like everything else here, and a scene carrying it would be a
+## scene carrying geometry.
+func _lay_mat(grid: GridMap) -> void:
+	if grid == null:
+		if _mat != null:
+			_mat.visible = false
+		return
+
+	if _mat == null:
+		_mat = MeshInstance3D.new()
+		_mat.name = "Mat"
+		add_child(_mat)
+	_mat.visible = true
+
+	var mat_shader: Shader = ResourceLoader.load(MAT_SHADER, "Shader") as Shader
+	if mat_shader == null:
+		push_warning("no mat shader — the ground under this turf stays as it is")
+		_mat.visible = false
+		return
+
+	if _mat_paint == null:
+		_mat_paint = ShaderMaterial.new()
+	_mat_paint.shader = mat_shader
+	_mat_paint.set_shader_parameter("albedo", colour)
+	_mat_paint.set_shader_parameter("key_follows_camera", 0.0)
+	_mat_paint.set_shader_parameter("shape_round", 0.0)
+	var look: Dictionary[String, Variant] = CreatureView.preset_values(
+		CreatureView.roster_style()
+	)
+	for name: String in look:
+		if name != "albedo":
+			_mat_paint.set_shader_parameter(name, look[name])
+	_wear_ground_grain(_mat_paint, grid)
+
+	_mat.mesh = _mat_mesh(grid)
+	_mat.material_override = _mat_paint
+	_mat.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+## One quad per sown cell, lying on that cell's own surface, each corner carrying
+## how covered it is.
+##
+## **The coverage is what makes the edge a fade rather than a rectangle.** A
+## corner is shared by four cells; how many of them were sown is how solid the mat
+## is there. Fully inside, all four, and it is opaque; on the outside of a
+## straight edge only two, and it is a third of the way gone. The mat therefore
+## dissolves over its last cell and follows whatever shape was selected, including
+## a diagonal or a hole.
+##
+## Winding is not fussed over because the mat shader culls nothing — a mat seen
+## from below is a mat, and there is nothing under it to see.
+func _mat_mesh(grid: GridMap) -> ArrayMesh:
+	var points: PackedVector3Array = PackedVector3Array()
+	var normals: PackedVector3Array = PackedVector3Array()
+	var uvs: PackedVector2Array = PackedVector2Array()
+	var shades: PackedColorArray = PackedColorArray()
+	var faces: PackedInt32Array = PackedInt32Array()
+
+	var sown: Dictionary[Vector3i, bool] = {}
+	for cell: Vector3i in _filled:
+		sown[cell] = true
+
+	var half_x: float = absf(grid.cell_size.x) * 0.5
+	var half_z: float = absf(grid.cell_size.z) * 0.5
+
+	for cell: Vector3i in _filled:
+		var at: Vector3 = grid.map_to_local(cell)
+		var up: float = _surface_of(grid, cell) + MAT_LIFT
+		var first: int = points.size()
+		for corner: int in range(4):
+			var dx: int = -1 if corner % 2 == 0 else 1
+			var dz: int = -1 if corner < 2 else 1
+			points.append(Vector3(at.x + float(dx) * half_x, up, at.z + float(dz) * half_z))
+			normals.append(Vector3.UP)
+			uvs.append(Vector2(0.5, 0.0))
+			var cover: float = _cover_at(sown, cell, dx, dz)
+			shades.append(Color(cover, cover, cover, 1.0))
+		faces.append_array([first, first + 2, first + 1])
+		faces.append_array([first + 1, first + 2, first + 3])
+
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = points
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_COLOR] = shades
+	arrays[Mesh.ARRAY_INDEX] = faces
+
+	var mat: ArrayMesh = ArrayMesh.new()
+	mat.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mat
+
+
+## How solid the mat is at one corner of one cell: 1 where all four cells touching
+## it were sown, 0 where only this one was.
+##
+## Three in the denominator and not four, because a corner always has at least the
+## cell it belongs to — so a lone cell fades to nothing at every corner rather
+## than to a quarter.
+static func _cover_at(
+	sown: Dictionary[Vector3i, bool], cell: Vector3i, dx: int, dz: int
+) -> float:
+	var touching: int = 0
+	for step_x: int in [0, dx]:
+		for step_z: int in [0, dz]:
+			if sown.has(cell + Vector3i(step_x, 0, step_z)):
+				touching += 1
+	return float(touching - 1) / 3.0
 
 
 ## Every sown cell's own origin, as a texture the scatter reads by index.
@@ -316,11 +541,108 @@ func _rebuild() -> void:
 ## and an array has a ceiling written into the shader. One texel per cell,
 ## unfiltered, so what is read back is what was written.
 func _spots(grid: GridMap) -> ImageTexture:
-	var spots: Image = Image.create(maxi(_filled.size(), 1), 1, false, Image.FORMAT_RGBF)
+	var sown: Dictionary[Vector3i, bool] = {}
+	for cell: Vector3i in _filled:
+		sown[cell] = true
+
+	var spots: Image = Image.create(maxi(_filled.size(), 1), 1, false, Image.FORMAT_RGBAF)
 	for index: int in range(_filled.size()):
-		var at: Vector3 = grid.map_to_local(_filled[index])
-		spots.set_pixel(index, 0, Color(at.x, _surface_of(grid, _filled[index]), at.z))
+		var cell: Vector3i = _filled[index]
+		var at: Vector3 = grid.map_to_local(cell)
+		# The fourth channel is how surrounded this cell is, which the scatter
+		# spends on thinning and shortening the blades near the edge. Without it
+		# the mat fades and the grass does not, and a soft ground under a hard
+		# fringe of blades reads worse than no fade at all.
+		spots.set_pixel(index, 0, Color(
+			at.x, _surface_of(grid, cell), at.z, _cover_of(sown, cell)
+		))
 	return ImageTexture.create_from_image(spots)
+
+
+## Where the nearest thing to keep away from is, per cell, as an offset from that
+## cell's own centre.
+##
+## An offset and not a distance, so the shader can measure from **each blade**
+## rather than from the cell it stands in. A distance per cell would carve square
+## holes on a one-metre grid; an offset lets a blade work out its own room and the
+## bare ring comes out round.
+##
+## The sentinel for "nothing near" is an offset far enough away that no blade can
+## be within the clearance of it. Cheaper than a flag, and there is no branch in
+## the shader to get wrong.
+func _near(grid: GridMap) -> ImageTexture:
+	var away: Array[Vector2] = _obstacles(grid)
+	var near: Image = Image.create(maxi(_filled.size(), 1), 1, false, Image.FORMAT_RGF)
+
+	for index: int in range(_filled.size()):
+		var centre: Vector3 = grid.map_to_local(_filled[index])
+		var here: Vector2 = Vector2(centre.x, centre.z)
+		var closest: Vector2 = FAR_AWAY
+		var closest_at: float = INF
+		for other: Vector2 in away:
+			var gap: float = here.distance_to(other)
+			if gap < closest_at:
+				closest_at = gap
+				closest = other - here
+		near.set_pixel(index, 0, Color(closest.x, closest.y, 0.0, 1.0))
+
+	return ImageTexture.create_from_image(near)
+
+
+## Everything on this map the grass has to keep away from, in the grid's own
+## space, flattened to the ground plane.
+##
+## Two sources because the editor offers two ways to put an object down: a cell
+## painted on a layer above the one being sown, and a prop node standing beside
+## the grid. An author should not have to remember which they used.
+func _obstacles(grid: GridMap) -> Array[Vector2]:
+	var away: Array[Vector2] = []
+	if clearance <= 0.0:
+		return away
+
+	var sown: Dictionary[Vector3i, bool] = {}
+	for cell: Vector3i in _filled:
+		sown[cell] = true
+
+	for cell: Vector3i in grid.get_used_cells():
+		# Above the sown ground, not on it: the tile a blade stands on is not
+		# something it has to avoid.
+		if sown.has(cell):
+			continue
+		var under: Vector3i = Vector3i(cell.x, cell.y - 1, cell.z)
+		if not sown.has(under):
+			continue
+		var at: Vector3 = grid.map_to_local(cell)
+		away.append(Vector2(at.x, at.z))
+
+	var beside: Node = grid.get_parent()
+	if beside == null:
+		return away
+	for node: Node in beside.get_children():
+		if node == grid or node == self:
+			continue
+		var shown: VisualInstance3D = node as VisualInstance3D
+		if shown == null:
+			continue
+		var where: Vector3 = grid.to_local(shown.global_position)
+		away.append(Vector2(where.x, where.z))
+
+	return away
+
+
+## How surrounded a cell is, from the nine cells of its own neighbourhood.
+##
+## One inside a sown area, about a half along a straight edge, less at a corner.
+## Measured over three by three rather than over the four cells that share a
+## corner, because this thins a whole cell's worth of blades and wants to know
+## about the cell beyond the one next door.
+static func _cover_of(sown: Dictionary[Vector3i, bool], cell: Vector3i) -> float:
+	var near: int = 0
+	for step_x: int in range(-1, 2):
+		for step_z: int in range(-1, 2):
+			if sown.has(cell + Vector3i(step_x, 0, step_z)):
+				near += 1
+	return float(near) / 9.0
 
 
 ## The height of the top of whatever is drawn in a cell, in the grid's space.

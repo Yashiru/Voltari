@@ -40,6 +40,21 @@ uniform float tip_tint_amount : hint_range(0.0, 1.0) = 1.0;
 // scatter gave it. Small: a lawn is one plant, not a meadow of species.
 uniform float blade_variation : hint_range(0.0, 0.6) = 0.18;
 
+// How far a blade's shading normal leans away from straight up, towards the way
+// it faces.
+//
+// **This is what makes the grass read as printed rather than as smooth.** The
+// shared look picks its tone from the angle between the normal and the key; with
+// one normal for every blade the whole field lands on the same side of the
+// terminator and the two-tone step never fires. Leaning each blade by its own
+// facing gives the field the break, and it is stable per blade — so it is a
+// texture of light and dark, not a flicker.
+//
+// Not the blade's true face normal, which would flip as it turns and shimmer at
+// three hundred a square metre. A lean towards it, which reads as the same thing
+// and cannot flip.
+uniform float blade_facing : hint_range(0.0, 1.0) = 0.55;
+
 // How far up its own blade this fragment is, 0 at the root and 1 at the tip.
 varying float up_the_blade;
 
@@ -51,7 +66,12 @@ void vertex() {
 	up_the_blade = UV.y;
 	blade_roll = INSTANCE_CUSTOM.x;
 
-	world_normal = comic_normal(NORMAL, MODEL_MATRIX);
+	// Built here rather than taken from the mesh: every instance shares one blade,
+	// so a normal off the mesh is the same for all of them. `INSTANCE_CUSTOM.zw`
+	// is this blade's own facing, from the scatter.
+	world_normal = normalize(vec3(
+		INSTANCE_CUSTOM.z * blade_facing, 1.0, INSTANCE_CUSTOM.w * blade_facing
+	));
 	world_here = comic_point(VERTEX, MODEL_MATRIX);
 	round_normal = world_here - comic_point(shape_centre, MODEL_MATRIX);
 	model_up = up_the_blade;

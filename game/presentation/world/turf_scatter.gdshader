@@ -202,6 +202,12 @@ void process() {
 	TRANSFORM = EMISSION_TRANSFORM * standing;
 
 	// What the blade's own shader is told about it: a number of its own for
-	// colour variation, and how tall it came out.
-	CUSTOM = vec4(mine.x, more.x, 0.0, 0.0);
+	// colour variation, and which way it faces.
+	//
+	// The facing is sent rather than derived, because the shading normal has to be
+	// the blade's *own* and the mesh carries one normal for every instance. It is
+	// what gives the field a terminator: blades turned towards the key are lit and
+	// the ones turned away are shaded, which is the two-tone break the rest of the
+	// world is drawn with.
+	CUSTOM = vec4(mine.x, more.x, across, turn);
 }

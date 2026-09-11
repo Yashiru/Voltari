@@ -33,13 +33,27 @@ uniform float mat_shade : hint_range(0.0, 1.0) = 0.18;
 // cell.
 uniform float edge_fade : hint_range(0.0, 1.0) = 1.0;
 
+// The same field the blades read: how much room there is on the ground, as a
+// share of the clearance. **The mat has to follow the grass exactly**, and the
+// grass gives way around obstacles — so where a blade was pushed back, the ground
+// under it goes back to being whatever the tile is. The fade is a boundary
+// between grass and no grass, not a rectangle drawn under a patch.
+uniform sampler2D room_field : filter_linear, repeat_disable, hint_default_white;
+uniform vec2 field_origin;
+uniform vec2 field_size;
+
 // How covered this corner is, 0 where one cell of four was sown and 1 where all
 // four were. Written per vertex by `turf_patch.gd`.
 varying float covered;
 
+// Where this fragment sits on the ground, in the grid's own space — which is this
+// node's, because a patch is put exactly where its grid is.
+varying vec2 on_ground;
+
 
 void vertex() {
 	covered = COLOR.r;
+	on_ground = VERTEX.xz;
 
 	world_normal = comic_normal(NORMAL, MODEL_MATRIX);
 	world_here = comic_point(VERTEX, MODEL_MATRIX);
@@ -55,5 +69,10 @@ void fragment() {
 	vec3 paint = comic_paint(UV) * (1.0 - mat_shade);
 
 	ALBEDO = comic_shade(paint, SCREEN_UV * VIEWPORT_SIZE, INV_VIEW_MATRIX);
-	ALPHA = mix(1.0, covered, edge_fade);
+	// Two boundaries, and the tighter one wins: the edge of the sown area, and the
+	// room left by everything standing on it.
+	float room = smoothstep(0.0, 1.0, texture(
+		room_field, (on_ground - field_origin) / max(field_size, vec2(0.0001))
+	).r);
+	ALPHA = min(mix(1.0, covered, edge_fade), room);
 }

@@ -323,7 +323,8 @@ func _rebuild() -> void:
 	_scatter.shader = scatter_shader
 	_scatter.set_shader_parameter("cell_spots", _spots(grid))
 	var area: Rect2 = _field_area(grid)
-	_scatter.set_shader_parameter("room_field", _room(grid))
+	var room: ImageTexture = _room(grid)
+	_scatter.set_shader_parameter("room_field", room)
 	_scatter.set_shader_parameter("field_origin", area.position)
 	_scatter.set_shader_parameter("field_size", area.size)
 	_scatter.set_shader_parameter("clearance", clearance)
@@ -481,6 +482,12 @@ func _lay_mat(grid: GridMap) -> void:
 	_mat_paint.shader = mat_shader
 	_mat_paint.set_shader_parameter("albedo", colour)
 	_mat_paint.set_shader_parameter("edge_fade", 1.0 if edge_fade > 0.0 else 0.0)
+	# The same field the blades read, so the dark ground stops exactly where the
+	# grass does — including the ring around anything standing on it.
+	_mat_paint.set_shader_parameter("room_field", _room(grid))
+	var area: Rect2 = _field_area(grid)
+	_mat_paint.set_shader_parameter("field_origin", area.position)
+	_mat_paint.set_shader_parameter("field_size", area.size)
 	_mat_paint.set_shader_parameter("key_follows_camera", 0.0)
 	_mat_paint.set_shader_parameter("shape_round", 0.0)
 	var look: Dictionary[String, Variant] = CreatureView.preset_values(

@@ -28,6 +28,23 @@ const MODEL: String = "res://game/assets/characters/main-char.glb"
 const STAND_IN_RADIUS: float = 0.3
 const STAND_IN_HEIGHT: float = 1.7
 
+## The surface shader every drawn thing in the game wears.
+##
+## Named here and again in the tile library, which dresses the map. Two owners
+## dress two different things — one writes materials into a `MeshLibrary` at build
+## time, one hangs overrides on a node at load time — and neither should have to
+## import the other to learn the name of a file. What must not be duplicated is
+## the look itself, and that lives once, in `comic_look.gdshaderinc`.
+const COMIC_SHADER: String = "res://game/presentation/creature/comic.gdshader"
+
+## The one value the character takes off the shared look.
+##
+## `shape_round` blends the shading normal towards a sphere's, which rescues a
+## creature's soft undulations from a razor terminator. A person is not an ovoid:
+## rounding towards one centre bends the arms and legs towards the torso's shading
+## and the limbs stop reading as separate from the body.
+const CHARACTER_ROUND: float = 0.0
+
 ## How long one clip takes to give way to the next. Long enough that no
 ## transition is a cut, short enough that a stop reads as a stop.
 const BLEND_SECONDS: float = 0.18
@@ -138,7 +155,59 @@ func _build() -> void:
 	# person on a two-metre grid — resizing it would be inventing a scale the
 	# artist already chose.
 	_height = maxf(_measured_height(_model), 0.0)
+	_dress()
 	_show(WalkerGait.moving_at(0.0))
+
+
+## Puts the printed look on the character.
+##
+## Override slots rather than materials written into the mesh: the mesh is an
+## imported resource, and the tile library's reason for writing into one — a
+## `GridMap` cell has nowhere else to put a material — does not apply to a node
+## that has slots of its own. This way re-exporting the model needs nothing.
+##
+## Read from the same style file the creatures and the map read, so the three
+## cannot disagree. Unlike the map, which bakes the look into its library, this
+## happens every load — so a style switched in the editor shows on the character
+## immediately and on the ground after a rebuild.
+func _dress() -> void:
+	var shader: Shader = ResourceLoader.load(COMIC_SHADER, "Shader") as Shader
+	if shader == null:
+		push_warning("no shader at %s — the character stays as imported" % COMIC_SHADER)
+		return
+
+	var look: Dictionary[String, Variant] = CreatureView.preset_values(
+		CreatureView.roster_style()
+	)
+	for mesh: MeshInstance3D in _meshes_under(_model):
+		for surface: int in range(mesh.mesh.get_surface_count()):
+			mesh.set_surface_override_material(
+				surface, _printed(mesh.mesh.surface_get_material(surface), shader, look)
+			)
+
+
+## One surface's material, carrying its imported colour and texture across.
+##
+## Anything richer than a colour and a texture is not carried, which is the same
+## bargain the map strikes: these are flat-shaded models and there is nothing else
+## on them to lose.
+static func _printed(
+	existing: Material, shader: Shader, look: Dictionary[String, Variant]
+) -> ShaderMaterial:
+	var printed: ShaderMaterial = ShaderMaterial.new()
+	printed.shader = shader
+
+	var standard: StandardMaterial3D = existing as StandardMaterial3D
+	if standard != null:
+		printed.set_shader_parameter("albedo", standard.albedo_color)
+		if standard.albedo_texture != null:
+			printed.set_shader_parameter("albedo_tex", standard.albedo_texture)
+
+	for name: String in look:
+		printed.set_shader_parameter(name, look[name])
+	# After the look: no preset names it, so nothing is taken back.
+	printed.set_shader_parameter("shape_round", CHARACTER_ROUND)
+	return printed
 
 
 func _measured_height(node: Node) -> float:

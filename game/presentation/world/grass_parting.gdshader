@@ -22,8 +22,25 @@ shader_type spatial;
 // On top of that, one local thing: stepping into a cell sets that cell swinging
 // once. It never changes the shape of a tuft — every blade of a cell leans the
 // same way by the same amount.
+//
+// ## What this file is, and is not
+//
+// It is the **movement**. The look — the terminator, the two screens, the shadow
+// tint — comes from `comic_look.gdshaderinc`, which every surface in the game
+// shares. That split is deliberate: grass moves and almost nothing else does, so
+// the wind has no business in a file the tiles and the creatures also read.
+//
+// What grass keeps of its own colour is only what follows the blade: darker in
+// the thatch, warmer at the tip. Those are properties of the plant, and the
+// shared look has no idea a blade has a bottom and a top.
+//
+// `cull_disabled` is why this cannot simply *be* the shared shader: a blade is a
+// card and has to draw from both sides, and `render_mode` is per shader, not per
+// material. Everything else the world wears is a closed mesh that culls.
 
-render_mode cull_disabled, diffuse_burley, specular_schlick_ggx;
+render_mode cull_disabled, unshaded, shadows_disabled;
+
+#include "res://game/presentation/creature/comic_look.gdshaderinc"
 
 group_uniforms wind;
 
@@ -31,7 +48,7 @@ group_uniforms wind;
 uniform vec2 wind_direction = vec2(0.82, 0.57);
 
 // How far the tip leans, as a fraction of the blade's length, at full gust.
-uniform float wind_strength : hint_range(0.0, 0.6) = 0.16;
+uniform float wind_strength : hint_range(0.0, 0.6) = 0.22;
 
 // The long wave: the gust itself. Metres between crests, and how fast the crest
 // travels in metres a second.
@@ -39,7 +56,7 @@ uniform float wind_strength : hint_range(0.0, 0.6) = 0.16;
 // **Long and slow on purpose.** A short wavelength makes neighbouring tufts
 // disagree, which is the difference between wind and static.
 uniform float gust_length : hint_range(1.0, 40.0) = 13.0;
-uniform float gust_speed : hint_range(0.0, 6.0) = 1.6;
+uniform float gust_speed : hint_range(0.0, 6.0) = 2.5;
 
 // The second wave, which only exists so the sum is not a sine. Shorter, faster,
 // and a fraction of the amplitude.
@@ -95,19 +112,15 @@ uniform float root_hold : hint_range(0.0, 0.6) = 0.18;
 
 group_uniforms colour;
 
-uniform vec4 albedo : source_color = vec4(0.35, 0.62, 0.32, 1.0);
-uniform sampler2D albedo_texture : source_color, hint_default_white;
-uniform bool has_texture = false;
-
-// How much darker the base is than the tip. The cheapest thing that makes grass
-// sit *in* the ground rather than on top of it, and the only shading variation
-// here — it follows the blade rather than a random number.
+// `albedo` and `albedo_tex` are the shared look's, not this file's — one surface
+// colour convention for the whole game, set by whoever dresses the material.
+//
+// What is left here is the only colour that belongs to a *plant*: darker in the
+// thatch, warmer at the tip. Both follow the blade rather than a random number,
+// so two tufts side by side are the same colour.
 uniform float root_shade : hint_range(0.0, 1.0) = 0.35;
 uniform vec4 tip_tint : source_color = vec4(0.78, 0.82, 0.42, 1.0);
 uniform float tip_tint_amount : hint_range(0.0, 1.0) = 0.15;
-
-// How much light passes through a blade lit from behind.
-uniform float translucency : hint_range(0.0, 1.0) = 0.3;
 
 varying float blade_fraction;
 
@@ -183,27 +196,30 @@ void vertex() {
 	VERTEX.x += push.x * up;
 	VERTEX.z += push.y * up;
 
-	// The normal turns with the lean. A leaning tuft lit by an upright normal
-	// reads as flat the moment the sun is anywhere but overhead.
+	// The normal turns with the lean. A leaning tuft shaded by an upright normal
+	// reads as flat the moment the key is anywhere but overhead.
 	NORMAL = normalize(NORMAL - vec3(push.x, 0.0, push.y) * 0.5);
+
+	// Last, and that order is the point: the shared look is handed the blade as
+	// the wind left it. Handing it the upright one would shade a leaning tuft as
+	// though it were standing, which is the usual way animated foliage ends up
+	// looking painted on.
+	world_normal = comic_normal(NORMAL, MODEL_MATRIX);
+	world_here = comic_point(VERTEX, MODEL_MATRIX);
+	round_normal = world_here - comic_point(shape_centre, MODEL_MATRIX);
 }
 
 
 void fragment() {
-	vec4 colour = albedo;
-	if (has_texture) {
-		colour *= texture(albedo_texture, UV);
-	}
+	vec3 paint = comic_paint(UV);
 
-	// Darker in the thatch, warmer at the tip. Both follow the blade rather than
-	// a random number, so two tufts side by side are the same colour.
-	colour.rgb *= mix(1.0 - root_shade, 1.0, blade_fraction);
-	colour.rgb = mix(
-		colour.rgb, tip_tint.rgb, tip_tint_amount * blade_fraction * blade_fraction
+	// The plant's own colour, before the print. Applied after `comic_paint` has
+	// saturated the fill rather than before, which costs an exact commutation
+	// nobody can see and saves splitting the shared function in two.
+	paint *= mix(1.0 - root_shade, 1.0, blade_fraction);
+	paint = mix(
+		paint, tip_tint.rgb, tip_tint_amount * blade_fraction * blade_fraction
 	);
 
-	ALBEDO = colour.rgb;
-	ROUGHNESS = 0.92;
-	SPECULAR = 0.15;
-	BACKLIGHT = vec3(translucency * mix(0.35, 1.0, blade_fraction));
+	ALBEDO = comic_shade(paint, SCREEN_UV * VIEWPORT_SIZE, INV_VIEW_MATRIX);
 }

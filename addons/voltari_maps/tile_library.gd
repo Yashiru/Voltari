@@ -36,20 +36,44 @@ const SOURCES: Array[String] = [
 ]
 
 
-## The shader that opens grass around a walker, and the items it is put on.
+## The shader every item wears, and the one the grass wears instead.
 ##
 ## Applied here because this is where the meshes are made: the imported material
 ## has to be *replaced*, not layered over, and doing it anywhere else would mean
 ## a second pass that undoes itself on the next rebuild.
+##
+## Two shaders and not one because `render_mode` is per shader: a blade is a card
+## and draws from both sides, a crate is a closed mesh and culls. They share the
+## look itself through `comic_look.gdshaderinc`, so there is still one terminator
+## and one screentone in the project.
+const COMIC_SHADER: String = "res://game/presentation/creature/comic.gdshader"
 const PARTING_SHADER: String = "res://game/presentation/world/grass_parting.gdshader"
 
-## The only shader values this tool owns. Everything else on a grass material is
-## either art direction, which belongs to the shader's own defaults, or something
-## the runtime sets every frame.
+## The only shader values this tool owns. Everything else on a dressed material is
+## either art direction, which belongs to the shader's own defaults and to the
+## named preset, or something the runtime sets every frame.
 ##
 ## An `Array[String]`: the packed form is a call, and a call is not a constant
 ## expression in GDScript.
-const OWNED: Array[String] = ["albedo", "albedo_texture", "has_texture", "blade_base", "blade_height"]
+const OWNED: Array[String] = ["albedo", "albedo_tex", "blade_base", "blade_height"]
+
+## What the world overrides on the shared look, and why each one.
+##
+## A preset says nothing about either of these — checked against all five — so
+## applying them after it takes nothing back.
+##
+## `key_follows_camera`: a creature is a subject and gets relit every panel so its
+## form always reads. The ground is not a subject. A key that swung with the
+## camera would slide the shading across the terrain as the player turned, which
+## is the one thing a set must never do.
+##
+## `shape_round`: rounds the shading normal towards a sphere, which rescues a
+## creature's soft undulations from a razor terminator. A wall is genuinely flat,
+## and bending its shadow would contradict what the eye can see of its edge.
+const WORLD_LOOK: Dictionary[String, float] = {
+	"key_follows_camera": 0.0,
+	"shape_round": 0.0,
+}
 
 
 ## What one run did. Returned rather than printed so a caller can show it, and
@@ -72,6 +96,13 @@ class Report:
 
 	## Items whose material was swapped for the parting shader.
 	var parting: PackedStringArray = PackedStringArray()
+
+	## Items whose material was swapped for the printed look.
+	var printed: PackedStringArray = PackedStringArray()
+
+	## The named look everything was dressed in, for a caller that wants to show
+	## which one a library is wearing — it is baked in, so it is worth saying.
+	var look: String = ""
 
 	var problems: PackedStringArray = PackedStringArray()
 	var output: String = ""
@@ -124,7 +155,7 @@ static func build(folder: String, output: String, parting: String = "") -> Repor
 		if not produced.has(item_name):
 			report.orphaned.append(item_name)
 
-	_dress_grass(library, by_name, parting, report)
+	_dress_all(library, by_name, parting, report)
 
 	_bake_previews(library)
 
@@ -331,60 +362,103 @@ static func _next_id(library: MeshLibrary) -> int:
 	return highest + 1
 
 
-# --- grass that opens ---------------------------------------------------------
+# --- the look everything wears ------------------------------------------------
 
 
-## Puts the parting shader on every item whose name contains `wanted`.
+## Puts the printed look on every item, and the wind on the ones that are grass.
 ##
-## By name, and by a fragment the author types rather than one written here. A
-## rule guessed from the geometry would be a rule nobody could correct; a list in
-## the dock is a decision somebody made and can see.
+## Grass is picked by name, and by a fragment the author types rather than one
+## written here. A rule guessed from the geometry would be a rule nobody could
+## correct; a list in the dock is a decision somebody made and can see. With no
+## fragment given, nothing is grass and everything is simply printed.
 ##
-## Doing nothing when the fragment is empty is the point: a library built without
-## asking for it comes out exactly as it did before.
-static func _dress_grass(
+## One pass and not two, because `_imported` refuses to re-read a `ShaderMaterial`
+## it cannot introspect: a second pass over an already-dressed surface would drop
+## the colour on the floor rather than leaving it alone.
+static func _dress_all(
 	library: MeshLibrary, by_name: Dictionary[String, int], wanted: String, report: Report
 ) -> void:
-	if wanted.is_empty():
+	var comic: Shader = ResourceLoader.load(COMIC_SHADER, "Shader") as Shader
+	if comic == null:
+		report.problems.append("no shader at %s" % COMIC_SHADER)
 		return
 
-	var shader: Shader = ResourceLoader.load(PARTING_SHADER, "Shader") as Shader
-	if shader == null:
-		report.problems.append("no shader at %s" % PARTING_SHADER)
-		return
+	var parting: Shader = null
+	if not wanted.is_empty():
+		parting = ResourceLoader.load(PARTING_SHADER, "Shader") as Shader
+		if parting == null:
+			report.problems.append("no shader at %s" % PARTING_SHADER)
+			return
 
+	report.look = CreatureView.roster_style()
+	var look: Dictionary[String, Variant] = _look(report.look)
 	var needle: String = wanted.to_lower()
+
 	for item_name: String in by_name:
-		if not item_name.to_lower().contains(needle):
+		var grass: bool = parting != null and item_name.to_lower().contains(needle)
+		var shader: Shader = parting if grass else comic
+		if not _dress(library.get_item_mesh(by_name[item_name]), shader, grass, look):
 			continue
-		if _dress(library.get_item_mesh(by_name[item_name]), shader):
+		if grass:
 			report.parting.append(item_name)
+		else:
+			report.printed.append(item_name)
 
 
-## Replaces each surface's material with one that draws the same thing and bends.
+## The look the game is wearing, as values to push onto every surface.
 ##
-## Returns whether anything was dressed, so an item that matched the name and
-## carried nothing swappable is not reported as done.
-static func _dress(mesh: Mesh, shader: Shader) -> bool:
+## The same two files the creatures read — one style name, one preset table — so
+## the world and a creature standing in it cannot end up wearing different looks.
+##
+## **These are baked into the library**, which is what makes switching looks a
+## rebuild rather than a restart. The alternative is a runtime that walks every
+## material in a loaded map and pushes the look, and that would be a second owner
+## of the world's materials for a setting that changes once a month. Stated in the
+## report so a library never lies about which look it is carrying.
+##
+## A style naming a shader rather than a comic preset — `toon`, `vinyl` — leaves
+## this empty and the world on plain `comic`. The world has no toon shader, and
+## silently dressing it in one it does not have is worse than not following.
+static func _look(style: String) -> Dictionary[String, Variant]:
+	var values: Dictionary[String, Variant] = CreatureView.preset_values(style)
+	for name: String in WORLD_LOOK:
+		values[name] = WORLD_LOOK[name]
+	return values
+
+
+## Replaces each surface's material with one that draws the same thing, printed.
+##
+## Returns whether anything was dressed, so an item that carried nothing swappable
+## is not reported as done.
+static func _dress(
+	mesh: Mesh, shader: Shader, grass: bool, look: Dictionary[String, Variant]
+) -> bool:
 	if mesh == null:
 		return false
 
 	# The mesh's own extent, so the hinge is at this model's root and the tip
 	# weight reaches one at this model's tip. One number guessed for every model
 	# would put the bend in the wrong place on all but one of them — and the
-	# grass here runs from 0.55 m to 3.4 m tall.
-	var box: AABB = mesh.get_aabb()
+	# grass here runs from 0.55 m to 3.4 m tall. Asked for only when it is grass:
+	# nothing else has a blade.
+	var box: AABB = mesh.get_aabb() if grass else AABB()
 
 	var dressed: bool = false
 	for surface: int in range(mesh.get_surface_count()):
-		var material: ShaderMaterial = _parting(
+		var material: ShaderMaterial = _imported(
 			mesh.surface_get_material(surface), shader
 		)
 		if material == null:
 			continue
-		material.set_shader_parameter("blade_base", box.position.y)
-		material.set_shader_parameter("blade_height", maxf(box.size.y, 0.05))
+		if grass:
+			material.set_shader_parameter("blade_base", box.position.y)
+			material.set_shader_parameter("blade_height", maxf(box.size.y, 0.05))
+		# Before the look, not after: `_disown` puts everything this tool does not
+		# own back to the shader's default, and the look is exactly the set of
+		# values it is meant to then override.
 		_disown(material, shader)
+		for name: String in look:
+			material.set_shader_parameter(name, look[name])
 		mesh.surface_set_material(surface, material)
 		dressed = true
 
@@ -407,13 +481,17 @@ static func _disown(material: ShaderMaterial, shader: Shader) -> void:
 			material.set_shader_parameter(name, null)
 
 
-## Carries the imported material's look across to the shader.
+## Carries the imported material's colour across to the shader.
 ##
 ## These models have a flat colour and no texture at all, so this reproduces them
 ## exactly. A textured one is carried too — and anything richer than a colour and
 ## a texture is *not*, which is why an already-dressed surface is left alone
 ## rather than being re-read from a shader it cannot introspect.
-static func _parting(existing: Material, shader: Shader) -> ShaderMaterial:
+##
+## No flag says whether there is a texture: the shared look declares `albedo_tex`
+## as `hint_default_white`, so an unset one multiplies by one and the colour comes
+## through on its own. One less value that can disagree with itself.
+static func _imported(existing: Material, shader: Shader) -> ShaderMaterial:
 	if existing is ShaderMaterial:
 		# Already dressed by an earlier run. Re-wrapping would lose the colour,
 		# since a ShaderMaterial has no albedo to read back.
@@ -428,7 +506,6 @@ static func _parting(existing: Material, shader: Shader) -> ShaderMaterial:
 
 	dressed.set_shader_parameter("albedo", standard.albedo_color)
 	if standard.albedo_texture != null:
-		dressed.set_shader_parameter("albedo_texture", standard.albedo_texture)
-		dressed.set_shader_parameter("has_texture", true)
+		dressed.set_shader_parameter("albedo_tex", standard.albedo_texture)
 
 	return dressed

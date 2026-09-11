@@ -1,6 +1,10 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://game/scenes/battle/battle_screen.gd" id="1_screen"]
+
+[sub_resource type="Environment" id="Environment_paper"]
+background_mode = 1
+background_color = Color(0.937, 0.914, 0.863, 1)
 
 [node name="BattleScreen" type="Node3D"]
 script = ExtResource("1_screen")
@@ -8,5 +12,5 @@ script = ExtResource("1_screen")
 [node name="Camera3D" type="Camera3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.94, 0.34, 0, -0.34, 0.94, 0, 2.2, 6)
 
-[node name="Sun" type="DirectionalLight3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 0.7, 0.71, 0, -0.71, 0.7, 0, 6, 4)
+[node name="Paper" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_paper")

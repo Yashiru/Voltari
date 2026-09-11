@@ -81,6 +81,17 @@ neighbours change.
 patch adds foliage rather than replacing a tree with a sown copy of it. That is
 also what makes it removable without leaving a hole.
 
+### A leaf is drawn from both sides
+
+The look culls back faces, and a leaf is a flat shape. Sown one-sided, half a
+canopy vanishes the moment the camera passes behind it — reported from the editor
+as *les feuilles sont visible que d'un côté*, and it is exactly that.
+
+Each leaf's fan is therefore wound twice, once each way. **It costs indices and no
+vertices**: the six points are shared and four triangles become eight. Both sides
+carry the same normal — the support's — so they shade identically and there is no
+seam to see.
+
 ### Only the surface that is the foliage
 
 The first render settled this: sown on every surface, a palm's **trunk grew brown

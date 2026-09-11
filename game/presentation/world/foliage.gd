@@ -297,6 +297,17 @@ static func _grow(
 		stitched.append(first)
 		stitched.append(first + corner)
 		stitched.append(first + corner + 1)
+		# And again, wound the other way. A leaf is a flat shape and the look culls
+		# back faces, so a single-sided one is simply gone the moment the camera
+		# passes behind it — half a canopy disappearing as the player walks round
+		# a tree. Both sides carry the same normal, the support's, so they shade
+		# identically and the seam is invisible.
+		#
+		# Costs indices and no vertices: the six points are shared, and four
+		# triangles become eight.
+		stitched.append(first)
+		stitched.append(first + corner + 1)
+		stitched.append(first + corner)
 
 
 ## `out`, tipped over by up to `most` radians in a random direction.

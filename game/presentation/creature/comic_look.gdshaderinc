@@ -11,7 +11,7 @@
 //
 // ## One pipeline, five quantisers
 //
-// Decision 0068. Everything below is one sequence, in this order, for every
+// Decision 0069. Everything below is one sequence, in this order, for every
 // surface and every look:
 //
 //     paint      the flat colour: texture, tint, grain, contact, saturation
@@ -403,6 +403,26 @@ uniform float cast_screen : hint_range(0.0, 1.5) = 0.62;
 // gets. This is the single detail that makes a cast shadow read as drawn rather
 // than as a dark patch.
 uniform float cast_line : hint_range(0.0, 1.0) = 0.30;
+
+// How far above its own terminator a surface has to be before a thrown shadow is
+// allowed to touch it.
+//
+// **This is the shadow terminator problem, and it had to be answered here.** A
+// surface turning away from the key is already in its own shadow, and it is
+// exactly there that the shadow map's depth test is most grazing and least
+// reliable — so it reports a speckle of hits and misses along the terminator,
+// which is textbook self-shadow acne. `cast_hardness` then snaps that speckle into
+// hard teeth, because snapping a boundary is precisely what it is for.
+//
+// Measured: with the shadow map switched off the band edge on a sphere is clean;
+// with it on and the snap at 0.9 the same edge grows a comb. It was always there
+// and `comic` hid it under a screentone.
+//
+// So the thrown shadow is released back to nothing as the term falls to the
+// terminator, and the attached shading owns that boundary alone. Which is also the
+// right answer artistically: nobody draws a cast shadow onto a face that is
+// already in shade.
+uniform float cast_grip : hint_range(0.0, 0.5) = 0.12;
 
 
 // --- stage 5: the screen ------------------------------------------------------
@@ -983,6 +1003,14 @@ vec3 comic_ink(vec3 colour, vec3 normal, float term, float thrown, float lit,
 // The highlight and the rim, in that order. Both add; neither is a tone.
 vec3 comic_added(vec3 colour, vec3 paint, vec3 normal, vec3 towards, vec3 eye,
 		float thrown, float printable) {
+	// How fast the surface is turning here. Both marks below are marks of a *form*
+	// — a body has a highlight and an edge, a floor has neither — and a normal that
+	// is not turning does not belong to a form. Ungated, the highlight blooms
+	// across a ground plane as a metre-wide pale disc, which is what it did the
+	// first time these two looks were asked to dress the world rather than a
+	// creature.
+	float turning = clamp(length(fwidth(normal)) / max(rim_turn, 1e-4), 0.0, 1.0);
+
 	if (spec_strength > 0.0) {
 		vec3 half_vector = normalize(eye + towards);
 		float gloss = pow(clamp(dot(normal, half_vector), 0.0, 1.0), spec_sharpness);
@@ -997,11 +1025,10 @@ vec3 comic_added(vec3 colour, vec3 paint, vec3 normal, vec3 towards, vec3 eye,
 		vec3 hue = mix(vec3(1.0), clamp(paint + vec3(0.35), 0.0, 1.0), spec_tint);
 		// Multiplied by the thrown term: the key cannot glint off a surface it
 		// cannot see. The rim below deliberately is not.
-		colour += blob * spec_strength * room * hue * thrown * printable;
+		colour += blob * spec_strength * room * hue * thrown * turning * printable;
 	}
 
 	if (rim_strength > 0.0) {
-		float turning = clamp(length(fwidth(normal)) / max(rim_turn, 1e-4), 0.0, 1.0);
 		float facing = 1.0 - clamp(dot(normal, eye), 0.0, 1.0);
 		float band = smoothstep(1.0 - rim_width, 1.0, facing);
 		vec3 hue = mix(rim_colour.rgb, accent.rgb, rim_accent);
@@ -1085,6 +1112,9 @@ void comic_shade(
 	// and `wrap` exists precisely so that an unlit side keeps its colour. A thrown
 	// shadow takes the surface to its own darkest tone and no further.
 	float thrown = mix(shadowed, smoothstep(0.35, 0.65, shadowed), cast_hardness);
+	// Released where the surface is already turning away — see `cast_grip`. Without
+	// it the shadow map's acne along the terminator is snapped into hard teeth.
+	thrown = mix(1.0, thrown, smoothstep(terminator, terminator + cast_grip, term));
 	colour = mix(dark, colour, thrown);
 
 	// Lit means facing the key *and* not in something's shadow. Everything drawn

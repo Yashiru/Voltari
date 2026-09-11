@@ -164,23 +164,33 @@ var accent_type: String = "neutral":
 	set(value):
 		accent_type = value
 		_push_look()
-@export_range(0.5, 2.5) var saturation: float = 1.35:
+## **One is the identity.** It was 1.35, which was tuned against a pipeline that
+## was rendering 3.14 times too bright and clipping every channel it touched —
+## decision 0067 took the same number out of the world's presets and missed this
+## one, so a creature went on being pushed a third past its own colour.
+@export_range(0.5, 2.5) var saturation: float = 1.0:
 	set(value):
 		saturation = value
 		_push_look()
+## How many steps the `bands` quantiser cuts. Ignored by the other four, which do
+## not band.
 @export_range(1.0, 6.0) var light_bands: float = 3.0:
 	set(value):
 		light_bands = value
 		_push_look()
-@export_range(0.0, 3.0) var crease_strength: float = 1.15:
+## The four below are off by default because the shared look is off by default:
+## `comic` has no fold line, no rim and no gloss, and the presets that want them
+## say so. A non-zero default here would put a rim on the printed look and there
+## would be nothing in any file explaining where it came from.
+@export_range(0.0, 1.0) var crease_strength: float = 0.0:
 	set(value):
 		crease_strength = value
 		_push_look()
-@export_range(0.0, 2.0) var rim_strength: float = 0.55:
+@export_range(0.0, 2.0) var rim_strength: float = 0.0:
 	set(value):
 		rim_strength = value
 		_push_look()
-@export_range(0.0, 2.0) var highlight: float = 0.35:
+@export_range(0.0, 2.0) var highlight: float = 0.0:
 	set(value):
 		highlight = value
 		_push_look()
@@ -381,12 +391,32 @@ func _apply_preset(material: ShaderMaterial) -> void:
 		material.set_shader_parameter(name, _preset[name])
 
 
-## The looks the shared shader carries, in the order `look_mode` numbers them.
+## What the current look asked for, or `fallback` when it said nothing.
 ##
-## A style either names one of these, or names a preset whose `shader` field does.
-## Anything unknown is the first, which is the same fallback a missing shader file
-## used to get.
-const MODES: PackedStringArray = ["comic", "toon", "bd", "vinyl", "ramp", "typelit"]
+## For the handful of values this node then adjusts per surface: it has to know
+## what the preset settled on, not what the slider beside it says.
+func _chosen_float(name: String, fallback: float) -> float:
+	if not _preset.has(name):
+		return fallback
+	var value: Variant = _preset[name]
+	if typeof(value) == TYPE_FLOAT:
+		@warning_ignore("unsafe_cast")
+		return value as float
+	if typeof(value) == TYPE_INT:
+		@warning_ignore("unsafe_cast")
+		return float(value as int)
+	return fallback
+
+
+## The quantisers the shared shader carries, in the order `look_mode` numbers
+## them: how a surface steps from its shadow into the sun, which is the only part
+## of the pipeline a look changes (decision 0069).
+##
+## **These are not the look names.** A style names a preset, and a preset names one
+## of these — `toon` is `bands`, `bd` and `typelit` are both `step`, `vinyl` is
+## `smooth`. Anything unknown is the first, which is the same fallback a missing
+## shader file used to get.
+const MODES: PackedStringArray = ["comic", "bands", "step", "smooth", "ramp"]
 
 
 ## Which mode a style resolves to.
@@ -479,30 +509,41 @@ func _rebuild_look() -> void:
 ## the exported values changes, so the inspector edits show immediately.
 func _push_look() -> void:
 	for material: ShaderMaterial in _surfaces:
+		# The sliders first. One vocabulary, so these are the same names the world's
+		# panel and the presets use — they were prefixed `toon_` while five of the
+		# looks were separate shaders with settings of their own, and there is one
+		# pipeline now where a highlight is a highlight whichever quantiser is
+		# chosen (decision 0069).
 		material.set_shader_parameter("saturation", saturation)
-		# Named for the look that owns them. Six looks in one shader means six sets
-		# of settings, and `bands` alone would have said nothing about which.
 		material.set_shader_parameter("look_mode", _mode)
-		material.set_shader_parameter("toon_bands", light_bands)
-		material.set_shader_parameter("toon_crease_strength", crease_strength)
-		material.set_shader_parameter("toon_rim_strength", rim_strength)
-		material.set_shader_parameter("toon_spec_adapt", highlight_adapt)
-		# The eye artwork is painted with its own glint. A second highlight on
-		# top of it reads as a smear, so those surfaces get a fraction.
+		material.set_shader_parameter("bands", light_bands)
+		material.set_shader_parameter("crease_ink", crease_strength)
+		material.set_shader_parameter("rim_strength", rim_strength)
+		material.set_shader_parameter("spec_adapt", highlight_adapt)
+		material.set_shader_parameter("spec_strength", highlight)
+
+		# Then the preset, which wins: it is a deliberate statement about a look and
+		# a slider left at its default is not a good reason to half-undo it.
+		_apply_preset(material)
+
+		# Then the facts about *this surface* that no preset can know, which is why
+		# they come last. They used to come first, and the moment a look carried a
+		# highlight of its own the eye reduction below was silently overwritten.
 		var face: bool = _eye_materials.has(material)
-		var share: float = EYE_HIGHLIGHT if face else 1.0
-		material.set_shader_parameter("toon_spec_strength", highlight * share)
+		if face:
+			# The eye artwork is painted with its own glint. A second highlight on
+			# top of it reads as a smear, so those surfaces get a fraction of
+			# whatever highlight the look ended up asking for.
+			material.set_shader_parameter("spec_strength",
+				_chosen_float("spec_strength", highlight) * EYE_HIGHLIGHT)
 		# Same reasoning one step further for the printed look: a face sheet is
-		# already a drawing, and laying screentone over it fills the whites of
-		# the eyes with dots. A shader with no such parameter ignores this.
+		# already a drawing, and laying screentone over it fills the whites of the
+		# eyes with dots. Every drawn stage of the look honours this.
 		material.set_shader_parameter("face_flat", 1.0 if face else 0.0)
 		material.set_shader_parameter("accent", _accent())
 		var ink: Material = material.next_pass
 		if ink is ShaderMaterial:
 			(ink as ShaderMaterial).set_shader_parameter("thickness", outline_thickness)
-		# Last, so a named look is not half-undone by a slider sitting at its
-		# default. See `_apply_preset`.
-		_apply_preset(material)
 
 
 ## A stowable part is out only inside one of its clip's windows.

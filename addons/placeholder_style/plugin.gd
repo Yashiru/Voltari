@@ -12,13 +12,26 @@ extends EditorPlugin
 ## Two halves, both in the 3D toolbar's dock:
 ##
 ## - **the picker**, which names the look everything wears
-## - **the sliders**, which push one value onto every material in the open scene
+## - **the controls**, which push one value onto every material in the open scene
 ##   as they move, so a number can be found by looking rather than by guessing
 ##
-## A slider is a *trial*. Nothing it does is written anywhere: shut the editor and
+## A control is a *trial*. Nothing it does is written anywhere: shut the editor and
 ## the look is whatever the picker last chose. **Keep** copies the current trial
 ## into `style_presets.json` under the chosen name, which is what makes it stick
 ## and what makes the creatures follow — they read the same file.
+##
+## ## Two lists this file no longer keeps
+##
+## It used to hold the look names in two hardcoded arrays and the controls in a
+## third, and all three drifted. The names come from `style_presets.json` now, the
+## controls from `Look.CONTROLS`, and both of those are where the rest of the game
+## reads them. A look added to the preset file appears here without this file being
+## touched.
+##
+## The controls are also **rebuilt when the look changes**, because four of them
+## belong to one quantiser each. That is the whole of the answer to "why do all the
+## looks offer the same settings": after decision 0069 they genuinely do, on one
+## shared pipeline, and the four that do not are the four that are hidden.
 ##
 ## ## What it can and cannot reach
 ##
@@ -32,50 +45,18 @@ extends EditorPlugin
 ## `project.godot`, and that file carries the maintainer's editor state. The name
 ## is a wart, not a scope.
 
-## Looks that dress the **whole game**: the shared look, and named settings of it.
-const WHOLE: PackedStringArray = ["comic", "comic-clear", "comic-manga", "comic-noir",
-	"comic-newsprint", "comic-sunday"]
-
-## The five that used to dress creatures only.
-##
-## They were separate shaders, none with a flat colour and all but one unshaded,
-## so a tile wearing one came out white and a world wearing one lost every cast
-## shadow. They are modes of the shared look now (decision 0066) and dress the
-## whole game like the rest — kept in their own list only because the separator
-## says where the printed family ends and the rest begins.
-const CREATURES: PackedStringArray = ["toon", "bd", "vinyl", "ramp", "typelit"]
-
-## What the sliders offer, grouped the way the shader groups them.
-##
-## A curated list, not every uniform. Forty sliders is a wall nobody reads; these
-## are the ones that change what the look *is* rather than trimming it. The rest
-## stay in the shader's own defaults, where art direction lives.
-const KNOBS: Array = [
-	["light", "terminator", -0.6, 0.6],
-	["light", "core_level", -1.0, 0.2],
-	["light", "ink", 0.3, 1.0],
-	["paint", "saturation", 0.5, 2.0],
-	["paint", "lift", 0.0, 0.3],
-	["shadow", "shadow_depth", 0.0, 0.9],
-	["shadow", "shadow_hue_mix", 0.0, 1.0],
-	["shadow", "core_extra", 0.0, 0.6],
-	["cast", "cast_hardness", 0.0, 1.0],
-	["cast", "cast_screen", 0.0, 1.2],
-	["cast", "cast_line", 0.0, 0.8],
-	["screen", "dots_amount", 0.0, 1.0],
-	["screen", "dots_size", 3.0, 24.0],
-	["screen", "dots_darken", 0.0, 0.7],
-	["ink line", "edge_line", 0.0, 0.8],
-	["ink line", "chatter_amount", 0.0, 0.15],
-	["ground", "grain_amount", 0.0, 0.6],
-	["ground", "contact_shade", 0.0, 0.8],
-]
+## The bare shared look, with every value at the shader's own default. Not a
+## preset, and deliberately so: it is what the defaults look like, which is the
+## only way to see them.
+const PLAIN: String = "comic"
 
 var _panel: VBoxContainer = null
 var _picker: OptionButton = null
 var _reach: Label = null
+var _controls: VBoxContainer = null
 var _sliders: Dictionary[String, HSlider] = {}
 var _labels: Dictionary[String, Label] = {}
+var _pickers: Dictionary[String, ColorPickerButton] = {}
 var _trial: Dictionary[String, Variant] = {}
 
 
@@ -86,10 +67,7 @@ func _enter_tree() -> void:
 	_picker = OptionButton.new()
 	_picker.tooltip_text = ("The look the game wears, everywhere.\n"
 		+ "Written to style.txt, which is what the game reads on load.")
-	for name: String in WHOLE:
-		_picker.add_item(name)
-	_picker.add_separator("other looks")
-	for name: String in CREATURES:
+	for name: String in _styles():
 		_picker.add_item(name)
 	_picker.select(maxi(_index_of(Look.chosen()), 0))
 	@warning_ignore("return_value_discarded")
@@ -100,18 +78,12 @@ func _enter_tree() -> void:
 	_reach.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_panel.add_child(_reach)
 
-	var group: String = ""
-	for knob: Array in KNOBS:
-		if str(knob[0]) != group:
-			group = str(knob[0])
-			var heading: Label = Label.new()
-			heading.text = group
-			_panel.add_child(heading)
-		_panel.add_child(_knob(str(knob[1]), float(knob[2]), float(knob[3])))
+	_controls = VBoxContainer.new()
+	_panel.add_child(_controls)
 
 	var keep: Button = Button.new()
 	keep.text = "Keep"
-	keep.tooltip_text = ("Write the sliders into style_presets.json under this "
+	keep.tooltip_text = ("Write the controls into style_presets.json under this "
 		+ "name. Until you do, they are a trial and nothing outside this editor "
 		+ "session sees them.")
 	@warning_ignore("return_value_discarded")
@@ -119,8 +91,7 @@ func _enter_tree() -> void:
 	_panel.add_child(keep)
 
 	add_control_to_dock(DOCK_SLOT_RIGHT_BL, _panel)
-	_reread()
-	_show_reach()
+	_rebuild()
 
 
 func _exit_tree() -> void:
@@ -131,15 +102,88 @@ func _exit_tree() -> void:
 	_panel = null
 	_picker = null
 	_reach = null
+	_controls = null
 	_sliders.clear()
 	_labels.clear()
+	_pickers.clear()
+
+
+## Every look on offer: the bare shared look, then every preset in the file.
+##
+## Read rather than listed. The five that used to be shaders of their own are
+## presets like the rest now (decision 0069), so there is no second list to keep in
+## step and no separator to explain which half is which.
+func _styles() -> PackedStringArray:
+	var names: PackedStringArray = PackedStringArray([PLAIN])
+	for key: Variant in CreatureView.presets():
+		var name: String = str(key)
+		# `_comment` and the `_note` beside each preset are prose for whoever opens
+		# the file. Anything underscored is not a look.
+		if not name.begins_with("_"):
+			@warning_ignore("return_value_discarded")
+			names.append(name)
+	return names
+
+
+## Which item of the picker carries a name. `get_item_text` rather than an index
+## sum, so reordering the preset file cannot silently shift the selection.
+func _index_of(style: String) -> int:
+	for index: int in range(_picker.item_count):
+		if _picker.get_item_text(index) == style:
+			return index
+	return -1
+
+
+## The name the picker is showing.
+func _picked() -> String:
+	if _picker.selected < 0:
+		return PLAIN
+	return _picker.get_item_text(_picker.selected)
+
+
+## The quantiser the chosen look resolves to — `comic`, `bands`, `step`, `smooth`
+## or `ramp`. Which four of the controls are offered depends on it.
+func _quantiser() -> String:
+	var mode: int = CreatureView.mode_of(_picked())
+	return CreatureView.MODES[clampi(mode, 0, CreatureView.MODES.size() - 1)]
+
+
+## Build the controls for the chosen look, and put the reach label back in step.
+##
+## The whole list is thrown away and remade rather than shown and hidden: the set
+## depends on the quantiser, the panel is a few dozen rows, and a rebuild cannot
+## leave a stale slider pointing at a uniform the current look does not read.
+func _rebuild() -> void:
+	_sliders.clear()
+	_labels.clear()
+	_pickers.clear()
+	for child: Node in _controls.get_children():
+		_controls.remove_child(child)
+		child.queue_free()
+
+	var group: String = ""
+	for entry: Dictionary in Look.controls_for(_quantiser()):
+		var name: String = str(entry["name"])
+		var span: Vector2 = Look.control_range(entry)
+		var tint: bool = entry.has("tint")
+		# Vocabulary without a control: reset by `Look.wear`, reachable from the
+		# preset file, and deliberately not on the panel. Forty rows is a wall.
+		if span == Vector2.ZERO and not tint:
+			continue
+		if str(entry["group"]) != group:
+			group = str(entry["group"])
+			var heading: Label = Label.new()
+			heading.text = group
+			_controls.add_child(heading)
+		_controls.add_child(_tint(name) if tint else _knob(name, span.x, span.y))
+
+	_show_reach()
 
 
 ## One labelled slider, reading the look's current value for its starting point.
 func _knob(name: String, low: float, high: float) -> Control:
 	var row: VBoxContainer = VBoxContainer.new()
 	var label: Label = Label.new()
-	label.text = name
 	row.add_child(label)
 
 	var slider: HSlider = HSlider.new()
@@ -149,7 +193,7 @@ func _knob(name: String, low: float, high: float) -> Control:
 	slider.value = _starting(name, low, high)
 	slider.tooltip_text = name
 	@warning_ignore("return_value_discarded")
-	slider.value_changed.connect(_pushed.bind(name, label))
+	slider.value_changed.connect(_pushed.bind(name))
 	row.add_child(slider)
 
 	_sliders[name] = slider
@@ -158,27 +202,42 @@ func _knob(name: String, low: float, high: float) -> Control:
 	return row
 
 
-## Which item of the picker carries a name, separator included. `get_item_text`
-## rather than an index sum, so adding a look to either list cannot silently shift
-## the other one.
-func _index_of(style: String) -> int:
-	for index: int in range(_picker.item_count):
-		if _picker.get_item_text(index) == style:
-			return index
-	return -1
+## One colour picker. The four tints are values like any other and belong on the
+## panel for the same reason the numbers do — `ink_colour` in particular decides
+## what every stroke in the look is drawn with.
+func _tint(name: String) -> Control:
+	var row: VBoxContainer = VBoxContainer.new()
+	var label: Label = Label.new()
+	label.text = name
+	row.add_child(label)
+
+	var button: ColorPickerButton = ColorPickerButton.new()
+	button.edit_alpha = false
+	button.tooltip_text = name
+	var held: Variant = _held(name)
+	if typeof(held) == TYPE_COLOR:
+		@warning_ignore("unsafe_cast")
+		button.color = held as Color
+	@warning_ignore("return_value_discarded")
+	button.color_changed.connect(_tinted.bind(name))
+	row.add_child(button)
+
+	_pickers[name] = button
+	return row
 
 
-## The name the picker is showing, or empty when it is sitting on the separator.
-func _picked() -> String:
-	if _picker.selected < 0 or _picker.is_item_separator(_picker.selected):
-		return ""
-	return _picker.get_item_text(_picker.selected)
+## What the surfaces under the open scene actually carry, whatever its type.
+func _held(name: String) -> Variant:
+	var root: Node = EditorInterface.get_edited_scene_root()
+	if root == null:
+		return null
+	return Look.held_value(root, name)
 
 
 ## Where a slider starts: **what the surfaces actually carry.**
 ##
 ## It used to be the preset's value, or the middle of the range when the preset
-## said nothing — and every preset says nothing about most of these. So a slider
+## said nothing — and a preset is silent about most of the vocabulary. So a slider
 ## showed 1.25 while the material was on 1.0, and the first nudge jumped the value
 ## instead of adjusting it, which is what "the control does not really work" looks
 ## like from the outside.
@@ -197,27 +256,19 @@ func _starting(name: String, low: float, high: float) -> float:
 	return (low + high) * 0.5
 
 
-## Puts every slider back onto what the scene now carries. Called after the look
-## changes, and after a scene is opened, so the panel never shows a number the
-## surfaces are not on.
-func _reread() -> void:
-	for name: String in _sliders:
-		var slider: HSlider = _sliders[name]
-		slider.set_block_signals(true)
-		slider.value = _starting(name, slider.min_value, slider.max_value)
-		slider.set_block_signals(false)
-		_relabel(name)
-
-
-func _relabel(name: String) -> void:
-	if not _labels.has(name):
-		return
-	_labels[name].text = "%s  %.3f" % [name, _sliders[name].value]
-
-
-func _pushed(value: float, name: String, label: Label) -> void:
-	label.text = "%s  %.3f" % [name, value]
+func _pushed(value: float, name: String) -> void:
+	if _labels.has(name):
+		_labels[name].text = "%s  %.3f" % [name, value]
 	_trial[name] = value
+	_push(name, value)
+
+
+func _tinted(value: Color, name: String) -> void:
+	_trial[name] = value
+	_push(name, value)
+
+
+func _push(name: String, value: Variant) -> void:
 	var root: Node = EditorInterface.get_edited_scene_root()
 	if root == null:
 		return
@@ -228,8 +279,6 @@ func _pushed(value: float, name: String, label: Label) -> void:
 
 func _choose(_index: int) -> void:
 	var wanted: String = _picked()
-	if wanted.is_empty():
-		return
 	var wrote: Error = Look.choose(wanted)
 	if wrote != OK:
 		push_warning("cannot record the look: %s" % error_string(wrote))
@@ -243,24 +292,28 @@ func _choose(_index: int) -> void:
 		# A creature holds its own materials and rebuilds them rather than being
 		# written to, so it is asked rather than dressed.
 		_ask_creatures(root)
-	# After the change, not before: the sliders are meant to show what the surfaces
-	# now carry, and before the change that is the previous look's values.
-	_reread()
-	_show_reach()
+	# After the change, not before: the controls are meant to show what the
+	# surfaces now carry, and before the change that is the previous look's values.
+	_rebuild()
 
 
 ## Writes the trial into the preset file, under the chosen name.
 ##
-## Merged rather than replaced: a preset carries values no slider offers, and a
+## Merged rather than replaced: a preset carries values no control offers, and a
 ## Keep that dropped them would quietly rewrite a look instead of adjusting it.
+##
+## **Every look can be kept now.** `toon` and its four siblings were shaders rather
+## than presets, so this refused them — which meant the one look you could not save
+## was the one you had just spent an hour tuning.
 func _keep() -> void:
 	if _trial.is_empty():
-		push_warning("nothing to keep — no slider has been moved")
+		push_warning("nothing to keep — no control has been moved")
 		return
 	var wanted: String = _picked()
 	var presets: Dictionary = CreatureView.presets()
 	if not presets.has(wanted):
-		push_warning("%s is a shader, not a preset — nothing to write to" % wanted)
+		push_warning(("%s is the shared look at its own defaults, which is not a "
+			+ "preset. Pick one of the named looks to write into.") % wanted)
 		return
 
 	@warning_ignore("unsafe_cast")
@@ -272,7 +325,14 @@ func _keep() -> void:
 	@warning_ignore("unsafe_cast")
 	var fields: Dictionary = uniforms as Dictionary
 	for name: String in _trial:
-		fields[name] = _trial[name]
+		var value: Variant = _trial[name]
+		# A colour is written the way the file spells one, so a Keep produces a
+		# preset somebody can read and edit by hand like the ones already there.
+		if typeof(value) == TYPE_COLOR:
+			@warning_ignore("unsafe_cast")
+			fields[name] = "#" + (value as Color).to_html(false)
+		else:
+			fields[name] = value
 
 	var path: String = CreatureView.SHARED + CreatureView.PRESET_FILE
 	var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
@@ -300,7 +360,7 @@ func _show_reach() -> void:
 			+ "a scene that builds its world in code only changes when you run it."
 			) % root.name
 		return
-	_reach.text = "%s: %d material(s)" % [root.name, worn]
+	_reach.text = "%s: %d material(s), %s" % [root.name, worn, _quantiser()]
 
 
 static func _ask_creatures(node: Node) -> void:

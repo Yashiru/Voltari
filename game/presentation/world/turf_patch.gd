@@ -519,8 +519,9 @@ func _rebuild() -> void:
 	)
 	for name: String in look:
 		_blade.set_shader_parameter(name, look[name])
-	# After the look: the world is not a subject, and no preset names either.
-	_blade.set_shader_parameter("key_follows_camera", 0.0)
+	# After the look: a blade of grass is genuinely flat, and rounding its shading
+	# normal towards a sphere would contradict what the eye can see of its edge. No
+	# preset names it, so applying it here takes nothing back.
 	_blade.set_shader_parameter("shape_round", 0.0)
 	_blade.set_shader_parameter("albedo", colour)
 	_blade.set_shader_parameter("tip_tint", tip_colour)
@@ -680,7 +681,6 @@ func _lay_mat(grid: GridMap) -> void:
 	_mat_paint.set_shader_parameter("field_reach", _field_reach(grid))
 	_mat_paint.set_shader_parameter("edge_jitter", edge_jitter)
 	_mat_paint.set_shader_parameter("edge_jitter_size", edge_jitter_size)
-	_mat_paint.set_shader_parameter("key_follows_camera", 0.0)
 	_mat_paint.set_shader_parameter("shape_round", 0.0)
 	var look: Dictionary[String, Variant] = CreatureView.preset_values(
 		CreatureView.roster_style()

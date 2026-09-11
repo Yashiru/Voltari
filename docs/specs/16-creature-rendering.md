@@ -378,8 +378,8 @@ wall goes to exactly zero local contrast by four times the reference distance.
 **Settled by decision 0066.** `toon`, `bd`, `vinyl`, `ramp` and `typelit` were
 separate creature shaders and could not dress the world: none had a flat colour,
 so a tile wore white, and `bd` was unshaded, so a world wearing it lost every cast
-shadow. They are branches of the shared look now, selected by `look_mode`, and
-every one of them takes the sun's shadow.
+shadow. They are branches of the shared look now, and every one of them takes the
+sun's shadow.
 
 One shader and not six because the world reaches the screen through five shaders
 that differ only by `render_mode` — a look per shader would be thirty files of the
@@ -388,6 +388,62 @@ same maths.
 **This does not reopen the art direction.** The game wears comic-manga. What
 changed is that trying another look is a click rather than an impossibility, which
 is what a search for one needs.
+
+### One pipeline, five quantisers
+
+**Settled by decision 0069**, which is the second half of the one above. Putting
+six looks in one shader was right and left them as six strangers sharing an
+address: each kept the vocabulary it was written with, so the file declared four
+shadow tints, four wraps, three sky gradients, two halftones, and a `terminator`
+that meant 0.14 on a raw dot product in one look and 0.46 on a remapped one in
+another. The panel that drove all of it knew one look's half, so thirteen of its
+eighteen sliders did nothing on five looks out of six.
+
+The look is **one sequence**, the same for every surface and every look:
+
+    paint → tones → quantise → thrown → screen → ink → add
+
+**Only `quantise` differs.** Five branches — `comic` (two steps and a core),
+`bands`, `step`, `smooth`, `ramp` — each handed the same tones and each answering
+the same two questions besides its colour: what the surface looks like with the key
+fully blocked, and how lit it ended up. Everything else is a stage and is shared.
+
+**A uniform belongs to a stage, not to a look**, and a look is a set of numbers —
+which is what `comic-noir` always was. `toon` and its four siblings are entries in
+`style_presets.json` now, so all of them can be saved; being shaders rather than
+presets is what made the one look you had just tuned the one you could not keep.
+
+Four values are genuinely local to one quantiser and they are the only ones the
+panel hides: `bands`, `core_level`, `core_extra`, `ramp_row`.
+
+**A preset is read as complete.** `Look.wear` puts the whole vocabulary back to the
+shader's defaults before applying one. Without that a look inherits every value the
+previous one set and did not, which is how switching back and forth used to walk
+the saturation up with nothing in any file saying so.
+
+**Two things the rework had to answer to be correct on a world rather than on a
+creature:**
+
+- a **thrown shadow is composited, not multiplied** — into the surface's own
+  darkest tone. Multiplying sent three looks to pure black wherever a tree fell,
+  cancelling the `wrap` those looks exist for
+- a **highlight and a rim are marks of a form**, gated on how fast the normal is
+  turning. Ungated, a stepped specular blooms across a ground plane as a
+  metre-wide pale disc — which never showed while these were creature shaders
+
+**The cast shadow stops at the terminator** (`cast_grip`). A surface turning away
+from the key is where the shadow map's depth test is most grazing and least
+reliable, so it returns a speckle that `cast_hardness` then snaps into hard teeth.
+Measured: the same edge is clean with the shadow map off. Releasing the thrown
+shadow as the term falls to the terminator is also what an inker does — nobody
+draws a cast shadow onto a face already in shade.
+
+**The vocabulary is checked rather than trusted.** A test parses the include and
+asserts its uniforms are exactly what `Look` classifies, and that no preset names
+anything that is not a value. The reason is a measured regression: six `stucco_*`
+uniforms and a `key_follows_camera` were dropped from the shader during the lit
+rework and two scripts went on setting them for four commits, silently, because
+`set_shader_parameter` accepts any name at all.
 
 **Known limitation.** A creature keeps screentone off its face by raising
 `face_flat` on the surfaces that carry the eye and mouth sheets. The character's

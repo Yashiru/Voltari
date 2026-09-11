@@ -68,7 +68,9 @@ removed before it can alias. Each fades towards its own mean rather than towards
 zero, so a band on its way out lightens its contribution instead of shifting the
 whole surface darker.
 
-Measured on a wall filling the frame, mean local contrast by camera distance:
+Measured on a wall filling the frame, mean local contrast by camera distance —
+and the same mechanism is what made the first tuning invisible in the overworld,
+see below:
 
 ```
 1x   1.367
@@ -81,6 +83,41 @@ Measured on a wall filling the frame, mean local contrast by camera distance:
 A distant wall goes **exactly** flat rather than grainy, which is also what a
 drawing does: an illustrator stops rendering texture at distance rather than
 drawing it smaller.
+
+### A grain is sized for the camera, not for the hand
+
+The first tuning was done on models filling the frame, and it was wrong. Put on
+palm trees in the overworld it rendered as **nothing at all** — measured, zero
+pixels changed — and the fade was working exactly as designed.
+
+This game looks at the world from about seven metres, where one pixel covers
+roughly seventeen millimetres. The grains had been set at thirty-eight and
+thirteen millimetres, both under the two-samples-per-grain floor, so both were
+correctly removed. **No amount would have brought them back**, which is why the
+first report of it was "nothing changed at all".
+
+The rule, and it is arithmetic rather than taste:
+
+| grain vs pixel | what happens |
+| --- | --- |
+| five pixels or more per grain | a crisp speck |
+| two to five | fading, softening |
+| under two | removed — and it must be, or it crawls |
+
+Ten and thirty per metre — ten and three centimetres — clear that camera with room
+to spare. A scene the player walks close to wants both brought up. The consequence
+is that **one grain size cannot be fine on a small prop and present at distance**:
+at seven metres the finest speck that can exist is a centimetre or so, so a crate
+reads as coarsely rendered rather than finely sanded. That is a property of the
+camera, not of the shader.
+
+Two bugs were found on the way there and both would have capped the layer at a
+sixth of its strength whatever it was set to. The octaves were mixed before being
+thresholded, so an octave collapsing towards its mean dragged the sum onto the
+threshold and every pixel came back with half a speck; each is now cut separately
+and the coverages are laid over one another. And value noise from eight hashes is
+a bell too narrow to cut specks from — nearly all of it within a tenth of the
+middle — so it is spread with one smoothstep before it is cut.
 
 ### Applied by hand, by name
 

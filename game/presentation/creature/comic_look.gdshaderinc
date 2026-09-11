@@ -190,21 +190,32 @@ group_uniforms stucco;
 // Two octaves because roughcast is two things: an aggregate you can see and a
 // sand you can only feel. One octave reads as television static.
 // How much darker a speck is than the tone it sits on.
-uniform float stucco_amount : hint_range(0.0, 0.5) = 0.0;
+uniform float stucco_amount : hint_range(0.0, 0.6) = 0.0;
 // The two grains, as how many repeat per metre. The aggregate you can see and the
 // sand you can only feel — one octave alone reads as television static.
-uniform float stucco_coarse : hint_range(1.0, 200.0) = 26.0;
-uniform float stucco_fine : hint_range(1.0, 400.0) = 78.0;
+//
+// **Sized for the camera, not for the hand.** A grain has to be about five pixels
+// across to be cut into a crisp speck and about two to exist at all; below that
+// the fade removes it, correctly, and the surface goes clean. This game looks at
+// the world from roughly seven metres, where one pixel covers about seventeen
+// millimetres — so a grain under four centimetres is invisible no matter what the
+// amount says. Tuned at a metre first, the whole layer rendered as **nothing** on
+// a palm trunk in the overworld, and the measurement was zero pixels changed.
+//
+// Ten and thirty per metre is ten and three centimetres, which survives that
+// camera with room to spare. Bring both up for a scene the player walks close to.
+uniform float stucco_coarse : hint_range(1.0, 200.0) = 10.0;
+uniform float stucco_fine : hint_range(1.0, 400.0) = 30.0;
 uniform float stucco_fine_share : hint_range(0.0, 1.0) = 0.45;
 // Where the noise is cut into specks. Lower leaves fewer, larger pits; at a half
 // the surface is half pitted and stops reading as a wall.
-uniform float stucco_pits : hint_range(0.05, 0.6) = 0.42;
+uniform float stucco_pits : hint_range(0.05, 0.8) = 0.50;
 // How much of the roughcast still shows on a surface in full light.
 //
 // Not zero and not one. A rendered wall does show most where the light rakes
 // across it — that is the physical truth — but a lit face that went perfectly
 // smooth would undo the whole point on every south wall in the game.
-uniform float stucco_lit_share : hint_range(0.0, 1.0) = 0.45;
+uniform float stucco_lit_share : hint_range(0.0, 1.0) = 0.60;
 
 group_uniforms form;
 // Blend the shading normal towards the one a sphere would have at this point,
@@ -403,9 +414,47 @@ float comic_footprint(vec3 here) {
 // gone by the time a pixel has caught up. A distant wall goes cleanly flat, which
 // is also what a drawing does — an illustrator stops rendering texture at
 // distance rather than drawing it smaller.
+//
+// The two edges are anchored on sampling, not on taste. Two samples per grain is
+// Nyquist and is the point past which a grain carries no information at all, so
+// the band is gone by then; it starts going at five samples per grain, which is
+// where the threshold below stops being able to cut a crisp speck.
 float comic_detail(float scale, float footprint) {
 	float period = 1.0 / max(scale, 1e-4);
-	return 1.0 - smoothstep(period * 0.35, period * 0.9, footprint);
+	return 1.0 - smoothstep(period * 0.2, period * 0.5, footprint);
+}
+
+
+// One octave's worth of pits: the share of this pixel the specks cover.
+//
+// **Thresholded per octave and not on the sum.** Mixing two noises and cutting
+// the result once looks equivalent and is not: an octave on its way out collapses
+// towards its own mean, which sits right on the threshold, and drags the sum with
+// it. The cut then lands in the mush and `smoothstep` spans the whole range, so
+// every pixel gets a weak partial speck instead of some pixels getting a real
+// one. Measured, that capped the effect at a sixth of the strength asked for,
+// whatever the threshold was set to.
+//
+// Cutting each octave separately means a fading octave contributes *less
+// coverage*, which is what fading should mean, and the surviving octave keeps its
+// full depth.
+float comic_pits(vec3 here, float scale, float footprint) {
+	float left = comic_detail(scale, footprint);
+	if (left <= 0.0) {
+		return 0.0;
+	}
+	// Spread before it is cut. Value noise built from eight hashes is a bell far
+	// too narrow to cut specks out of — measured, nearly all of it sits within a
+	// tenth of the middle, so a threshold never lands on a plateau and every pixel
+	// comes back with half a speck. The effect then caps at a sixth of the depth
+	// asked for and no amount of tuning the threshold moves it.
+	//
+	// One smoothstep over roughly one and a half standard deviations pushes the
+	// mass out to the ends, which is what makes `stucco_pits` behave as a coverage
+	// rather than as a slider with no effect.
+	float grain = smoothstep(0.35, 0.65, noise31(here * scale));
+	float width = max(fwidth(grain), 1e-4);
+	return (1.0 - smoothstep(stucco_pits - width, stucco_pits + width, grain)) * left;
 }
 
 
@@ -431,23 +480,13 @@ float comic_roughcast(vec3 here, float footprint) {
 	if (stucco_amount <= 0.0) {
 		return 0.0;
 	}
-	float coarse_left = comic_detail(stucco_coarse, footprint);
-	float fine_left = comic_detail(stucco_fine, footprint);
-	float visible = max(coarse_left, fine_left);
-	if (visible <= 0.0) {
-		return 0.0;
-	}
+	float aggregate = comic_pits(here, stucco_coarse, footprint);
+	float sand = comic_pits(here, stucco_fine, footprint) * stucco_fine_share;
 
-	// Each octave fades towards its own mean rather than towards zero, so a band
-	// on its way out lightens its contribution instead of shifting the whole
-	// surface darker.
-	float aggregate = mix(0.5, noise31(here * stucco_coarse), coarse_left);
-	float sand = mix(0.5, noise31(here * stucco_fine), fine_left);
-	float grain = mix(aggregate, sand, stucco_fine_share);
-
-	float width = max(fwidth(grain), 1e-4);
-	float pit = 1.0 - smoothstep(stucco_pits - width, stucco_pits + width, grain);
-	return pit * visible;
+	// Laid over one another rather than averaged, the way two sheets of
+	// screentone are: a pixel is pitted if either screen pits it. Averaging would
+	// halve both and give a grey wash, which is the thing this is not.
+	return 1.0 - (1.0 - aggregate) * (1.0 - sand);
 }
 
 

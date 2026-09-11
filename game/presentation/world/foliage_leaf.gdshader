@@ -17,7 +17,7 @@ shader_type spatial;
 // so both faces are real geometry. Turning culling off as well would draw every
 // leaf four times for nothing.
 
-render_mode blend_mix, cull_back, unshaded, shadows_disabled;
+render_mode blend_mix, cull_back, specular_disabled, ambient_light_disabled;
 
 #include "res://game/presentation/creature/comic_look.gdshaderinc"
 #include "res://game/presentation/world/wind.gdshaderinc"
@@ -50,12 +50,18 @@ uniform float stem_hold : hint_range(0.0, 0.6) = 0.15;
 uniform float tone_spread : hint_range(0.0, 1.0) = 0.30;
 
 
+varying float leaf_tone;
+
+
 void vertex() {
 	// Baked per vertex by the generator: how far up its own leaf this point sits,
 	// and how long the leaf is. Neither survives the merge into one patch mesh,
 	// which is why they are carried rather than derived.
 	float along = COLOR.r;
 	float length_of_leaf = COLOR.g;
+	// Carried rather than read again later: `COLOR` belongs to this stage, and the
+	// tone is wanted in `light()`.
+	leaf_tone = COLOR.b;
 
 	// Asked per vertex, not per instance. A patch is one mesh covering many cells,
 	// so an instance origin would give the whole patch a single phase and the gust
@@ -74,18 +80,25 @@ void vertex() {
 	VERTEX.z += push.y;
 
 	// Last, and in that order: the look is handed the leaf as the wind left it.
-	world_normal = comic_normal(NORMAL, MODEL_MATRIX);
 	world_here = comic_point(VERTEX, MODEL_MATRIX);
 	round_normal = world_here - comic_point(shape_centre, MODEL_MATRIX);
 	model_up = comic_up(VERTEX.y);
+	look_uv = UV;
 }
 
 void fragment() {
+	// White, deliberately: the look writes the finished colour in `light()`.
+	ALBEDO = vec3(1.0);
+	ROUGHNESS = 1.0;
+	comic_fragment(NORMAL, VIEW_MATRIX);
+}
+
+
+void light() {
 	// The leaf's own tone, before the print rather than over it — the same order
 	// the grain uses, so the saturation treats it as a colour of its own instead
 	// of as a film laid on top.
-	float tone = mix(1.0 - tone_spread, 1.0, COLOR.b);
-	ALBEDO = comic_shade(
-		comic_paint(UV) * tone, SCREEN_UV * VIEWPORT_SIZE, INV_VIEW_MATRIX
-	);
+	float tone = mix(1.0 - tone_spread, 1.0, leaf_tone);
+	comic_shade(comic_paint() * tone, NORMAL, LIGHT, LIGHT_COLOR, ATTENUATION,
+			LIGHT_IS_DIRECTIONAL, FRAGCOORD.xy, DIFFUSE_LIGHT);
 }

@@ -710,9 +710,9 @@ func _build_interface() -> void:
 	_camera = Camera3D.new()
 	add_child(_camera)
 
-	var sun: DirectionalLight3D = DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-55, -30, 0)
-	add_child(sun)
+	# The sun, the page, and the shadows everything throws on it. One node, and
+	# exactly one directional light in the scene — see `daylight.gd`.
+	add_child(Daylight.new())
 
 	_walker = VltFreeWalker.new()
 	_walker.tables = _tables

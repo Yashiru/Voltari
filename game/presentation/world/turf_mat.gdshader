@@ -18,7 +18,7 @@ shader_type spatial;
 // writing depth would make the blades standing in it sort against their own
 // ground. Nothing is drawn under it that it needs to hide.
 
-render_mode blend_mix, cull_disabled, unshaded, shadows_disabled, depth_draw_never;
+render_mode blend_mix, cull_disabled, specular_disabled, ambient_light_disabled, depth_draw_never;
 
 #include "res://game/presentation/creature/comic_look.gdshaderinc"
 #include "res://game/presentation/world/turf_edge.gdshaderinc"
@@ -58,20 +58,19 @@ void vertex() {
 	from_bare = UV2.x;
 	on_ground = VERTEX.xz;
 
-	world_normal = comic_normal(NORMAL, MODEL_MATRIX);
 	world_here = comic_point(VERTEX, MODEL_MATRIX);
 	round_normal = world_here - comic_point(shape_centre, MODEL_MATRIX);
+	model_up = comic_up(VERTEX.y);
+	look_uv = UV;
 	model_up = 0.0;
 }
 
 
 void fragment() {
-	// Through `comic_paint`, so the mat picks up the same world-space grain the
-	// ground under it has — the two are read at the same world position, so the
-	// patches line up exactly rather than merely resembling each other.
-	vec3 paint = comic_paint(UV) * (1.0 - mat_shade);
-
-	ALBEDO = comic_shade(paint, SCREEN_UV * VIEWPORT_SIZE, INV_VIEW_MATRIX);
+	// White, deliberately: the look writes the finished colour in `light()`.
+	ALBEDO = vec3(1.0);
+	ROUGHNESS = 1.0;
+	comic_fragment(NORMAL, VIEW_MATRIX);
 
 	// Two boundaries, and the tighter one wins: the edge of the sown area, and the
 	// bare ring around everything standing on it. Both come back as the same
@@ -87,4 +86,13 @@ void fragment() {
 	float bite = turf_bite(world_here.xz);
 	float inside = min(turf_room(on_ground, bite), turf_edge(from_bare, bite));
 	ALPHA = clamp(inside / max(edge_width, 0.0001), 0.0, 1.0);
+}
+
+
+void light() {
+	// Through `comic_paint`, so the mat picks up the same world-space grain the
+	// ground under it has — the two are read at the same world position, so the
+	// patches line up exactly rather than merely resembling each other.
+	comic_shade(comic_paint() * (1.0 - mat_shade), NORMAL, LIGHT, LIGHT_COLOR,
+			ATTENUATION, LIGHT_IS_DIRECTIONAL, FRAGCOORD.xy, DIFFUSE_LIGHT);
 }

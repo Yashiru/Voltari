@@ -14,7 +14,7 @@ shader_type spatial;
 // Pointing them up makes a blade shade like the ground it grows from, which is
 // what a stylised lawn wants and what removes the two-sided problem entirely.
 
-render_mode cull_disabled, unshaded, shadows_disabled;
+render_mode cull_disabled, specular_disabled, ambient_light_disabled;
 
 #include "res://game/presentation/creature/comic_look.gdshaderinc"
 
@@ -69,16 +69,19 @@ void vertex() {
 	// Built here rather than taken from the mesh: every instance shares one blade,
 	// so a normal off the mesh is the same for all of them. `INSTANCE_CUSTOM.zw`
 	// is this blade's own facing, from the scatter.
-	world_normal = normalize(vec3(
+	NORMAL = normalize(vec3(
 		INSTANCE_CUSTOM.z * blade_facing, 1.0, INSTANCE_CUSTOM.w * blade_facing
 	));
 	world_here = comic_point(VERTEX, MODEL_MATRIX);
 	round_normal = world_here - comic_point(shape_centre, MODEL_MATRIX);
+	model_up = comic_up(VERTEX.y);
+	look_uv = UV;
 	model_up = up_the_blade;
 }
 
 
-void fragment() {
+// The blade's own colour, built where it can be seen from `light()`.
+vec3 blade_paint() {
 	// **The blade's own colour first, the ground's grain last.** The order is the
 	// whole of it: `tip_tint_amount` is driven to one, so the mix at the tip
 	// *replaces* the colour rather than tinting it — and a grain applied before
@@ -105,7 +108,21 @@ void fragment() {
 	// the same function.
 	own *= comic_grain(world_here) * comic_contact();
 
-	vec3 paint = posterise(enrich(own));
-
-	ALBEDO = comic_shade(paint, SCREEN_UV * VIEWPORT_SIZE, INV_VIEW_MATRIX);
+	return posterise(enrich(own));
 }
+
+
+void fragment() {
+	// White, deliberately: the renderer multiplies `DIFFUSE_LIGHT` by this and the
+	// look writes the finished colour. See the top of the include.
+	ALBEDO = vec3(1.0);
+	ROUGHNESS = 1.0;
+	comic_fragment(NORMAL, VIEW_MATRIX);
+}
+
+
+void light() {
+	comic_shade(blade_paint(), NORMAL, LIGHT, LIGHT_COLOR, ATTENUATION,
+			LIGHT_IS_DIRECTIONAL, FRAGCOORD.xy, DIFFUSE_LIGHT);
+}
+

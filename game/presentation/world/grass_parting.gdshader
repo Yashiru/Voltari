@@ -37,8 +37,12 @@ shader_type spatial;
 // `cull_disabled` is why this cannot simply *be* the shared shader: a blade is a
 // card and has to draw from both sides, and `render_mode` is per shader, not per
 // material. Everything else the world wears is a closed mesh that culls.
+//
+// It is lit, like everything else, so a blade takes the shadow a tree throws over
+// it — see decision 0064. A field where the shade under a tree is cool and the
+// rest is in sun is most of why a drawn world feels like a place.
 
-render_mode cull_disabled, unshaded, shadows_disabled;
+render_mode cull_disabled, specular_disabled, ambient_light_disabled;
 
 #include "res://game/presentation/creature/comic_look.gdshaderinc"
 #include "res://game/presentation/world/wind.gdshaderinc"
@@ -154,25 +158,33 @@ void vertex() {
 	// the wind left it. Handing it the upright one would shade a leaning tuft as
 	// though it were standing, which is the usual way animated foliage ends up
 	// looking painted on.
-	world_normal = comic_normal(NORMAL, MODEL_MATRIX);
 	world_here = comic_point(VERTEX, MODEL_MATRIX);
 	round_normal = world_here - comic_point(shape_centre, MODEL_MATRIX);
-	// The same fraction the wind was weighted by, handed to the look so the
+	model_up = comic_up(VERTEX.y);
+	look_uv = UV;
+	// Overwritten, with the fraction the wind was already weighted by, so the
 	// thatch, the tip tint and the contact band all measure from one place.
 	model_up = up_the_blade;
 }
 
 
 void fragment() {
-	vec3 paint = comic_paint(UV);
+	// White, deliberately: the renderer multiplies `DIFFUSE_LIGHT` by this, and
+	// the look writes the finished colour. See the top of the include.
+	ALBEDO = vec3(1.0);
+	ROUGHNESS = 1.0;
+	comic_fragment(NORMAL, VIEW_MATRIX);
+}
 
-	// The plant's own colour, before the print. Applied after `comic_paint` has
-	// saturated the fill rather than before, which costs an exact commutation
-	// nobody can see and saves splitting the shared function in two.
+
+void light() {
+	// The plant's own colour, before the print. Built here rather than in
+	// `fragment` because the paint is what `light` needs, and every value it reads
+	// is a varying.
+	vec3 paint = comic_paint();
 	paint *= mix(1.0 - root_shade, 1.0, model_up);
-	paint = mix(
-		paint, tip_tint.rgb, tip_tint_amount * model_up * model_up
-	);
+	paint = mix(paint, tip_tint.rgb, tip_tint_amount * model_up * model_up);
 
-	ALBEDO = comic_shade(paint, SCREEN_UV * VIEWPORT_SIZE, INV_VIEW_MATRIX);
+	comic_shade(paint, NORMAL, LIGHT, LIGHT_COLOR, ATTENUATION,
+			LIGHT_IS_DIRECTIONAL, FRAGCOORD.xy, DIFFUSE_LIGHT);
 }

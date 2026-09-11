@@ -1,0 +1,26 @@
+[gd_scene load_steps=2 format=3]
+
+; A model that carries the spot it stood on in the scene it was cut from, which
+; is how every model in a finished asset pack arrives. Off the origin on all
+; three axes, so a test of where it is stood up cannot pass by accident.
+;
+; A plane standing on its edge rather than a box, for two reasons nothing else
+; satisfies at once: `center_offset` is the only way to build a primitive away
+; from the origin and only `PlaneMesh` has it, and `FACE_Z` is what gives it a
+; height, so the base of the box is somewhere other than its middle.
+;
+; A node transform would have been the obvious way and does not work: a
+; transformed part goes through the combining path, which reads a surface's
+; primitive type — an `ArrayMesh` method that a primitive does not answer to.
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_offset"]
+; Local to the scene so every build gets its own mesh. A dressed surface is
+; deliberately never re-dressed, so a shared one would make these tests depend on
+; which of them ran first.
+resource_local_to_scene = true
+size = Vector2(1, 1)
+orientation = 2
+center_offset = Vector3(3, 2, -4)
+
+[node name="offset" type="MeshInstance3D"]
+mesh = SubResource("PlaneMesh_offset")

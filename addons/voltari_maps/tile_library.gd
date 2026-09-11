@@ -227,6 +227,7 @@ static func build(
 		if not produced.has(item_name):
 			report.orphaned.append(item_name)
 
+	_stand_all(library, by_name)
 	_dress_all(library, by_name, parting, grain, contact, rough, report)
 
 	_bake_previews(library)
@@ -474,6 +475,44 @@ static func _next_id(library: MeshLibrary) -> int:
 	for id: int in library.get_item_list():
 		highest = maxi(highest, id)
 	return highest + 1
+
+
+# --- standing every item on its own origin -----------------------------------
+
+
+## Puts every item's origin at the middle of the bottom of its mesh.
+##
+## **A model does not arrive there.** These packs are authored as finished scenes,
+## so a house carries the spot it stood on in the island it was cut from — 37 m
+## east and 28 m north, in one case. Painted on a grid, a cell would place the
+## model's *origin* and the model itself would appear a block away. The middle of
+## the base is the only origin that means anything to a tile: it is the point the
+## cell is actually asking about.
+##
+## Applied to every item and not only to new ones, so a rebuild straightens a
+## palette that was built before this existed.
+static func _stand_all(library: MeshLibrary, by_name: Dictionary[String, int]) -> void:
+	for item_name: String in by_name:
+		var id: int = by_name[item_name]
+		var mesh: Mesh = library.get_item_mesh(id)
+		if mesh == null:
+			continue
+		library.set_item_mesh_transform(id, Transform3D(Basis.IDENTITY, _standing(mesh)))
+
+
+## Where a mesh has to be moved to stand on the origin.
+##
+## Carried as the item's transform rather than baked into the vertices, for three
+## reasons. The mesh in the library is the *imported* one, shared with anything
+## that instances the model directly, and moving its vertices would move it there
+## too. The shader reads `model_base` and `model_height` off the mesh's own box,
+## so the artist's coordinates have to stay the artist's. And a transform is one
+## number to look at when a tile sits wrong, where baked geometry is a mesh nobody
+## can tell has been touched.
+static func _standing(mesh: Mesh) -> Vector3:
+	var box: AABB = mesh.get_aabb()
+	var middle: Vector3 = box.get_center()
+	return Vector3(-middle.x, -box.position.y, -middle.z)
 
 
 # --- the look everything wears ------------------------------------------------

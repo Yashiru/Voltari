@@ -60,6 +60,28 @@ why an existing flat palette can gain folders without any of its items moving.
 the consequence below: a palette built flat and tidied afterwards grows one
 orphan per file you moved.
 
+### Every tile stands on its own origin
+
+A model does not arrive at the origin. A finished pack is authored as scenes, so
+each piece carries the spot it stood on in the one it was cut from — a house in
+the Town Islands pack sits 37 m east and 28 m north of its own origin. A cell
+places an item's *origin*, so painted as-is the model would appear a block away
+from the cell you clicked.
+
+The build gives every item a transform putting the middle of its base on the
+origin. The geometry is not touched: the mesh keeps the artist's coordinates,
+which is what anything instancing the model directly still sees, and what the
+shader measures its height against.
+
+It applies to every item on every build, so rebuilding straightens a palette
+built before this existed — and moves every cell already painted with one.
+
+**Turn off `Cell > Center Y` on each layer.** A `GridMap` centres on all three
+axes by default, so a cell's origin is half a cell *above* the grid plane. Now
+that a tile's base is its origin, that half cell is the height everything floats
+at — 50 cm at a cell size of 1. Centring on X and Z is what you want and should
+stay on.
+
 Run it as often as you like. **Item ids never move**: an existing library is
 added to rather than replaced, an item keeps its id for as long as its name does,
 and an item whose model has gone keeps its id rather than freeing it for

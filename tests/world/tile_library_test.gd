@@ -220,6 +220,48 @@ func test_a_category_selects_surfaces_like_any_other_fragment() -> void:
 	assert_array(report.parting).not_contains(["loose"])
 
 
+# --- every item stands on its own origin --------------------------------------
+
+
+func test_an_item_is_stood_on_the_middle_of_its_base() -> void:
+	# A model arrives carrying the spot it stood on in the scene it was cut from.
+	# Painted on a grid, a cell places the model's origin, so an origin 37 m from
+	# the model puts the model 37 m from the cell.
+	_sorted()
+	var library: MeshLibrary = _library()
+
+	for id: int in library.get_item_list():
+		var mesh: Mesh = library.get_item_mesh(id)
+		var stood: AABB = library.get_item_mesh_transform(id) * mesh.get_aabb()
+		var item_name: String = library.get_item_name(id)
+
+		assert_float(stood.position.y).override_failure_message(
+			"\"%s\" floats or sinks: its base sits at y %f" % [item_name, stood.position.y]
+		).is_equal_approx(0.0, 0.001)
+		assert_float(stood.get_center().x).override_failure_message(
+			"\"%s\" is off centre by %f in x" % [item_name, stood.get_center().x]
+		).is_equal_approx(0.0, 0.001)
+		assert_float(stood.get_center().z).override_failure_message(
+			"\"%s\" is off centre by %f in z" % [item_name, stood.get_center().z]
+		).is_equal_approx(0.0, 0.001)
+
+
+func test_the_mesh_itself_is_left_where_the_artist_put_it() -> void:
+	# The offset is the item's transform, not moved geometry. The mesh in the
+	# library is the imported one, shared with anything that instances the model
+	# directly, and the shader reads `model_base` off its own box.
+	_sorted()
+	var library: MeshLibrary = _library()
+
+	for id: int in library.get_item_list():
+		if library.get_item_name(id) != "Props/offset":
+			continue
+		var box: AABB = library.get_item_mesh(id).get_aabb()
+		assert_vector(box.get_center()).override_failure_message(
+			"the geometry was moved instead of the item: the mesh now measures %s" % box
+		).is_equal_approx(Vector3(3.0, 2.0, -4.0), Vector3.ONE * 0.001)
+
+
 # --- one copy of the library, not two ----------------------------------------
 
 

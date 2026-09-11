@@ -63,12 +63,12 @@ extends MeshInstance3D
 ## What colour the leaves are, and how much of it they take. At zero a leaf is
 ## exactly the colour of the surface it grew on, which is what a patch does until
 ## somebody says otherwise.
-@export var colour: Color = Color(0.42, 0.72, 0.34):
+@export var colour: Color = Color(0.364, 0.7411, 0.082):
 	set(value):
 		colour = value
 		_regrow()
 
-@export_range(0.0, 1.0, 0.01) var colour_amount: float = 0.0:
+@export_range(0.0, 1.0, 0.01) var colour_amount: float = 1.0:
 	set(value):
 		colour_amount = value
 		_regrow()
@@ -116,12 +116,12 @@ extends MeshInstance3D
 ## breath are the world's, shared with the grass and the turf, and global by
 ## decision 0061. What a patch says is how hard *its* leaves answer: a sheltered
 ## bush barely stirs, a crown on a ridge sweeps, and zero is perfectly still.
-@export_range(0.0, 60.0, 0.5) var sway: float = 10.0:
+@export_range(0.0, 60.0, 0.5) var sway: float = 1.0:
 	set(value):
 		sway = value
 		_regrow()
 
-@export_range(0.0, 0.6, 0.01) var stem_hold: float = 0.15:
+@export_range(0.0, 0.6, 0.01) var stem_hold: float = 0.0:
 	set(value):
 		stem_hold = value
 		_regrow()

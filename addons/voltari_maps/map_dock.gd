@@ -65,6 +65,13 @@ var _width: SpinBox = null
 var _height: SpinBox = null
 var _report: RichTextLabel = null
 
+## The problems the report is currently showing, in the order it shows them.
+##
+## What a click resolves against. The link carries an index and not a
+## destination, because the destination is three values and a URL would be a
+## format somebody has to parse back — the report already knows them.
+var _shown: Array[VltMapProblem] = []
+
 
 func _init() -> void:
 	name = "Maps"
@@ -109,6 +116,8 @@ func _init() -> void:
 	_report.fit_content = false
 	_report.custom_minimum_size = Vector2(0, 180)
 	_report.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	# A problem with a place is a link, and this is where clicking one arrives.
+	_report.meta_clicked.connect(_on_problem_clicked)
 	add_child(_report)
 
 
@@ -198,6 +207,10 @@ func _on_validate_pressed() -> void:
 ##
 ## The problems are returned as well as shown. A button ignores the value; a test
 ## cannot read a label, and this is the only part of the dock worth asserting.
+##
+## Returned as sentences and shown as links. The run is the same run — the report
+## keeps the problems with their places, and this is the reading of them that a
+## test can compare against a string it wrote by hand.
 func validate() -> PackedStringArray:
 	var maps: Array[VltWorldMap] = []
 	var unreadable: PackedStringArray = PackedStringArray()
@@ -216,21 +229,24 @@ func validate() -> PackedStringArray:
 		# Reported as a problem rather than as a state. Asking to check a folder
 		# and being told nothing is wrong with nothing is the answer most likely
 		# to be misread.
-		var missing: PackedStringArray = PackedStringArray(
-			["no maps found in %s" % _folder.text]
-		)
+		var missing: Array[VltMapProblem] = [
+			VltMapProblem.of("no maps found in %s" % _folder.text)
+		]
 		_show(0, missing, unreadable)
-		return missing
+		return VltMapValidator.lines(missing)
 
-	var problems: PackedStringArray = VltMapValidator.check(
+	var problems: Array[VltMapProblem] = VltMapValidator.problems(
 		maps, VltContentPayloads.ids_in(ENCOUNTERS), _entry.text, VltTranslationTable.all_keys()
 	)
 	var checked: int = maps.size()
+	# Safe to free: a problem carries a path and a cell as values, not a
+	# reference into the map it came from. Holding one would mean the report
+	# keeping every map in the folder alive for as long as it is on screen.
 	for map: VltWorldMap in maps:
 		map.free()
 
 	_show(checked, problems, unreadable)
-	return problems
+	return VltMapValidator.lines(problems)
 
 
 ## Not every scene under the folder is a map — a tile library's source scene
@@ -250,9 +266,24 @@ func _scene_paths(folder: String) -> PackedStringArray:
 	return found
 
 
+## Writes the report, with every problem that has a place made clickable.
+##
+## **The report was a wall of text that told you where to go and would not take
+## you there.** A warp at (14, 9) of a map in another file is a sentence anybody
+## can read and nobody can act on without opening two scenes and counting cells.
+##
+## A link per problem, resolved by index into `_shown`: the sentences are written
+## by the validator and reading a destination back out of one would mean parsing
+## a format that is not a contract.
+##
+## A problem with nowhere to go is written plainly rather than as a dead link.
+## "no map has a rest point" is about the whole world, and a link that did
+## nothing would be worse than no link at all.
 func _show(
-	checked: int, problems: PackedStringArray, unreadable: PackedStringArray
+	checked: int, problems: Array[VltMapProblem], unreadable: PackedStringArray
 ) -> void:
+	_shown = problems
+
 	var lines: PackedStringArray = PackedStringArray()
 
 	if problems.is_empty():
@@ -261,13 +292,61 @@ func _show(
 		lines.append("[color=orange]%d problem(s) in %d map(s):[/color]" % [
 			problems.size(), checked
 		])
-		for problem: String in problems:
-			lines.append("  • %s" % problem)
+		for index: int in range(problems.size()):
+			var problem: VltMapProblem = problems[index]
+			if problem.navigable():
+				lines.append("  • [url=%d]%s[/url]" % [index, problem.message])
+			else:
+				lines.append("  • %s" % problem.message)
 
 	for path: String in unreadable:
 		lines.append("[color=gray]not a map, skipped: %s[/color]" % path)
 
 	_say("\n".join(lines))
+
+
+## Opens the map a problem is on, and selects what the problem is about.
+##
+## The scene first, then the selection on the next frame: opening one replaces
+## the edited scene, and a node picked out of the old tree would be selected in a
+## scene that is on its way out.
+func _on_problem_clicked(meta: Variant) -> void:
+	var index: int = str(meta).to_int()
+	if index < 0 or index >= _shown.size():
+		return
+
+	var problem: VltMapProblem = _shown[index]
+	if not problem.navigable():
+		return
+
+	EditorInterface.open_scene_from_path(problem.scene_path)
+	if problem.located:
+		_reveal.call_deferred(problem.cell)
+
+
+## Selects whatever is placed on a cell, or the map when nothing is.
+##
+## A cell is not a thing that can be selected, so the nearest honest answer is
+## the node that claims it — the warp, the event, the rest point the problem is
+## about. Falling back to the map itself still puts the author in the right
+## scene, which is most of the distance.
+func _reveal(cell: Vector2i) -> void:
+	var map: VltWorldMap = EditorInterface.get_edited_scene_root() as VltWorldMap
+	if map == null:
+		return
+
+	var target: Node = map
+	for child: Node in map.get_children():
+		var placed: Node3D = child as Node3D
+		if placed == null or not VltMapPlacement.is_placed(placed):
+			continue
+		if VltMapPlacement.cells_of(placed).has(cell):
+			target = placed
+			break
+
+	var chosen: EditorSelection = EditorInterface.get_selection()
+	chosen.clear()
+	chosen.add_node(target)
 
 
 func _on_new_map_pressed() -> void:

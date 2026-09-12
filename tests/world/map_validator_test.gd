@@ -279,3 +279,110 @@ func test_all_problems_are_reported_rather_than_the_first() -> void:
 	field.add_child(VltFixtureMap.zone("swamp", Vector2i(0, 0), Vector2i(2, 2)))
 
 	assert_int(_problems(_maps([field])).size()).is_greater(1)
+
+
+# --- where each problem is ----------------------------------------------------
+#
+# The sentences are what a person reads and they have not changed. What is new is
+# that each problem also says where it is, so a report can be walked to rather
+# than only read. These are about that second reading staying honest: a place
+# that is wrong is worse than no place, because it sends somebody somewhere.
+
+
+func test_both_readings_come_from_one_run() -> void:
+	# `check` is `lines` of `problems`, so the two cannot disagree. Pinned anyway:
+	# the day somebody reimplements one of them, this is what says no.
+	var field: VltWorldMap = _field("field")
+	field.add_child(
+		VltFixtureMap.warp(Vector2i(1, 1), "nowhere", Vector2i(0, 0), VltFacing.Direction.NORTH)
+	)
+
+	var maps: Array[VltWorldMap] = _maps([field])
+	var carried: Array[VltMapProblem] = VltMapValidator.problems(maps, _tables())
+	assert_array(VltMapValidator.lines(carried)).is_equal(VltMapValidator.check(maps, _tables()))
+
+
+func test_a_broken_warp_carries_its_own_cell_and_file() -> void:
+	var field: VltWorldMap = auto_free(
+		VltFixtureMap.map("field", VltFixtureMap.filled(Vector2i(4, 4)), [Vector2i(2, 2)])
+	)
+	field.scene_file_path = "res://game/maps/field.tscn"
+	field.add_child(VltFixtureMap.rest(Vector2i(0, 0)))
+	field.add_child(
+		VltFixtureMap.warp(Vector2i(2, 2), "field", Vector2i(0, 0), VltFacing.Direction.NORTH)
+	)
+
+	var found: VltMapProblem = _carrying(
+		VltMapValidator.problems(_maps([field]), _tables()), "cannot be stood on"
+	)
+	assert_object(found).is_not_null()
+	assert_bool(found.located).is_true()
+	assert_vector(found.cell).is_equal(Vector2i(2, 2))
+	assert_str(found.scene_path).is_equal("res://game/maps/field.tscn")
+
+
+func test_a_zone_problem_carries_the_corner_it_is_named_by() -> void:
+	var field: VltWorldMap = _field("field")
+	field.scene_file_path = "res://game/maps/field.tscn"
+	field.add_child(VltFixtureMap.zone("", Vector2i(1, 2), Vector2i(2, 2)))
+
+	var found: VltMapProblem = _carrying(
+		VltMapValidator.problems(_maps([field]), _tables()), "names no encounter table"
+	)
+	assert_object(found).is_not_null()
+	assert_vector(found.cell).is_equal(Vector2i(1, 2))
+
+
+func test_a_flag_nothing_sets_carries_the_event_that_reads_it() -> void:
+	# The two halves of a flag typo are found in one walk and reported after it,
+	# so the place each was seen has to survive the walk.
+	var field: VltWorldMap = _field("field")
+	field.scene_file_path = "res://game/maps/field.tscn"
+	var steps: Array[VltEventStep] = [VltFixtureEvent.branch("met_the_elder")]
+	field.add_child(VltFixtureEvent.event(steps, VltEvent.Trigger.INTERACT, Vector2i(3, 1)))
+
+	var found: VltMapProblem = _carrying(
+		VltMapValidator.problems(_maps([field]), _tables()), "which nothing ever sets"
+	)
+	assert_object(found).is_not_null()
+	assert_vector(found.cell).is_equal(Vector2i(3, 1))
+	assert_str(found.scene_path).is_equal("res://game/maps/field.tscn")
+
+
+func test_a_problem_about_the_world_has_nowhere_to_send_anybody() -> void:
+	# "no map has a rest point" is about every map at once. A link on it would
+	# have to pick one, and picking one would be a guess dressed as an answer.
+	var found: VltMapProblem = _carrying(
+		VltMapValidator.problems(_maps([_bare("field")]), _tables()), "no map has a rest point"
+	)
+	assert_object(found).is_not_null()
+	assert_bool(found.navigable()).is_false()
+	assert_bool(found.located).is_false()
+
+
+func test_a_map_built_in_code_has_no_file_to_point_at() -> void:
+	# Every fixture in this suite is one, and a report that offered to open them
+	# would offer to open nothing.
+	var field: VltWorldMap = _field("field")
+	field.add_child(
+		VltFixtureMap.warp(Vector2i(1, 1), "nowhere", Vector2i(0, 0), VltFacing.Direction.NORTH)
+	)
+
+	var found: VltMapProblem = _carrying(
+		VltMapValidator.problems(_maps([field]), _tables()), "leads to unknown map"
+	)
+	assert_object(found).is_not_null()
+	assert_bool(found.navigable()).is_false()
+
+
+func test_nothing_wrong_says_nothing() -> void:
+	var nothing: Array[VltMapProblem] = []
+	assert_array(VltMapValidator.lines(nothing)).is_empty()
+
+
+## The first problem whose sentence contains a fragment, or null.
+func _carrying(found: Array[VltMapProblem], fragment: String) -> VltMapProblem:
+	for problem: VltMapProblem in found:
+		if problem.message.contains(fragment):
+			return problem
+	return null

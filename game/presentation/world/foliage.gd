@@ -51,6 +51,44 @@ const OUTLINE: Array[Vector2] = [
 ]
 
 
+## Where one leaf stands, before it is anything that can be drawn.
+##
+## **The placement and the geometry are two questions now** (decision 0078).
+## Sowing answers where every leaf goes; what is then built from that is a
+## choice — a mesh for one model, or an instance buffer shared by every tree of
+## a species. One sowing, two readings, and no chance of the two disagreeing
+## about where a leaf is.
+class Leaf:
+	extends RefCounted
+
+	## Position, orientation and size, in the source mesh's own space. The card
+	## lies in the basis's x/y plane and faces along its z.
+	var at: Transform3D = Transform3D.IDENTITY
+
+	## The normal of the surface it grew on, in the same space.
+	##
+	## Not the leaf's own facing, which is `at.basis.z` and leans off this one.
+	## Decision 0064 in a field: a leaf shades as the branch.
+	var out: Vector3 = Vector3.UP
+
+	## Which flat tone it drew, from nothing to the full spread.
+	var tone: float = 1.0
+
+	## Stem to tip, in the source mesh's units.
+	var size: float = 1.0
+
+
+## One surface's leaves, and which surface they grew on.
+##
+## Kept apart per surface because the material is the surface's: a leaf is the
+## colour of what it grew from.
+class Sowing:
+	extends RefCounted
+
+	var surface: int = 0
+	var leaves: Array[Leaf] = []
+
+
 ## What one sowing looks like. Everything an author would reach for, and nothing
 ## that is a consequence of something else.
 class Settings:
@@ -177,8 +215,35 @@ static func leaves(source: Mesh, seed: int, settings: Settings) -> ArrayMesh:
 	if array_source == null:
 		return grown
 
-	var scatter: RandomNumberGenerator = RandomNumberGenerator.new()
-	scatter.seed = seed
+	for sowing: Sowing in scatter(array_source, seed, settings):
+		var built: Array = _geometry_of(sowing.leaves)
+		if built.is_empty():
+			continue
+		grown.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, built)
+		# The surface's own material, so a leaf is the colour of what it grew
+		# from, with nothing anywhere having to know which surface is which —
+		# unless a colour was asked for.
+		grown.surface_set_material(
+			grown.get_surface_count() - 1,
+			_coloured(array_source.surface_get_material(sowing.surface), settings)
+		)
+
+	return grown
+
+
+## Where every leaf of one sowing stands.
+##
+## **The one place the scatter is decided.** Both readings — a mesh, an instance
+## buffer — are built from this, so neither can drift from the other, and the
+## seed means the same tree comes back whichever one is asked for.
+static func scatter(source: Mesh, seed: int, settings: Settings) -> Array[Sowing]:
+	var found: Array[Sowing] = []
+	var array_source: ArrayMesh = source as ArrayMesh
+	if array_source == null:
+		return found
+
+	var picker: RandomNumberGenerator = RandomNumberGenerator.new()
+	picker.seed = seed
 	var enough: float = _dominant(array_source) * settings.dominant_share
 	var span: float = _span_of(array_source)
 
@@ -186,19 +251,15 @@ static func leaves(source: Mesh, seed: int, settings: Settings) -> ArrayMesh:
 		var arrays: Array = array_source.surface_get_arrays(surface)
 		if _area_of(arrays) < enough:
 			continue
-		var sprigs: Array = _leaves_over(arrays, scatter, settings, span)
-		if sprigs.is_empty():
+		var placed: Array[Leaf] = _scatter_over(arrays, picker, settings, span)
+		if placed.is_empty():
 			continue
-		grown.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, sprigs)
-		# The surface's own material, so a leaf is the colour of what it grew
-		# from, with nothing anywhere having to know which surface is which —
-		# unless a colour was asked for.
-		grown.surface_set_material(
-			grown.get_surface_count() - 1,
-			_coloured(array_source.surface_get_material(surface), settings)
-		)
+		var one: Sowing = Sowing.new()
+		one.surface = surface
+		one.leaves = placed
+		found.append(one)
 
-	return grown
+	return found
 
 
 ## The shader a leaf wears: the shared look, plus the one wind.
@@ -312,20 +373,25 @@ static func _dominant(source: ArrayMesh) -> float:
 	return largest
 
 
-## One surface's worth of leaves, as arrays ready to become a surface.
-static func _leaves_over(
-	arrays: Array, scatter: RandomNumberGenerator, settings: Settings, span: float
-) -> Array:
+## One surface's worth of placements.
+##
+## The sampling is unchanged and the order it draws random numbers in is part of
+## the contract: the same seed has to give the same tree, and a reordering here
+## would silently reroll every map.
+static func _scatter_over(
+	arrays: Array, picker: RandomNumberGenerator, settings: Settings, span: float
+) -> Array[Leaf]:
+	var placed: Array[Leaf] = []
 	if typeof(arrays[Mesh.ARRAY_VERTEX]) != TYPE_PACKED_VECTOR3_ARRAY:
-		return []
+		return placed
 	if typeof(arrays[Mesh.ARRAY_INDEX]) != TYPE_PACKED_INT32_ARRAY:
-		return []
+		return placed
 	@warning_ignore("unsafe_cast")
 	var points: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array
 	@warning_ignore("unsafe_cast")
 	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] as PackedInt32Array
 	if points.size() < 3 or indices.size() < 3:
-		return []
+		return placed
 
 	# The mesh's own normals, when it has them.
 	#
@@ -337,10 +403,6 @@ static func _leaves_over(
 	# carries an inverted normal, so the shading comes out exactly backwards: the
 	# shadow lands on the lit side, which is what the maintainer saw on a cactus
 	# while the rest of the scene agreed with itself.
-	#
-	# A mesh's normals are the mesh's own answer to which way is out. This was
-	# written once, reverted with an unrelated rework, and is back with a test
-	# holding it.
 	var carried: PackedVector3Array = PackedVector3Array()
 	if typeof(arrays[Mesh.ARRAY_NORMAL]) == TYPE_PACKED_VECTOR3_ARRAY:
 		@warning_ignore("unsafe_cast")
@@ -362,15 +424,10 @@ static func _leaves_over(
 
 	var wanted: int = roundi(running * settings.density)
 	if wanted <= 0 or running <= 0.0:
-		return []
-
-	var grown: PackedVector3Array = PackedVector3Array()
-	var facing: PackedVector3Array = PackedVector3Array()
-	var hinge: PackedColorArray = PackedColorArray()
-	var stitched: PackedInt32Array = PackedInt32Array()
+		return placed
 
 	for leaf: int in range(wanted):
-		var picked: int = _triangle_at(reach, scatter.randf() * running)
+		var picked: int = _triangle_at(reach, picker.randf() * running)
 		var corner: int = picked * 3
 		var a: Vector3 = points[indices[corner]]
 		var b: Vector3 = points[indices[corner + 1]]
@@ -378,8 +435,8 @@ static func _leaves_over(
 
 		# Uniform over the triangle. The square root is what stops the points
 		# from piling into one corner.
-		var edge: float = sqrt(scatter.randf())
-		var across: float = scatter.randf()
+		var edge: float = sqrt(picker.randf())
+		var across: float = picker.randf()
 		var root: Vector3 = a + (b - a) * edge * (1.0 - across) + (c - a) * edge * across
 
 		var out: Vector3 = Vector3.ZERO
@@ -397,10 +454,84 @@ static func _leaves_over(
 			continue
 		out = out.normalized()
 
-		_grow(grown, facing, hinge, stitched, root, out, scatter, settings, span)
+		placed.append(_place(root, out, picker, settings, span))
 
-	if grown.is_empty():
+	return placed
+
+
+## Where one leaf stands on a surface facing `out`.
+static func _place(
+	root: Vector3,
+	out: Vector3,
+	picker: RandomNumberGenerator,
+	settings: Settings,
+	span: float
+) -> Leaf:
+	# The leaf's own frame: its face points out of the surface, leaned over by a
+	# little, and it is spun freely about that face so no two are alike.
+	var leaned: Vector3 = _leaned(out, picker, deg_to_rad(settings.lean))
+	var sideways: Vector3 = _across(leaned)
+	var upwards: Vector3 = leaned.cross(sideways)
+	var spin: float = picker.randf() * TAU
+	var right: Vector3 = sideways * cos(spin) + upwards * sin(spin)
+	var up: Vector3 = upwards * cos(spin) - sideways * sin(spin)
+
+	var size: float = lerpf(settings.smallest, settings.largest, picker.randf()) * span
+
+	# One tone for the whole leaf, drawn once — a leaf is a flat shape and
+	# shading half of it differently would make it read as two.
+	var steps: int = maxi(settings.tone_steps, 1)
+	var tone: float = 1.0
+	if steps > 1:
+		tone = float(picker.randi() % steps) / float(steps - 1)
+
+	var made: Leaf = Leaf.new()
+	made.at = Transform3D(
+		Basis(right * size, up * size, leaned * size),
+		root + out * (size * settings.lift)
+	)
+	made.out = out
+	made.tone = tone
+	made.size = size
+	return made
+
+
+## Placements turned into the arrays of one surface.
+##
+## The reading a single model wants: everything welded into one mesh, which is
+## what a preview and a test look at. The reading the game wants is an instance
+## buffer — see `cards` and `spread`.
+static func _geometry_of(placed: Array[Leaf]) -> Array:
+	if placed.is_empty():
 		return []
+
+	var grown: PackedVector3Array = PackedVector3Array()
+	var facing: PackedVector3Array = PackedVector3Array()
+	var hinge: PackedColorArray = PackedColorArray()
+	var stitched: PackedInt32Array = PackedInt32Array()
+
+	for leaf: Leaf in placed:
+		var first: int = grown.size()
+		for point: Vector2 in OUTLINE:
+			grown.append(leaf.at * Vector3(point.x, point.y, 0.0))
+			# What the wind needs and the geometry cannot say once it is merged:
+			# how far along its own leaf this vertex sits, and how long that leaf
+			# is.
+			#
+			# In the colour channel rather than the UVs, because the UVs are what
+			# the shared look samples a texture with — a leaf would then read its
+			# branch's artwork at coordinates that mean something else entirely.
+			hinge.append(Color(point.y, leaf.size, leaf.tone, 1.0))
+			# **The surface's normal, not the leaf's.** See the class comment:
+			# this one line is the difference between a bush and a heap of flakes.
+			facing.append(leaf.out)
+
+		# Wound once — see the note on `OUTLINE` and decision 0078. The shader
+		# turns culling off, so one winding is visible from either side.
+		for corner: int in range(1, OUTLINE.size() - 1):
+			stitched.append(first)
+			stitched.append(first + corner)
+			stitched.append(first + corner + 1)
 
 	var made: Array = []
 	made.resize(Mesh.ARRAY_MAX)
@@ -411,74 +542,12 @@ static func _leaves_over(
 	return made
 
 
-## One leaf, standing at `root` on a surface facing `out`.
-static func _grow(
-	grown: PackedVector3Array,
-	facing: PackedVector3Array,
-	hinge: PackedColorArray,
-	stitched: PackedInt32Array,
-	root: Vector3,
-	out: Vector3,
-	scatter: RandomNumberGenerator,
-	settings: Settings,
-	span: float
-) -> void:
-	# The leaf's own frame: its face points out of the surface, leaned over by a
-	# little, and it is spun freely about that face so no two are alike.
-	var leaned: Vector3 = _leaned(out, scatter, deg_to_rad(settings.lean))
-	var sideways: Vector3 = _across(leaned)
-	var upwards: Vector3 = leaned.cross(sideways)
-	var spin: float = scatter.randf() * TAU
-	var right: Vector3 = sideways * cos(spin) + upwards * sin(spin)
-	var up: Vector3 = upwards * cos(spin) - sideways * sin(spin)
-
-	var size: float = lerpf(settings.smallest, settings.largest, scatter.randf()) * span
-
-	# One tone for the whole leaf, drawn once and written to all six of its
-	# points — a leaf is a flat shape and shading half of it differently would
-	# make it read as two.
-	var steps: int = maxi(settings.tone_steps, 1)
-	var tone: float = 1.0
-	if steps > 1:
-		tone = float(scatter.randi() % steps) / float(steps - 1)
-	var stem: Vector3 = root + out * (size * settings.lift)
-	var first: int = grown.size()
-
-	for point: Vector2 in OUTLINE:
-		grown.append(stem + (right * point.x + up * point.y) * size)
-		# What the wind needs and the geometry cannot say once it is merged: how
-		# far along its own leaf this vertex sits, and how long that leaf is.
-		#
-		# In the colour channel rather than the UVs, because the UVs are what the
-		# shared look samples a texture with — a leaf would then read its branch's
-		# artwork at coordinates that mean something else entirely.
-		hinge.append(Color(point.y, size, tone, 1.0))
-		# **The surface's normal, not the leaf's.** See the class comment: this
-		# one line is the difference between a bush and a heap of flakes.
-		facing.append(out)
-
-	# **Wound once.** A leaf is a flat shape and has to be visible from either
-	# side, which it was given by winding it twice — on the stated grounds that
-	# `cull_disabled` "would draw every leaf four times". That is not what
-	# `cull_disabled` does: it rasterises each triangle once and accepts either
-	# facing. Winding twice submits two triangles and throws one away, which is
-	# twice the geometry for an identical image (decision 0078).
-	#
-	# The shader turns culling off instead. Both readings show the same thing
-	# because both faces carried the same normal — the support's — so there was
-	# never a seam to hide.
-	for corner: int in range(1, OUTLINE.size() - 1):
-		stitched.append(first)
-		stitched.append(first + corner)
-		stitched.append(first + corner + 1)
-
-
 ## `out`, tipped over by up to `most` radians in a random direction.
-static func _leaned(out: Vector3, scatter: RandomNumberGenerator, most: float) -> Vector3:
+static func _leaned(out: Vector3, picker: RandomNumberGenerator, most: float) -> Vector3:
 	var sideways: Vector3 = _across(out)
 	var upwards: Vector3 = out.cross(sideways)
-	var tip: float = scatter.randf() * most
-	var way: float = scatter.randf() * TAU
+	var tip: float = picker.randf() * most
+	var way: float = picker.randf() * TAU
 	return (out * cos(tip)
 		+ (sideways * cos(way) + upwards * sin(way)) * sin(tip)).normalized()
 

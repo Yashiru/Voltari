@@ -56,6 +56,12 @@ var _dock: VltMapDock = null
 var _snap: Button = null
 var _views: MenuButton = null
 var _place: Button = null
+var _tidy: MenuButton = null
+
+## The tidying gestures, as menu ids.
+const TIDY_DROP: int = 0
+const TIDY_ALIGN: int = 1
+const TIDY_SPREAD: int = 2
 
 ## How the next prop is turned and sized. The dock writes to it; the viewport
 ## reads it (`VltPropBrush`).
@@ -155,6 +161,21 @@ func _enter_tree() -> void:
 	_place.tooltip_text = ("Click the ground to place the palette's selected item as a prop.\n"
 		+ "Turn and size come from the Maps dock. Off, the viewport is the engine's own.")
 	add_control_to_container(CONTAINER_SPATIAL_EDITOR_MENU, _place)
+
+	# The three tidying gestures, behind one menu for the reason the views are:
+	# they act on a selection, are reached for one at a time, and would otherwise
+	# occupy the toolbar for the rest of the session.
+	_tidy = MenuButton.new()
+	_tidy.text = "Tidy props"
+	_tidy.tooltip_text = "Rearrange the selected props."
+	_tidy.switch_on_hover = false
+	var tidy: PopupMenu = _tidy.get_popup()
+	tidy.add_item("Drop to ground", TIDY_DROP)
+	tidy.add_item("Align on one line", TIDY_ALIGN)
+	tidy.add_item("Space evenly", TIDY_SPREAD)
+	tidy.id_pressed.connect(_on_tidy_pressed)
+	add_control_to_container(CONTAINER_SPATIAL_EDITOR_MENU, _tidy)
+
 	if _dock != null:
 		_dock.brush_changed.connect(_on_brush_changed)
 		_on_brush_changed()
@@ -164,6 +185,10 @@ func _enter_tree() -> void:
 
 func _exit_tree() -> void:
 	set_process(false)
+	if _tidy != null:
+		remove_control_from_container(CONTAINER_SPATIAL_EDITOR_MENU, _tidy)
+		_tidy.queue_free()
+		_tidy = null
 	if _place != null:
 		remove_control_from_container(CONTAINER_SPATIAL_EDITOR_MENU, _place)
 		_place.queue_free()
@@ -641,7 +666,13 @@ func place_at(camera: Camera3D, at: Vector2) -> bool:
 
 	@warning_ignore("unsafe_cast")
 	var landed: Vector3 = where as Vector3
-	_add_prop(map, root, mesh, grid.mesh_library.get_item_name(item), _brush.next_at(landed))
+	# Onto the tile's top face, not the grid plane. A tile has a thickness — over a
+	# metre of it on the maintainer's pack — so a prop left on the plane stands
+	# with its feet underground, which reads as the model being wrong.
+	_add_prop(
+		map, root, mesh, grid.mesh_library.get_item_name(item),
+		_brush.next_at(VltMapPlacement.dropped(map, landed))
+	)
 	return true
 
 
@@ -705,6 +736,97 @@ func _add_prop(
 	undo.add_undo_method(map, "forget_shapes")
 	undo.commit_action()
 
+	map.update_gizmos()
+
+
+# --- tidying what is already placed -------------------------------------------
+
+
+func _on_tidy_pressed(id: int) -> void:
+	match id:
+		TIDY_DROP:
+			drop_selection()
+		TIDY_ALIGN:
+			align_selection()
+		TIDY_SPREAD:
+			spread_selection()
+
+
+## Sits the selected props on the tile beneath each of them.
+##
+## Its own gesture rather than something the brush does continuously: a prop
+## deliberately sunk into the ground or standing on a ledge is art, and a drop
+## that could not be declined would make that impossible rather than optional —
+## the same argument *Snap to cells* already makes about the grid.
+func drop_selection() -> void:
+	_move_selection("Drop to ground", func(map: VltWorldMap, points: Array[Vector3]) -> Array[Vector3]:
+		var dropped: Array[Vector3] = []
+		for point: Vector3 in points:
+			dropped.append(VltMapPlacement.dropped(map, point))
+		return dropped
+	)
+
+
+## Moves the selected props onto one line.
+func align_selection() -> void:
+	_move_selection("Align props", func(_map: VltWorldMap, points: Array[Vector3]) -> Array[Vector3]:
+		return VltPropLayout.aligned(points)
+	)
+
+
+## Spaces the selected props evenly between the two outermost of them.
+func spread_selection() -> void:
+	_move_selection("Spread props", func(_map: VltWorldMap, points: Array[Vector3]) -> Array[Vector3]:
+		return VltPropLayout.spread(points)
+	)
+
+
+## The shape all three share: read the selected props' positions, hand them to
+## something that rearranges them, write them back undoably.
+##
+## **The order is the selection's, and the answer is given back in that order.**
+## `VltPropLayout` sorts internally where it has to and returns its answer in the
+## order it was handed, so a node keeps whichever position was worked out for it.
+func _move_selection(
+	named: String, rearranged: Callable
+) -> void:
+	var props: Array[VltProp] = []
+	var map: VltWorldMap = null
+
+	for node: Node in EditorInterface.get_selection().get_selected_nodes():
+		var prop: VltProp = node as VltProp
+		if prop == null:
+			continue
+		var owned: VltWorldMap = VltMapPlacement.map_of(prop)
+		if owned == null:
+			continue
+		if map == null:
+			map = owned
+		props.append(prop)
+
+	if props.is_empty():
+		_say("Select some props first — %s acts on what is selected." % named.to_lower())
+		return
+
+	var was: Array[Vector3] = []
+	for prop: VltProp in props:
+		was.append(prop.position)
+
+	@warning_ignore("unsafe_cast")
+	var wanted: Array[Vector3] = rearranged.call(map, was) as Array[Vector3]
+	if wanted.size() != was.size():
+		return
+
+	var undo: EditorUndoRedoManager = get_undo_redo()
+	undo.create_action(named)
+	for index: int in range(props.size()):
+		if wanted[index].is_equal_approx(was[index]):
+			continue
+		undo.add_do_property(props[index], "position", wanted[index])
+		undo.add_undo_property(props[index], "position", was[index])
+	undo.add_do_method(map, "forget_shapes")
+	undo.add_undo_method(map, "forget_shapes")
+	undo.commit_action()
 	map.update_gizmos()
 
 

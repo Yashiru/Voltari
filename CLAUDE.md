@@ -173,17 +173,17 @@ should not be reintroduced from older notes). A pipeline outside the repository
 takes a rigged FBX to a ready-to-instance `.tscn`; spec 16 describes the contract
 it produces.
 
-**The creature models are committed, through LFS.** 897 of them under
-`game/assets/species/`, with `.gitattributes` sending every binary to LFS — a
-`.glb` is already compressed, so an ordinary commit of one is the whole file
-again, kept forever (decision 0071, which supersedes half of 0027).
+**Every asset is committed, through LFS.** The 897 creature models under
+`game/assets/species/` are the project's own (decision 0071); the tile pack
+beside them is licensed for redistribution (decision 0074). `.gitattributes`
+sends every binary to LFS — a `.glb` is already compressed, so an ordinary commit
+of one is the whole file again, kept forever.
 
-**The tile pack is still quarantined.** `game/assets/species/brawl_arena/` and
-the `.meshlib` built from it are Unity Asset Store packs: licensed to use in a
-game, not to redistribute, and a repository redistributes. The guard of decision
-0027 now watches those two paths and refuses them in the index, the tree, the
-whole history and every export preset. Never stage anything under them, and
-prefer path-scoped `git add` over `-A` at the repository root.
+**Nothing is quarantined any more, and `species-guard` is gone with it.** The
+clean-room rule above is untouched: no third-party code enters this repository,
+and reference implementations are read as behavioural documentation only. The
+habit decision 0027 left behind is still worth keeping — prefer path-scoped
+`git add` over `-A` at the repository root.
 
 **Presentation lives in `game/presentation/`**, not in the addon: it carries this
 game's art direction, so it is not the reusable engine (decision 0046). The

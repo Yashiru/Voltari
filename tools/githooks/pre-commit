@@ -1,4 +1,0 @@
-#!/bin/sh
-# Third-party species must never be committed. See
-# tools/species-guard/species-guard.mjs for what this checks and why.
-exec node "$(git rev-parse --show-toplevel)/tools/species-guard/species-guard.mjs" --staged --quiet

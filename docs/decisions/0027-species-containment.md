@@ -1,5 +1,10 @@
 # 0027 — Third-party species stay on one machine
 
+**Status:** Superseded — the creature models by decision 0071, the tile pack and
+the guard itself by decision 0074. Nothing described below is still enforced.
+Kept because the incident it records is why `git add -A` at the repository root
+is still a bad habit, whatever is or is not licensed.
+
 ## Context
 
 Gameplay needs creatures to test with long before the artist's models arrive.

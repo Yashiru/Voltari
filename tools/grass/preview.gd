@@ -17,8 +17,9 @@ extends SceneTree
 ##   walk_NN.png   walking cell to cell, from the angle the game looks from
 ##   jostle_NN.png the same, from above, where a cell swinging is unmistakable
 ##
-## It reads the quarantined library (decision 0027) and runs on one machine only,
-## which is the same footing as the manifest builder.
+## It reads the tile library, which is committed like everything else since
+## decision 0074 — so it runs anywhere the repository does, rather than on the one
+## machine that had the models.
 
 const LIBRARY: String = "res://game/assets/species/brawl_arena.meshlib"
 const ITEM: String = "GrassB"

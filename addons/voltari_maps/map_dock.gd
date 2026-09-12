@@ -21,10 +21,11 @@ const ENCOUNTERS: String = "res://content/generated/encounters"
 
 ## Where models are read from, and where the palette built from them is written.
 ##
-## Both default inside the quarantine (decision 0027) because that is where
-## third-party models live and a library built from them is derived from them. A
-## clone gets the maps and not the palette — a `GridMap` keeps its cells with no
-## library at all, so the world stays walkable and turns invisible.
+## Both default beside the models, because a library built from them belongs with
+## them. All of it is committed through LFS (decision 0074), so a clone gets the
+## palette as well as the maps — which it did not until that decision, and a
+## `GridMap` with no library keeps its cells regardless, staying walkable and
+## turning invisible.
 const MODELS: String = "res://game/assets/species/brawl_arena"
 const LIBRARY: String = "res://game/assets/species/brawl_arena.meshlib"
 

@@ -20,13 +20,8 @@ node_modules/
 .DS_Store
 Thumbs.db
 
-# The creature models are the project's own and are committed, through LFS.
-#
-# What stays out is the tile pack: `brawl_arena/` is two Unity Asset Store packs,
-# and the `.meshlib` is built from them and is therefore derived from them. A
-# licence to use an asset in a game is not a licence to redistribute the asset,
-# and a repository redistributes. The maps painted with it still work for a
-# clone — a `GridMap` keeps its cells with no library at all, so the world stays
-# walkable and turns invisible.
-/game/assets/species/brawl_arena/
-/game/assets/species/brawl_arena.meshlib
+# Nothing under `game/assets/species/` is ignored any more. The creature models
+# are the project's own (decision 0071) and the tile pack is licensed for
+# redistribution (decision 0074), so both are committed through LFS — see
+# `.gitattributes`. A clone therefore renders instead of opening a world that is
+# walkable and completely invisible.

@@ -282,17 +282,14 @@ const EVERY_SLOT = new Set(Object.values(SLOTS).flat());
 // omission is not (decision 0047).
 const FALLBACK = /^use\s+(\S+)$/;
 
-/// Where the quarantined models live (decision 0027).
-const QUARANTINE = "res://game/assets/species/";
-
 /// Whether a scene is really there.
 ///
-/// A path under the quarantine is accepted without looking, and that is not a
-/// hole: decision 0027 guarantees those files are on exactly one machine, so a
-/// check here would fail on every clone but one and say nothing true. What it
-/// still catches is the ordinary case — a fakemon whose scene was renamed.
+/// Paths under `game/assets/species/` used to be accepted without looking,
+/// because decision 0027 put those files on exactly one machine and a check here
+/// would have failed on every clone but that one while saying nothing true.
+/// Decision 0074 committed them, so the check is real everywhere and a renamed
+/// species scene is caught like any other.
 function existsSince(path) {
-  if (path.startsWith(QUARANTINE)) return true;
   return existsSync(join(REPO, path.slice("res://".length)));
 }
 

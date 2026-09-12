@@ -18,21 +18,20 @@ editor state and this repository does not commit changes to it on your behalf.
 
 ## 1. Get models in
 
-Tile packs are **third-party until they are not**, and a third-party asset never
-enters this repository (decision 0027). A licence to use one in a game is not a
-licence to redistribute it, and a repository redistributes. Put them here:
+Models live under `game/assets/species/`, and the tile pack is here:
 
 ```
 game/assets/species/brawl_arena/
 ```
 
-That path and the `.meshlib` built from it are git-ignored and guarded on the
-index, the tree, the whole history and every export preset. Never stage anything
-under them, and prefer path-scoped `git add` over `-A` at the repository root.
+All of it is committed. `.gitattributes` sends binaries to LFS on its own, so a
+pack dropped in that folder needs nothing done to it — decisions 0071 and 0074.
 
-The creature models beside them are the project's own and *are* committed, through
-LFS (decision 0071). A pack you made yourself belongs there too, outside the two
-guarded paths, and `.gitattributes` will send its binaries to LFS on its own.
+**A pack you did not make yourself needs its licence checked before it lands
+here**, because a commit is permanent in history and a licence to use an asset in
+a game is not always a licence to redistribute it. That is a question for whoever
+owns the project, not for the tooling: nothing here can verify a licence, and the
+guard that used to refuse one particular path is gone (decision 0074).
 
 Godot 4.7 imports `.fbx` natively — there is nothing to install. Drop the files
 in and let the editor import them.
@@ -43,8 +42,8 @@ In the **Maps** dock: set *Models folder* and *Tile library*, then **Build tile
 library**.
 
 It reads every model under the folder and writes a `MeshLibrary` — the palette a
-`GridMap` paints from. Both paths default inside the quarantine, because a
-library built from third-party models is derived from them.
+`GridMap` paints from. Both paths default beside the models, because a library
+built from them belongs with them.
 
 ### Folders are categories
 
@@ -120,10 +119,13 @@ boxes — so this applies to them the moment you reach for a real palette.
 
 ### What a clone sees
 
-The library is quarantined and the maps are committed, so a fresh clone opens a
-map whose palette is missing. **The map still works**: a `GridMap` keeps its
-cells with no mesh library at all, so the world stays exactly as walkable as you
-painted it and turns invisible. Nothing to work around.
+The library and the maps are both committed, so a fresh clone opens a map that
+renders — provided Git LFS is installed. Without it the binaries arrive as
+130-byte pointer files that Godot cannot import.
+
+A `GridMap` keeps its cells with no mesh library at all, so even then the world
+stays exactly as walkable as you painted it and merely turns invisible. That is
+what held for everybody but one machine until decision 0074.
 
 ## 3. Make the map
 

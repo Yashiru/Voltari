@@ -139,8 +139,8 @@ func _uses_shapes() -> bool:
 
 
 ## The id of the invisible item in this map's palette, or -1 for a palette that
-## has none — including no palette at all, which is what a clone without the
-## quarantined models opens.
+## has none — including no palette at all, which is what a clone missing Git LFS
+## opens, and what every clone opened before decision 0074.
 func _blocker_item() -> int:
 	if blocking == null or blocking.mesh_library == null:
 		return -1

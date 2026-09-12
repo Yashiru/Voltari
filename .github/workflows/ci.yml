@@ -6,24 +6,6 @@ on:
   pull_request:
 
 jobs:
-  species-guard:
-    name: No third-party species
-    runs-on: ubuntu-latest
-    steps:
-      # The whole history, not just this commit: a push carries every commit,
-      # so a file removed today is still published if it was ever committed.
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          # The guard reads history, not file contents. Pulling 1.7 GB of LFS
-          # objects to look at path names would be the slowest job in the matrix
-          # for no reason.
-          lfs: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-      - run: node tools/species-guard/species-guard.mjs
-
   purity-lint:
     name: Core purity lint
     runs-on: ubuntu-latest

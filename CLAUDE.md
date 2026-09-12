@@ -142,7 +142,7 @@ Conversation with the maintainer: **French**.
 
 **Every spec in the plan is written**: 01 to 18. Spec 19, networking and PvP,
 is deferred by design — see `docs/specs/README.md`.
-Decisions 0001 to 0052 are recorded in `docs/decisions/`.
+Decisions 0001 to 0075 are recorded in `docs/decisions/`.
 
 **The simulation core is implemented and oracle-backed**: battle state, the
 semantic decision interface, the battle log, the turn state machine, the effect

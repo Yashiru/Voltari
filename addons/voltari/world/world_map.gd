@@ -114,13 +114,46 @@ func surface_at(point: Vector2, radius: float) -> Vector2:
 	return Vector2.ZERO if total.is_zero_approx() else total.normalized()
 
 
+## Every shape on this map: what is painted, and what is placed.
+##
+## **The two sources answer to different rules and that is deliberate.** A
+## painted model is read as a shape only on a map whose palette says so, because
+## the older reading — a painted cell is a blocked cell — is what the maps built
+## before shapes still mean, and reading them the new way would open every wall
+## narrower than its cell.
+##
+## A prop has no older reading. It is a node type that did not exist before, so
+## placing one is saying what it means, and nothing already painted changes
+## because of it (`VltProp`).
 func footprints() -> Array[VltFootprint]:
 	if not _shaped:
 		_shapes.clear()
 		if _uses_shapes():
 			_shapes = VltFootprint.on(blocking)
+		_shapes.append_array(_prop_shapes())
 		_shaped = true
 	return _shapes
+
+
+## The shapes the placed props occupy.
+##
+## The reach is a height in this map's space rather than a distance above each
+## prop, so a balcony or a canopy raised out of the way takes no ground — which
+## a distance from a prop's own origin could not express.
+func _prop_shapes() -> Array[VltFootprint]:
+	var found: Array[VltFootprint] = []
+	var ceiling: float = centre_of(Vector2i.ZERO).y + VltFootprint.REACH
+
+	for prop: VltProp in props():
+		if not prop.blocks:
+			continue
+		found.append_array(VltFootprint.under(prop, self, ceiling))
+	return found
+
+
+## The props on this map. Grouped or loose, at any depth (`VltProp`).
+func props() -> Array[VltProp]:
+	return VltProp.props_under(self)
 
 
 ## Whether this map's blocking layer speaks in shapes at all.

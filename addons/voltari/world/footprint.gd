@@ -123,6 +123,82 @@ func _middle() -> Vector2:
 	return total / float(outline.size())
 
 
+## Every shape the meshes under a node occupy, in the space of `into`.
+##
+## The other half of decision 0072's rule. A model placed as a node blocks where
+## its mesh is, exactly as a painted one does; what differs is that a node carries
+## its own rotation and scale where a cell carries one of twenty-four turns and
+## the grid's single scale.
+##
+## **`below` is a height in `into`'s space, not a distance above the prop.** A
+## balcony three metres up takes no ground, and a distance measured from the
+## prop's own origin could not say that — it would give every raised thing a
+## footprint under it.
+##
+## **Every mesh under the node contributes its own pieces.** A composed prop is
+## several models standing together, and welding across them would fill the gaps
+## between them in. That is the gazebo lesson, which cost a revert once.
+static func under(root: Node3D, into: Node3D, below: float) -> Array[VltFootprint]:
+	var found: Array[VltFootprint] = []
+	if root == null or into == null:
+		return found
+
+	var shown: Array[MeshInstance3D] = []
+	_meshes_under(root, shown)
+
+	for part: MeshInstance3D in shown:
+		if part.mesh == null:
+			continue
+		for piece: PackedVector2Array in placed_pieces(part.mesh, _relative_to(into, part), below):
+			found.append(VltFootprint.new(piece))
+
+	return found
+
+
+## Where a node stands relative to an ancestor, by multiplying the local
+## transforms between them.
+##
+## **Not `global_transform`.** That one needs the node to be inside a scene tree,
+## and a map built in code — every world fixture, and the thing spec 14 section
+## 10 asks the world to be testable as — is not in one. It answers with the local
+## transform alone there, silently, so every shape would be measured correctly and
+## placed at the origin.
+##
+## Walking up is the same answer at runtime and in the editor, and the only
+## answer anywhere else.
+static func _relative_to(root: Node, node: Node3D) -> Transform3D:
+	var at: Transform3D = Transform3D.IDENTITY
+	var walk: Node3D = node
+
+	while walk != null and walk != root:
+		at = walk.transform * at
+		walk = walk.get_parent() as Node3D
+
+	return at
+
+
+## Every `MeshInstance3D` under a node, the node itself included.
+##
+## **A hidden branch is skipped whole**, itself and everything under it. Hiding a
+## node hides what is below it on screen, and a shape nobody can see is not a
+## shape anybody should walk into — an author hiding a prop to look behind it
+## would otherwise still be stopped by it.
+##
+## The local flag rather than `is_visible_in_tree`, because the walk is top-down
+## and a hidden parent never reaches its children.
+static func _meshes_under(node: Node, into: Array[MeshInstance3D]) -> void:
+	var branch: Node3D = node as Node3D
+	if branch != null and not branch.visible:
+		return
+
+	var part: MeshInstance3D = node as MeshInstance3D
+	if part != null:
+		into.append(part)
+
+	for child: Node in node.get_children():
+		_meshes_under(child, into)
+
+
 ## Every shape a blocking layer holds.
 ##
 ## Each item's own outlines are worked out once however many cells hold it: a map
@@ -169,7 +245,30 @@ static func _moved(piece: PackedVector2Array, at: Transform3D) -> PackedVector2A
 
 ## The outline of each connected piece of a model, below a height, in the model's
 ## own units.
+##
+## The identity case of `placed_pieces`: a model measured where it was modelled,
+## which is what the grid wants because a cell applies its turn and its scale
+## afterwards.
 static func pieces_of(mesh: Mesh, below: float) -> Array[PackedVector2Array]:
+	return placed_pieces(mesh, Transform3D.IDENTITY, below)
+
+
+## The same, for a model already standing somewhere.
+##
+## **The triangles are put where they are before anything is measured.** A prop
+## carries a rotation and a scale of its own, and a band is a height in the
+## world — so slicing in the model's units and transforming afterwards would only
+## agree with this when the model happened to be upright and uniformly scaled.
+## Doing it in this order needs no such condition and has no second case to keep
+## in step with the first.
+##
+## It also means the weld that decides what is one piece happens in metres rather
+## than in whatever a model calls a unit, which is the honest reading: five
+## centimetres of gap is five centimetres of gap whatever the thing was modelled
+## at.
+static func placed_pieces(
+	mesh: Mesh, at: Transform3D, below: float
+) -> Array[PackedVector2Array]:
 	var shapes: Array[PackedVector2Array] = []
 
 	# The triangles with something below the band, and the flat shadow of each.
@@ -181,7 +280,7 @@ static func pieces_of(mesh: Mesh, below: float) -> Array[PackedVector2Array]:
 	# the way gets a say in what is one thing.
 	var low: Array[PackedVector3Array] = []
 	var flats: Array[PackedVector2Array] = []
-	for triangle: PackedVector3Array in _triangles(mesh):
+	for triangle: PackedVector3Array in _triangles(mesh, at):
 		var flat: PackedVector2Array = _under(triangle, below)
 		if flat.is_empty():
 			continue
@@ -211,7 +310,11 @@ static func pieces_of(mesh: Mesh, below: float) -> Array[PackedVector2Array]:
 # --- reading the mesh ---------------------------------------------------------
 
 
-static func _triangles(mesh: Mesh) -> Array[PackedVector3Array]:
+## Every triangle of a mesh, put where `at` says it stands.
+##
+## Transformed here rather than by the caller so that everything downstream —
+## the band, the weld, the hull — works in one space and cannot be handed two.
+static func _triangles(mesh: Mesh, at: Transform3D) -> Array[PackedVector3Array]:
 	var found: Array[PackedVector3Array] = []
 
 	for surface: int in range(mesh.get_surface_count()):
@@ -232,7 +335,9 @@ static func _triangles(mesh: Mesh) -> Array[PackedVector3Array]:
 
 		for index: int in range(0, order.size() - 2, 3):
 			found.append(PackedVector3Array([
-				points[order[index]], points[order[index + 1]], points[order[index + 2]]
+				at * points[order[index]],
+				at * points[order[index + 1]],
+				at * points[order[index + 2]],
 			]))
 
 	return found

@@ -97,6 +97,7 @@ const GAIT: String = "gait"
 const PIVOT: String = "pivot"
 const PERFORM: String = "perform"
 const TURN_CLIP: String = "turn"
+const TURN_RATE_NODE: String = "turn_rate"
 const ACTION_CLIP: String = "action"
 
 ## How long a clip played over the legs takes to come in and go out.
@@ -144,6 +145,10 @@ var _pivot: WalkerGait.Pivot = null
 var _pivot_from: float = 0.0
 var _pivot_at: float = 0.0
 var _pivot_length: float = 0.0
+
+## How long a direction has been asked for without a break. Reset the moment
+## nothing is being asked for, so a fresh press is always young.
+var _pushing: float = 0.0
 
 ## The performance in progress, or empty.
 var _action: String = ""
@@ -202,6 +207,7 @@ func shown_speed() -> float:
 ## put the character's shoulders on a grid its feet had already left.
 func advance(delta: float, speed: float, heading: Vector2) -> void:
 	var step: float = maxf(delta, 0.0)
+	_pushing = _pushing + step if speed > WalkerGait.STILL else 0.0
 	_turn(step, speed, WalkerGait.yaw_towards(heading))
 	_perform(step)
 
@@ -232,6 +238,7 @@ func advance(delta: float, speed: float, heading: Vector2) -> void:
 func face_at_once(heading: Vector2) -> void:
 	rotation.y = WalkerGait.yaw_towards(heading)
 	_abandon_pivot()
+	_pushing = 0.0
 	_since_moving = INF
 	_last_speed = 0.0
 	_shown_speed = 0.0
@@ -309,7 +316,10 @@ func _turn(delta: float, speed: float, wanted: float) -> void:
 			_carry_pivot(delta)
 			return
 
-	if _shown_speed <= WalkerGait.STILL:
+	# A turn belongs to a direction that has *just* been asked for. Without this
+	# a held key starts a fresh pivot the instant the last one is dropped, and the
+	# player is held still for the whole turn one tap-length at a time.
+	if _shown_speed <= WalkerGait.STILL and _pushing <= WalkerGait.TURN_TAP:
 		var pivot: WalkerGait.Pivot = WalkerGait.pivot_by(
 			angle_difference(rotation.y, wanted), _turns_by
 		)
@@ -326,26 +336,29 @@ func _turn(delta: float, speed: float, wanted: float) -> void:
 
 ## Whether a turn in progress has stopped being worth finishing.
 ##
-## **Somebody waiting to walk is let go early.** The clip covers everything past
-## the floor and the last stretch is closed by the ordinary turn, underneath a
-## walk that has already started — which is what makes a reversal cost about a
-## second rather than the whole clip. Nobody waiting is turned exactly, all the
-## way, because there is nothing to be early for.
+## **A tap is a turn; anything longer is a departure.** Held past `TURN_TAP`, the
+## direction is somebody who wants to walk, and they are not made to wait out an
+## animation: the clip is dropped there and the ordinary turn — which is quick —
+## closes the rest underneath a walk that has already started. Let go inside the
+## window, the clip plays out and lands on the angle exactly.
 ##
 ## A change of mind also ends it: a stick swung back to where the body already
 ## points is a turn that would arrive somewhere nobody asked for.
 func _pivot_is_spent(speed: float, wanted: float) -> bool:
-	var remaining: float = absf(angle_difference(rotation.y, wanted))
-	if remaining < WalkerGait.TURN_FLOOR:
-		return speed > WalkerGait.STILL or remaining < WalkerGait.SETTLED
-	return false
+	# Against where the turn is *going*, not where the body has got to: measured
+	# against the body it would abandon every turn part way through, which is
+	# exactly the tail where the feet settle.
+	var destination: float = _pivot_from + _pivot.delivers
+	if absf(angle_difference(destination, wanted)) > WalkerGait.TURN_FLOOR:
+		return true
+	return _pushing > WalkerGait.TURN_TAP
 
 
 func _begin_pivot(pivot: WalkerGait.Pivot) -> void:
 	_pivot = pivot
 	_pivot_from = rotation.y
 	_pivot_at = 0.0
-	_pivot_length = _player.get_animation("clips/%s" % pivot.clip).length
+	_pivot_length = _player.get_animation("clips/%s" % pivot.clip).length / WalkerGait.TURN_RATE
 	_turning.animation = "clips/%s" % pivot.clip
 	_tree.set("parameters/%s/request" % PIVOT, AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
 
@@ -503,6 +516,10 @@ func _animate() -> void:
 	# root of the scene it was instanced from — so the player is rooted at the
 	# model rather than at itself.
 	_player.root_node = NodePath("..")
+	# Prepared before the player is given them: a turn clip has its rotation taken
+	# out, and handing over the untouched ones first would leave the player holding
+	# a library that is edited underneath it.
+	_prepare_turns(clips)
 	_player.add_animation_library("clips", clips)
 
 	_graph = AnimationNodeBlendTree.new()
@@ -530,9 +547,14 @@ func _animate() -> void:
 	# pivoting is doing the throw and happens to be turning.
 	_turning = AnimationNodeAnimation.new()
 	_graph.add_node(TURN_CLIP, _turning)
+	# Played faster than it was authored. The clips are somebody turning round to
+	# look at what is behind them, not somebody changing their mind.
+	var quicker: AnimationNodeTimeScale = AnimationNodeTimeScale.new()
+	_graph.add_node(TURN_RATE_NODE, quicker)
+	_graph.connect_node(TURN_RATE_NODE, 0, TURN_CLIP)
 	_graph.add_node(PIVOT, _over(TURN_FADE))
 	_graph.connect_node(PIVOT, 0, LEGS)
-	_graph.connect_node(PIVOT, 1, TURN_CLIP)
+	_graph.connect_node(PIVOT, 1, TURN_RATE_NODE)
 
 	_acting = AnimationNodeAnimation.new()
 	_graph.add_node(ACTION_CLIP, _acting)
@@ -541,7 +563,6 @@ func _animate() -> void:
 	_graph.connect_node(PERFORM, 1, ACTION_CLIP)
 
 	_graph.connect_node("output", 0, PERFORM)
-	_measure_turns(clips)
 
 	_tree = AnimationTree.new()
 	_tree.root_node = NodePath("..")
@@ -558,6 +579,7 @@ func _animate() -> void:
 	# the same choice for the same reason.
 	_tree.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
 	_tree.active = true
+	_tree.set("parameters/%s/scale" % TURN_RATE_NODE, WalkerGait.TURN_RATE)
 
 
 ## One clip, as a node of the graph.
@@ -594,31 +616,41 @@ static func _rate_of(slot: String) -> String:
 	return "%s_rate" % slot
 
 
-## Reads each turn clip's own rotation: how far it goes, and how that is spread
-## along its length.
+## Takes each turn clip's rotation out of the clip and puts it in this class.
 ##
-## Off the clip rather than out of a table somebody keeps up to date. The hips are
-## the root bone, so their track is the body's rotation and nothing has to be
-## composed to read it. What comes out is used twice: to choose a clip for an
-## angle, and to drive the body while it plays.
-func _measure_turns(clips: AnimationLibrary) -> void:
+## **A turn cannot be in two places.** The clip rotates the hips, which is the
+## root bone, so playing it rotates the whole body — and rotating the node as well
+## turns the character twice and then snaps it back when the clip fades out. That
+## was the first version and it was wrong in exactly that way.
+##
+## So the yaw is read off the hips track, recorded, and **removed from a copy of
+## the clip**. What is left is the part that cannot be expressed as a facing: the
+## feet crossing, the weight shifting, the lean. The node supplies the rotation,
+## the clip supplies everything else, and the two cannot disagree because there is
+## only one of them.
+##
+## The copy matters: the animation behind it is an imported resource shared by
+## every character, and editing it in place would edit theirs too.
+func _prepare_turns(clips: AnimationLibrary) -> void:
 	for slot: String in HumanoidClips.TURNS:
 		if not clips.has_animation(slot):
 			continue
 
-		var clip: Animation = clips.get_animation(slot)
+		var clip: Animation = clips.get_animation(slot).duplicate(true)
 		var track: int = clip.find_track(HIPS_ROTATION, Animation.TYPE_ROTATION_3D)
 		if track < 0:
 			push_warning("%s has no hips rotation — it cannot turn anybody" % slot)
 			continue
 
-		var turned: PackedFloat32Array = PackedFloat32Array()
 		var total: float = 0.0
-		var previous: float = _yaw_at(clip, track, 0.0)
+		var previous: float = _yaw_of(clip.rotation_track_interpolate(track, 0.0))
+		var turned: PackedFloat32Array = PackedFloat32Array()
 		turned.append(0.0)
 		for sample: int in range(1, TURN_SAMPLES + 1):
-			var yaw: float = _yaw_at(
-				clip, track, clip.length * float(sample) / float(TURN_SAMPLES)
+			var yaw: float = _yaw_of(
+				clip.rotation_track_interpolate(
+					track, clip.length * float(sample) / float(TURN_SAMPLES)
+				)
 			)
 			# Accumulated the short way round each step, so a turn past a half
 			# circle is not read as a turn back.
@@ -628,15 +660,40 @@ func _measure_turns(clips: AnimationLibrary) -> void:
 
 		if is_zero_approx(total):
 			continue
+
+		for key: int in range(clip.track_get_key_count(track)):
+			var pose: Quaternion = clip.track_get_key_value(track, key)
+			clip.track_set_key_value(track, key, _without_yaw(pose))
+
 		for sample: int in range(turned.size()):
 			turned[sample] = turned[sample] / total
 		_turns_by[slot] = total
 		_turn_curve[slot] = turned
+		clips.remove_animation(slot)
+		clips.add_animation(slot, clip)
 
 
-static func _yaw_at(clip: Animation, track: int, at: float) -> float:
-	var facing: Vector3 = Basis(clip.rotation_track_interpolate(track, at)).z
-	return atan2(facing.x, facing.z)
+## How far a pose is turned about the upright, in radians.
+##
+## The twist half of a swing-twist split, which is the only decomposition that
+## takes the *facing* out of a pose and leaves the lean behind. Reading it off the
+## forward vector instead would call a bow a turn.
+static func _yaw_of(pose: Quaternion) -> float:
+	var twist: Quaternion = _yaw_part(pose)
+	return 2.0 * atan2(twist.y, twist.w)
+
+
+## The same pose with its facing taken out.
+static func _without_yaw(pose: Quaternion) -> Quaternion:
+	return (_yaw_part(pose).inverse() * pose).normalized()
+
+
+static func _yaw_part(pose: Quaternion) -> Quaternion:
+	var upright: Quaternion = Quaternion(0.0, pose.y, 0.0, pose.w)
+	if is_zero_approx(upright.length_squared()):
+		# Turned exactly onto its side: no part of it is a facing.
+		return Quaternion.IDENTITY
+	return upright.normalized()
 
 
 ## Puts the printed look on the character.

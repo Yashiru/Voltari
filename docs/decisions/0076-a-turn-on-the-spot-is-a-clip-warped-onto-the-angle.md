@@ -28,6 +28,23 @@ does not rotate at a constant rate, and a body that did would have the feet
 planted in one place while the hips passed through another. The clip says *how*
 the turn is spread along its length; the code says only how far it goes.
 
+**The rotation is taken out of the clip.** The hips are the root bone, so a clip
+that turns them turns the whole body — and turning the node as well turns the
+character **twice**, then snaps it back the moment the clip fades out. That was
+the first version and that is exactly what it did. The yaw is read off the hips
+track as the twist half of a swing-twist split, recorded, and removed from a copy
+of the clip; what is left is the part that is not a facing — the feet crossing,
+the weight shifting, the lean. The node supplies the rotation and the clip
+supplies everything else, and the two cannot disagree because there is only one of
+them.
+
+The copy matters: the animation behind it is an imported resource shared by every
+character.
+
+**The clips are played at 1.8.** As authored they are 0.93 s for a quarter turn
+and 1.63 s for a half, which is somebody turning round to look at what is behind
+them rather than a player changing their mind. At 1.8 they are 0.52 s and 0.91 s.
+
 **Warped onto the exact angle.** The clip's rotation is scaled by
 `wanted / delivered`, so a request for 140° is served by the half turn played
 short. Outside a band of 0.65 to 1.45 the stretch starts to show, so there the
@@ -46,22 +63,20 @@ that costs: `turn-in-place frames seen: 0`. A held key means full speed, so the
 condition never came true and the character swivelled through 180° at a run —
 exactly the artefact the clips were brought in to remove.
 
-A player pushing the stick behind them is asking to go that way, and going that
-way starts with picking your feet up. So the body turns first and **holds its own
-speed at zero** for as long as that lasts; the caller asks whether it is turning
-and does not travel while it is. Held in the body rather than left to the caller,
-because a caller that forgot would slide the character sideways through its own
-turn.
+**A tap is a turn; anything longer is a departure.** A direction let go inside
+150 ms is somebody saying "face that way", and the clip plays out and lands on
+the angle exactly. A direction still held after it is somebody saying "go that
+way", and they are not made to wait out an animation: the clip is dropped there
+and the ordinary turn — which is quick — closes the rest underneath a walk that
+has already started.
+
+While a clip is turning the body, the body **holds its own speed at zero**. Held
+there rather than left to the caller, because a caller that forgot would slide the
+character sideways through its own turn.
 
 **Moving already, nothing changes.** Walking turns the body and the legs are
 carrying it; a character who stopped to pivot every time the stick swung would
 never go where they were pointed.
-
-**A turn is let go early for somebody waiting to walk.** The clip covers
-everything past the floor and the last stretch closes under a walk that has
-already started. A quarter turn holds the player still for a third of a second
-rather than nine tenths; a reversal for one second rather than one and two
-thirds.
 
 ## Options rejected
 
@@ -84,17 +99,17 @@ pivot, and it is a different clip nobody has.
 
 ## What it costs, measured
 
-A reversal on the spot is a second of not moving. That is a feel judgement and
-the number is the whole of it:
-
-| turn | walking away | nobody waiting |
+| | tapped | held on |
 |---|---|---|
-| a quarter | **0.33 s**, handed over 46° short | 0.92 s, exact |
-| a half | **1.05 s**, handed over 45° short | 1.63 s, exact |
+| a quarter turn | 0.53 s, lands exactly | still for 0.15 s, facing at 0.22 s |
+| a half turn | 0.92 s, lands exactly | still for 0.15 s, facing at 0.33 s |
 
-Two knobs move it and neither is hidden: `TURN_FLOOR` decides how much of the
-turn the clip has to cover, and the clip could be played faster than one. Both
-are one constant, and this is the part to try by hand rather than to reason about.
+Somebody who wants to walk waits 150 ms and nothing more, whatever the angle.
+Somebody who tapped gets the whole clip, because that is what they asked for.
+
+Three constants move all of it and none is hidden: `TURN_TAP` is where a tap stops
+being one, `TURN_RATE` is how fast the clips play, and `TURN_FLOOR` is the angle
+under which a turn is not worth a clip at all.
 
 ## Consequences
 

@@ -59,12 +59,22 @@ const TURN_SPEED: float = 14.0
 ## Below this a character is standing still, whatever the arithmetic says.
 const STILL: float = 0.01
 
-## Close enough to be facing something, in radians. A tenth of a degree.
+## How long a direction has to be held before it stops being a tap, in seconds.
 ##
-## What ends a turn nobody is waiting on: the clip has delivered its angle and
-## the ordinary turn has closed whatever was left, so there is nothing more for
-## the pivot to hold on to.
-const SETTLED: float = 0.002
+## **This is what separates "look that way" from "go that way".** A tap turns the
+## character on the spot and plays the clip out; a direction that is still held
+## after this is somebody who wants to walk, and they are not made to wait for an
+## animation to finish. A hundred and fifty milliseconds is under the shortest
+## deliberate keypress and over the longest accidental one.
+const TURN_TAP: float = 0.15
+
+## How fast a turn clip is played. One is the clip as it was authored.
+##
+## The clips are 0.93 s for a quarter turn and 1.63 s for a half, which is a
+## person turning round to look at something behind them — not a player changing
+## their mind. Played at this they are 0.52 s and 0.91 s, which is still a real
+## turn and no longer something you wait through.
+const TURN_RATE: float = 1.8
 
 # --- turning on the spot ------------------------------------------------------
 

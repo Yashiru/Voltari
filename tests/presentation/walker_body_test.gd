@@ -241,24 +241,25 @@ func test_asking_to_go_the_other_way_turns_first() -> void:
 	).is_true()
 
 
-func test_the_legs_stay_still_through_a_turn() -> void:
+func test_the_legs_stay_still_for_as_long_as_the_turn_lasts() -> void:
 	# Held by the body rather than left to the caller: a caller that forgot would
 	# have the character slide sideways through its own turn.
 	var body: WalkerBody = _body()
 	body.face_at_once(Vector2(0, 1))
 
-	for frame: int in range(20):
-		body.advance(FRAME, _running, Vector2(0, -1))
-		assert_bool(body.is_turning()).is_true()
+	body.advance(FRAME, _running, Vector2(0, -1))
+	while body.is_turning():
 		assert_float(body.shown_speed()).override_failure_message(
 			"the legs ran off part way through the turn"
 		).is_equal_approx(0.0, 0.001)
+		body.advance(FRAME, _running, Vector2(0, -1))
 
 
-func test_a_turn_lets_go_before_the_end_for_somebody_waiting_to_walk() -> void:
-	# The clip covers everything past the floor and the last stretch closes under
-	# a walk that has already started. Finishing it would cost the player the
-	# whole clip every time they changed their mind about a direction.
+func test_a_direction_held_on_is_a_departure_and_not_a_turn() -> void:
+	# A tap is "face that way"; anything longer is "go that way", and somebody
+	# going that way is not made to wait out an animation. The clip is dropped at
+	# the window and the ordinary turn — which is quick — closes the rest under a
+	# walk that has already started.
 	var body: WalkerBody = _body()
 	body.face_at_once(Vector2(0, 1))
 
@@ -269,26 +270,81 @@ func test_a_turn_lets_go_before_the_end_for_somebody_waiting_to_walk() -> void:
 		held += FRAME
 
 	assert_float(held).override_failure_message(
-		"a half turn held the player still for %.2f s" % held
-	).is_less(1.4)
-	assert_float(
-		absf(angle_difference(body.rotation.y, WalkerGait.yaw_towards(Vector2(0, -1))))
-	).override_failure_message("it let go with most of the turn left").is_less(
-		WalkerGait.TURN_FLOOR
-	)
+		"a held direction was made to wait %.2f s before moving" % held
+	).is_less(WalkerGait.TURN_TAP * 1.5)
+
+	# And it is facing the right way very soon after.
+	var facing: float = 0.0
+	while (
+		absf(angle_difference(body.rotation.y, WalkerGait.yaw_towards(Vector2(0, -1)))) > 0.01
+		and facing < 2.0
+	):
+		body.advance(FRAME, _running, Vector2(0, -1))
+		facing += FRAME
+	assert_float(held + facing).override_failure_message(
+		"a reversal took %.2f s to face the other way" % [held + facing]
+	).is_less(0.5)
 
 
-func test_a_turn_nobody_is_waiting_on_is_finished_exactly() -> void:
-	# Nothing to be early for, so it lands on the angle rather than near it.
+func test_a_tap_turns_on_the_spot_and_lands_exactly() -> void:
+	# Let go inside the window, the clip plays out and the character ends facing
+	# what was asked for rather than near it.
+	for degrees: float in [90.0, -90.0, 180.0, -140.0]:
+		var body: WalkerBody = _body()
+		body.face_at_once(Vector2(0, 1))
+		var wanted: float = deg_to_rad(degrees)
+		var heading: Vector2 = Vector2(sin(wanted), cos(wanted))
+
+		# The press.
+		for frame: int in range(4):
+			body.advance(FRAME, _running, heading)
+		assert_bool(body.is_turning()).override_failure_message(
+			"a tap of %.0f degrees did not start a turn" % degrees
+		).is_true()
+
+		# Let go, and let it finish.
+		for frame: int in range(240):
+			body.advance(FRAME, 0.0, heading)
+
+		assert_float(absf(angle_difference(body.rotation.y, wanted))).override_failure_message(
+			"a tap of %.0f degrees landed on %.1f" % [degrees, rad_to_deg(body.rotation.y)]
+		).is_less(0.01)
+
+
+func test_a_turn_clip_does_not_turn_the_body_a_second_time() -> void:
+	# The clips rotate the hips, which is the root bone, so playing one rotates
+	# the whole body. Rotating the node as well turns the character twice and
+	# snaps it back when the clip fades — which is exactly what happened. The
+	# rotation is taken out of the clip, and this is what says it stayed out.
 	var body: WalkerBody = _body()
+	var skeleton: Skeleton3D = _skeleton(body)
+	var hips: int = skeleton.find_bone("Hips")
 	body.face_at_once(Vector2(0, 1))
 
-	for frame: int in range(240):
+	body.advance(FRAME, _running, Vector2(0, -1))
+	var worst: float = 0.0
+	for frame: int in range(120):
 		body.advance(FRAME, 0.0, Vector2(0, -1))
+		var pose: Basis = skeleton.get_bone_global_pose(hips).basis
+		worst = maxf(worst, absf(atan2(pose.z.x, pose.z.z)))
 
-	assert_float(
-		absf(angle_difference(body.rotation.y, WalkerGait.yaw_towards(Vector2(0, -1))))
-	).is_less(0.01)
+	assert_float(rad_to_deg(worst)).override_failure_message(
+		"the clip still turns the hips by up to %.1f degrees of its own" % rad_to_deg(worst)
+	).is_less(15.0)
+
+
+func _skeleton(body: WalkerBody) -> Skeleton3D:
+	for node: Node in _every(body):
+		if node is Skeleton3D:
+			return node as Skeleton3D
+	return null
+
+
+func _every(node: Node) -> Array[Node]:
+	var found: Array[Node] = [node]
+	for child: Node in node.get_children():
+		found.append_array(_every(child))
+	return found
 
 
 func test_walking_already_turns_the_body() -> void:

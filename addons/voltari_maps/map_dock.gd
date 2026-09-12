@@ -479,8 +479,15 @@ func validate() -> PackedStringArray:
 		_show(0, missing, unreadable)
 		return VltMapValidator.lines(missing)
 
+	# Read once and used twice: the ids the check measures a zone against are the
+	# same ids the zone's own menu offers, so the two cannot disagree about what
+	# exists. Refreshed here as well as at startup because this is the moment
+	# somebody has just rebuilt content and pressed check to see it.
+	var known: PackedStringArray = table_ids()
+	VltEncounterZone.known_tables = known
+
 	var problems: Array[VltMapProblem] = VltMapValidator.problems(
-		maps, VltContentPayloads.ids_in(ENCOUNTERS), _entry.text, VltTranslationTable.all_keys()
+		maps, known, _entry.text, VltTranslationTable.all_keys()
 	)
 	var checked: int = maps.size()
 	# Safe to free: a problem carries a path and a cell as values, not a
@@ -491,6 +498,22 @@ func validate() -> PackedStringArray:
 
 	_show(checked, problems, unreadable)
 	return VltMapValidator.lines(problems)
+
+
+## The encounter table ids the content build produced, sorted, or nothing at all
+## when it has not been built.
+##
+## **The one place that knows where they are**, which is why the zone's menu is
+## filled from here rather than from the zone: a class that ships with the game has
+## no business holding a path into `content/`.
+##
+## Guarded rather than left to fail: `VltContentPayloads` asserts on a missing
+## file, and a clone whose content has never been built is an ordinary state for
+## somebody who has just arrived — not an error to break in their face.
+static func table_ids() -> PackedStringArray:
+	if not FileAccess.file_exists("%s/index.json" % ENCOUNTERS):
+		return PackedStringArray()
+	return VltContentPayloads.ids_in(ENCOUNTERS)
 
 
 ## Not every scene under the folder is a map — a tile library's source scene

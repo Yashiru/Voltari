@@ -123,6 +123,11 @@ func _enter_tree() -> void:
 	_dock = VltMapDock.new()
 	add_control_to_dock(DOCK_SLOT_RIGHT_BL, _dock)
 
+	# What a zone may name, handed to the zone rather than gone looking for by it.
+	# Read again whenever the map check runs, which is the moment content has just
+	# been rebuilt — so the menu follows a rebuild without the editor restarting.
+	VltEncounterZone.known_tables = VltMapDock.table_ids()
+
 	# In the 3D toolbar rather than the dock: it acts on what is selected in the
 	# viewport, and a button that acts on a selection belongs beside the
 	# selection.
@@ -210,6 +215,11 @@ func _enter_tree() -> void:
 
 func _exit_tree() -> void:
 	set_process(false)
+
+	# Put back as it started. The list is an editor affordance and it is static, so
+	# leaving it behind would have a zone offering a menu with the plugin disabled
+	# — and offering it from whatever content was on disk the last time it ran.
+	VltEncounterZone.known_tables = PackedStringArray()
 	if _tidy != null:
 		remove_control_from_container(CONTAINER_SPATIAL_EDITOR_MENU, _tidy)
 		_tidy.queue_free()

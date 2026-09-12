@@ -191,6 +191,109 @@ func test_no_radius_draws_no_disc() -> void:
 	assert_array(VltMapOverlay.arrivals(map, 0.0)).is_empty()
 
 
+# --- what nobody can reach ----------------------------------------------------
+
+
+func test_the_far_side_of_a_wall_is_stranded() -> void:
+	# Five cells wide, walled down the middle, somebody appearing on the left.
+	var map: VltWorldMap = _split()
+	map.add_child(VltFixtureMap.rest(Vector2i(0, 0)))
+
+	var left: Dictionary[Vector2i, bool] = VltMapOverlay.stranded(map)
+	assert_int(left.size()).is_equal(6)
+	assert_bool(left.has(Vector2i(3, 1))).is_true()
+	assert_bool(left.has(Vector2i(0, 1))).is_false()
+
+
+func test_which_side_is_stranded_is_the_side_nobody_arrives_on() -> void:
+	var map: VltWorldMap = _split()
+	map.add_child(VltFixtureMap.rest(Vector2i(4, 0)))
+
+	var left: Dictionary[Vector2i, bool] = VltMapOverlay.stranded(map)
+	assert_int(left.size()).is_equal(6)
+	assert_bool(left.has(Vector2i(0, 1))).is_true()
+
+
+func test_a_wall_is_not_stranded_it_is_a_wall() -> void:
+	# A cell nobody can stand on is in neither answer. Reporting it would say
+	# something is wrong with every wall on the map.
+	var map: VltWorldMap = _split()
+	map.add_child(VltFixtureMap.rest(Vector2i(0, 0)))
+	assert_bool(VltMapOverlay.stranded(map).has(Vector2i(2, 1))).is_false()
+
+
+func test_a_map_that_holds_together_strands_nobody() -> void:
+	var map: VltWorldMap = auto_free(VltFixtureMap.map("field", VltFixtureMap.filled(Vector2i(4, 4))))
+	map.add_child(VltFixtureMap.rest(Vector2i(0, 0)))
+	assert_dict(VltMapOverlay.stranded(map)).is_empty()
+
+
+func test_a_corner_that_can_only_be_cut_is_stranded() -> void:
+	# Decision 0056: a diagonal is a staircase of ordinary steps, not a step. So
+	# two cells touching only at a corner are not connected, and the overlay says
+	# so rather than assuming the player can squeeze through.
+	var map: VltWorldMap = auto_free(
+		VltFixtureMap.map("field", VltFixtureMap.filled(Vector2i(2, 2)), [Vector2i(1, 0), Vector2i(0, 1)])
+	)
+	map.add_child(VltFixtureMap.rest(Vector2i(0, 0)))
+
+	var left: Dictionary[Vector2i, bool] = VltMapOverlay.stranded(map)
+	assert_int(left.size()).is_equal(1)
+	assert_bool(left.has(Vector2i(1, 1))).is_true()
+
+
+func test_a_map_with_nowhere_to_appear_is_read_from_its_largest_region() -> void:
+	# Every map still being built is this map. Searching from the main mass needs
+	# nothing authored and answers the question somebody painting actually has.
+	var map: VltWorldMap = auto_free(
+		VltFixtureMap.map("field", [Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0), Vector2i(5, 0)])
+	)
+	var left: Dictionary[Vector2i, bool] = VltMapOverlay.stranded(map)
+	assert_int(left.size()).is_equal(1)
+	assert_bool(left.has(Vector2i(5, 0))).is_true()
+
+
+func test_an_arrival_nobody_can_stand_on_is_not_a_starting_point() -> void:
+	# A warp on a blocked cell is a defect of its own and the validator reports
+	# it. Seeding from it would then report the whole map as unreachable, burying
+	# the one problem under a hundred.
+	var map: VltWorldMap = auto_free(
+		VltFixtureMap.map("field", VltFixtureMap.filled(Vector2i(3, 3)), [Vector2i(1, 1)])
+	)
+	map.add_child(
+		VltFixtureMap.warp(Vector2i(1, 1), "cave", Vector2i(0, 0), VltFacing.Direction.NORTH)
+	)
+	assert_dict(VltMapOverlay.stranded(map)).is_empty()
+
+
+func test_two_regions_of_one_size_pick_the_same_winner_twice() -> void:
+	# An arbitrary tie is fine. An unstable one would make the overlay swap its
+	# answer as cells were painted somewhere else entirely.
+	var map: VltWorldMap = auto_free(
+		VltFixtureMap.map("field", [Vector2i(0, 0), Vector2i(1, 0), Vector2i(5, 0), Vector2i(6, 0)])
+	)
+	var once: Dictionary[Vector2i, bool] = VltMapOverlay.stranded(map)
+	assert_dict(VltMapOverlay.stranded(map)).is_equal(once)
+	assert_int(once.size()).is_equal(2)
+
+
+func test_an_empty_map_strands_nobody() -> void:
+	var map: VltWorldMap = auto_free(VltFixtureMap.map("field", []))
+	assert_dict(VltMapOverlay.stranded(map)).is_empty()
+	assert_array(VltMapOverlay.strandings(map)).is_empty()
+	assert_dict(VltMapOverlay.stranded(null)).is_empty()
+	assert_array(VltMapOverlay.strandings(null)).is_empty()
+
+
+func test_a_stranding_is_outlined_rather_than_hatched() -> void:
+	# A walled-off half of a map is hundreds of cells, and a mark on each would
+	# bury the map under the diagnostic.
+	var map: VltWorldMap = auto_free(
+		VltFixtureMap.map("field", [Vector2i(0, 0), Vector2i(5, 0), Vector2i(6, 0)])
+	)
+	assert_int(VltMapOverlay.strandings(map).size()).is_equal(4 * TICKED_SIDE)
+
+
 # --- noticing a brush stroke --------------------------------------------------
 
 
@@ -265,6 +368,18 @@ func test_a_missing_grid_holds_no_cells() -> void:
 func _plain(blocked: Array[Vector2i]) -> VltWorldMap:
 	return auto_free(
 		VltFixtureMap.map("field", VltFixtureMap.filled(Vector2i(4, 4)), blocked)
+	)
+
+
+## Five cells by three, walled down the middle: two regions of six, and three
+## cells nobody can stand on between them.
+func _split() -> VltWorldMap:
+	return auto_free(
+		VltFixtureMap.map(
+			"field",
+			VltFixtureMap.filled(Vector2i(5, 3)),
+			[Vector2i(2, 0), Vector2i(2, 1), Vector2i(2, 2)]
+		)
 	)
 
 

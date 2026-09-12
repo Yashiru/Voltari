@@ -43,6 +43,7 @@ const BLOCKED: String = "blocked"
 const EDGE: String = "edge"
 const PATCH: String = "patch"
 const ARRIVAL: String = "arrival"
+const STRANDED: String = "stranded"
 
 ## The placed nodes, as one switch. They are four colours but one question —
 ## "where are the things that are not art" — and four checkboxes for it would be
@@ -62,6 +63,7 @@ var shows: Dictionary[String, bool] = {
 	EDGE: false,
 	PATCH: false,
 	ARRIVAL: false,
+	STRANDED: false,
 }
 
 ## How far above the node the outline sits.
@@ -98,6 +100,9 @@ func _init() -> void:
 	create_material(PATCH, Color(0.5, 0.95, 0.3), false, true)
 	# How much room the player takes, where the player appears.
 	create_material(ARRIVAL, Color(0.6, 0.7, 1.0), false, true)
+	# Somewhere nobody can get to. Orange: not an obstacle, and not an error the
+	# map can state on its own either — a question for whoever painted it.
+	create_material(STRANDED, Color(1.0, 0.55, 0.1), false, true)
 
 
 func _get_gizmo_name() -> String:
@@ -133,6 +138,7 @@ func _redraw_map(gizmo: EditorNode3DGizmo, map: VltWorldMap) -> void:
 	# The radius belongs to the walker and is read from it, so the circle drawn
 	# here is the body the game actually refuses to fit through gaps.
 	_add(gizmo, ARRIVAL, VltMapOverlay.arrivals(map, VltFreeWalker.RADIUS))
+	_add(gizmo, STRANDED, VltMapOverlay.strandings(map))
 
 
 ## One overlay, if it is switched on and has anything to say.

@@ -48,6 +48,7 @@ const VIEWS: Dictionary[String, String] = {
 	VltMapGizmos.EDGE: "Edge of the map",
 	VltMapGizmos.PATCH: "Sown patches",
 	VltMapGizmos.ARRIVAL: "Player radius, where the player appears",
+	VltMapGizmos.STRANDED: "Standable but unreachable",
 }
 
 var _gizmos: VltMapGizmos = null
@@ -204,6 +205,7 @@ func _watching() -> bool:
 	for key: String in [
 		VltMapGizmos.HITBOX, VltMapGizmos.BLOCKED,
 		VltMapGizmos.EDGE, VltMapGizmos.PATCH, VltMapGizmos.ARRIVAL,
+		VltMapGizmos.STRANDED,
 	]:
 		if _gizmos.shows.get(key, false):
 			return true

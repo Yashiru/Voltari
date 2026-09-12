@@ -233,6 +233,119 @@ static func flat_of(map: VltWorldMap, cell: Vector2i) -> Vector2:
 	return Vector2(middle.x, middle.z)
 
 
+## The outline of every region somebody can stand in but cannot get to.
+##
+## An area walled off by one cell painted in the wrong place is content nobody
+## will ever see, and nothing notices: it looks exactly like an area that is
+## merely far away. The validator has a check with this name already, and it
+## answers a different question — which *maps* a warp can reach from the entry
+## map. Nothing has ever looked inside one.
+##
+## Drawn as the outline of the stranded region rather than a mark on every cell
+## of it. A walled-off half of a map is hundreds of cells, and hatching all of
+## them would bury the map under the diagnostic.
+static func strandings(map: VltWorldMap) -> PackedVector3Array:
+	if map == null:
+		return PackedVector3Array()
+	return _boundary(map, stranded(map), ground_of(map), TICK)
+
+
+## Which standable cells nothing can reach.
+##
+## **Where the search starts from is warps and rest points** — the two places
+## somebody materialises rather than walks to. A map with neither, which is every
+## map that is still being built, is searched from its largest standable region
+## instead: the answer becomes "what is cut off from the main mass", which needs
+## nothing authored and is the reading somebody painting wants anyway.
+##
+## **Four neighbours, not eight.** The world speaks in four directions in every
+## vocabulary it has — warps, rest points and facing all store one of four — and
+## decision 0056 settled that a diagonal is a staircase of ordinary steps rather
+## than a step of its own. A gap that can only be crossed by cutting a corner is
+## therefore reported as unreachable. That is the strict direction, and it is the
+## right one to be wrong in: a false alarm costs a look, and a missed one ships an
+## area nobody can enter.
+##
+## Cells that cannot be stood on are in neither answer. A wall is not stranded; it
+## is a wall.
+static func stranded(map: VltWorldMap) -> Dictionary[Vector2i, bool]:
+	var standable: Dictionary[Vector2i, bool] = {}
+	if map == null:
+		return standable
+	for cell: Vector2i in cells_of(map.terrain):
+		if map.is_walkable(cell):
+			standable[cell] = true
+
+	var seeds: Array[Vector2i] = []
+	for cell: Vector2i in _appearances(map):
+		# A warp sitting on a cell nobody can stand on is a defect of its own, and
+		# the validator reports it. Here it is simply not a place to start from.
+		if standable.has(cell):
+			seeds.append(cell)
+	if seeds.is_empty():
+		seeds = _widest(standable)
+
+	var reached: Dictionary[Vector2i, bool] = _flood(standable, seeds)
+	var left: Dictionary[Vector2i, bool] = {}
+	for cell: Vector2i in standable:
+		if not reached.has(cell):
+			left[cell] = true
+	return left
+
+
+## Everything four-connected to any of the seeds.
+static func _flood(
+	standable: Dictionary[Vector2i, bool], seeds: Array[Vector2i]
+) -> Dictionary[Vector2i, bool]:
+	var seen: Dictionary[Vector2i, bool] = {}
+	var pending: Array[Vector2i] = []
+	for seed: Vector2i in seeds:
+		if standable.has(seed) and not seen.has(seed):
+			seen[seed] = true
+			pending.append(seed)
+
+	while not pending.is_empty():
+		var here: Vector2i = pending.pop_back()
+		for side: Vector2i in SIDES:
+			var next: Vector2i = here + side
+			if standable.has(next) and not seen.has(next):
+				seen[next] = true
+				pending.append(next)
+	return seen
+
+
+## One cell of the largest standable region, or nothing when there is none.
+##
+## Scanned in sorted order rather than in whatever order the grid happened to
+## return its cells, so two regions of the same size pick the same winner every
+## time. An arbitrary tie is fine; an unstable one would make the overlay flicker
+## between two answers as cells were painted elsewhere.
+static func _widest(standable: Dictionary[Vector2i, bool]) -> Array[Vector2i]:
+	var ordered: Array[Vector2i] = standable.keys()
+	ordered.sort_custom(_before)
+
+	var seen: Dictionary[Vector2i, bool] = {}
+	var best: Array[Vector2i] = []
+	var widest: int = 0
+
+	for cell: Vector2i in ordered:
+		if seen.has(cell):
+			continue
+		var region: Dictionary[Vector2i, bool] = _flood(standable, [cell] as Array[Vector2i])
+		for found: Vector2i in region:
+			seen[found] = true
+		if region.size() > widest:
+			widest = region.size()
+			best = [cell] as Array[Vector2i]
+	return best
+
+
+static func _before(one: Vector2i, two: Vector2i) -> bool:
+	if one.x != two.x:
+		return one.x < two.x
+	return one.y < two.y
+
+
 ## What is painted on a map, as one number.
 ##
 ## A `GridMap` announces nothing when a cell changes, so the only way to notice a

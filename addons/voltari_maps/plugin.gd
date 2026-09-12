@@ -65,6 +65,14 @@ var _tidy: MenuButton = null
 ## switched off.
 var _preview: MeshInstance3D = null
 
+## The last model seen selected in the engine's own palette.
+##
+## Tracked so that picking a model there and picking one in the dock are both
+## ways of saying the same thing, and the most recent one wins. Adopting the
+## palette's answer on every tick instead would make the dock's list impossible
+## to use: it would be overwritten a quarter of a second after any click in it.
+var _from_palette: int = -1
+
 ## The tidying gestures, as menu ids.
 const TIDY_DROP: int = 0
 const TIDY_ALIGN: int = 1
@@ -165,8 +173,9 @@ func _enter_tree() -> void:
 	_place = Button.new()
 	_place.text = "Place props"
 	_place.toggle_mode = true
-	_place.tooltip_text = ("Click the ground to place the model picked in the Maps dock.\n"
-		+ "A ghost under the cursor shows what will land. Off, the viewport is the engine's own.")
+	_place.tooltip_text = ("Click the ground to place the picked model as a prop.\n"
+		+ "Pick it in the GridMap palette or in the Maps dock; a ghost shows what will land.\n"
+		+ "Pressing this leaves paint mode, so the click belongs to one tool. Off, the viewport is the engine's own.")
 	_place.toggled.connect(_on_placing_toggled)
 	add_control_to_container(CONTAINER_SPATIAL_EDITOR_MENU, _place)
 
@@ -252,6 +261,7 @@ func _process(delta: float) -> void:
 	# once unless the library has actually changed.
 	if _dock != null:
 		_dock.show_palette(_palette_of(_brush_map()))
+		_follow_palette()
 	for patch: TurfPatch in _turf_patches(root):
 		_follow(patch)
 	if _watching():
@@ -688,8 +698,10 @@ func _drop_preview() -> void:
 
 
 func _on_placing_toggled(on: bool) -> void:
-	if not on:
-		_drop_preview()
+	if on:
+		_leave_paint_mode()
+		return
+	_drop_preview()
 
 
 ## Puts one prop where a ray through the viewport meets the map's ground.
@@ -879,6 +891,53 @@ func _move_selection(
 	map.update_gizmos()
 
 
+## Takes the engine palette's model when it has just changed.
+##
+## **Both pickers say the same thing and the last one to speak wins.** The big
+## palette is where an author is already looking while building a map, and the
+## dock's list is what answers when no `GridMap` is selected. Neither is allowed
+## to keep overwriting the other, so this fires on a change rather than on every
+## look.
+func _follow_palette() -> void:
+	var editing: GridMapEditorPlugin = _grid_editor()
+	if editing == null:
+		return
+
+	var picked: int = editing.get_selected_palette_item()
+	if picked == _from_palette:
+		return
+	_from_palette = picked
+	if picked < 0:
+		return
+
+	_dock.show_picked(picked)
+	_brush.item = picked
+	_brush.restyled()
+
+
+## Leaves the engine's paint mode when placing starts.
+##
+## **Selecting a `GridMap` is what puts Godot in paint mode**, and paint mode
+## takes the same left click this does — which placed a prop and painted a cell
+## at once. Moving the selection to the map itself ends it, so the palette stays
+## available as the picker and the click belongs to one tool.
+##
+## The selection is the author's, so this only touches it in the one direction
+## that is needed and only while the button goes down. Selecting the layer again
+## is a click away and does exactly what it always did.
+func _leave_paint_mode() -> void:
+	var chosen: EditorSelection = EditorInterface.get_selection()
+	var map: VltWorldMap = _brush_map()
+	if map == null:
+		return
+
+	for node: Node in chosen.get_selected_nodes():
+		if node is GridMap:
+			chosen.clear()
+			chosen.add_node(map)
+			return
+
+
 ## The dock's numbers and its picked model, taken as the brush's.
 ##
 ## The pending draw is thrown away with them: otherwise the ghost would keep
@@ -887,7 +946,12 @@ func _move_selection(
 func _on_brush_changed() -> void:
 	if _dock == null:
 		return
-	_brush.item = _dock.picked_item()
+	var picked: int = _dock.picked_item()
+	if picked >= 0:
+		_brush.item = picked
+		# Remembered as the palette's answer too, so the follower below does not
+		# immediately put the other one back.
+		_from_palette = picked
 	_brush.turn = _dock.turn_value()
 	_brush.turn_spread = _dock.turn_spread_value()
 	_brush.size = _dock.size_value()

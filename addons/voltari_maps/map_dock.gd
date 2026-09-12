@@ -78,10 +78,14 @@ var _size_spread: SpinBox = null
 
 ## The models a prop can be made of, and which one is picked.
 ##
-## **Its own list rather than the `GridMap` palette's.** Reading the engine's
-## palette meant being in its paint mode, which fights the placing gesture for the
-## same click and draws its own preview of the unturned model. A source that
-## imposes a contradicting mode is not worth the one place it saved.
+## **A second picker, not the only one.** Clicking a model in the engine's own
+## `GridMap` palette picks it here too, and this list is what answers when no
+## layer is selected. The two say the same thing and the most recent click wins.
+##
+## Reading the engine's palette *alone* was the first attempt and it failed on a
+## consequence rather than on the principle: seeing that palette means being in
+## paint mode, which takes the same click placing does. That is solved where it
+## belongs — placing leaves paint mode — so the palette is a picker again.
 var _filter: LineEdit = null
 var _palette: ItemList = null
 
@@ -243,6 +247,21 @@ func show_palette(library: MeshLibrary) -> void:
 		return
 	_library_shown = library
 	_refill()
+
+
+## Picks a model by id, if the list is showing it.
+##
+## What lets the engine's own palette drive this list: an author who clicks a
+## model in the big palette has picked it, and the panel should agree rather than
+## show something else.
+func show_picked(id: int) -> void:
+	for row: int in range(_rows.size()):
+		if _rows[row] != id:
+			continue
+		if not _palette.is_selected(row):
+			_palette.select(row)
+			_palette.ensure_current_is_visible()
+		return
 
 
 ## Which model a prop will be made of, or -1 when none is picked.

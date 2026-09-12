@@ -61,18 +61,12 @@ const STILL: float = 0.01
 
 # --- turning on the spot ------------------------------------------------------
 
-## What each turn clip actually delivers, in radians, measured on the rig.
+## How far into the throw the ball leaves the hand, as a fraction of the clip.
 ##
-## Positive is a turn towards increasing yaw. The two that were ordered as half
-## turns fall four and five degrees short of one; `turn_right_90` overshoots by
-## twelve, which is the largest error here and the reason none of these are used
-## at face value.
-const TURNS_BY: Dictionary[String, float] = {
-	HumanoidClips.TURN_LEFT_90: 1.5568,  # +89.2°
-	HumanoidClips.TURN_RIGHT_90: -1.7838,  # -102.2°
-	HumanoidClips.TURN_LEFT_180: 3.0666,  # +175.7°
-	HumanoidClips.TURN_RIGHT_180: -3.0474,  # -174.6°
-}
+## Measured as the moment the throwing hand is travelling fastest — 0.77 s of
+## 3.30, at 6.6 m/s. The rest of the clip is the follow-through and the step back,
+## which is why anything waiting for the throw waits for this and not for the end.
+const THROW_RELEASE: float = 0.233
 
 ## Under this, a turn is not worth a clip.
 ##
@@ -194,18 +188,25 @@ static func cadence_for(speed: float, walk_cycle: float, run_cycle: float) -> fl
 
 ## The turn clip for an angle, or nothing when the angle is too small for one.
 ##
-## The nearest authored angle **on the same side** wins: a left turn is never
-## served by a right one, however close the magnitudes are, because the feet
-## cross the other way and everybody can see it.
-static func pivot_by(angle: float) -> Pivot:
+## `turns` is what each clip actually delivers, in radians, signed — read off the
+## clips themselves rather than restated here, so the arithmetic and the assets
+## cannot drift apart. Measured, they are +90.0°, -102.6°, +176.1° and -175.1°:
+## two of them fall short of the half turn they were ordered as and one overshoots
+## its quarter turn by nearly thirteen degrees, which is why none is used at face
+## value.
+##
+## The nearest authored angle **on the same side** wins: a turn one way is never
+## served by a clip that goes the other, however close the magnitudes are, because
+## the feet cross the other way and everybody can see it.
+static func pivot_by(angle: float, turns: Dictionary[String, float]) -> Pivot:
 	var pivot: Pivot = Pivot.new()
 	if absf(angle) < TURN_FLOOR:
 		return pivot
 
 	var best: String = ""
 	var closest: float = INF
-	for clip: String in TURNS_BY:
-		var authored: float = TURNS_BY[clip]
+	for clip: String in turns:
+		var authored: float = turns[clip]
 		if signf(authored) != signf(angle):
 			continue
 		var apart: float = absf(absf(angle) - absf(authored))
@@ -220,7 +221,7 @@ static func pivot_by(angle: float) -> Pivot:
 	# the band — outside it the feet pivot across ground the body is not turning
 	# through. Then the clip delivers what it can and the remainder is left to the
 	# ordinary turn, which is a few degrees underneath a turn already happening.
-	var authored: float = TURNS_BY[best]
+	var authored: float = turns[best]
 	pivot.clip = best
 	pivot.authored = authored
 	pivot.delivers = clampf(angle / authored, NARROWEST_WARP, WIDEST_WARP) * authored

@@ -153,7 +153,7 @@ func test_every_slot_the_arithmetic_can_ask_for_is_in_the_library() -> void:
 		assert_bool(clips.has_animation(slot)).override_failure_message(
 			"no clip for the gait %s" % slot
 		).is_true()
-	for slot: String in WalkerGait.TURNS_BY:
+	for slot: String in HumanoidClips.TURNS:
 		assert_bool(clips.has_animation(slot)).override_failure_message(
 			"no clip for the turn %s" % slot
 		).is_true()
@@ -179,11 +179,71 @@ func test_it_turns_rather_than_snapping() -> void:
 	).is_less(PI * 0.5 * 0.9)
 
 
+func test_a_small_turn_is_not_worth_a_clip() -> void:
+	# A character who plays a turn because the stick moved a few degrees is a
+	# character who never does what they were told.
+	var body: WalkerBody = _body()
+	body.face_at_once(Vector2(0, 1))
+	var barely: Vector2 = Vector2(sin(WalkerGait.TURN_FLOOR * 0.5), cos(WalkerGait.TURN_FLOOR * 0.5))
+
+	body.advance(FRAME, 0.0, barely)
+
+	assert_bool(body.is_turning()).override_failure_message(
+		"a small turn started a clip"
+	).is_false()
+
+
+func test_a_turn_from_a_standstill_is_carried_by_a_clip() -> void:
+	var body: WalkerBody = _body()
+	body.face_at_once(Vector2(0, 1))
+
+	body.advance(FRAME, 0.0, Vector2(1, 0))
+
+	assert_bool(body.is_turning()).override_failure_message(
+		"a quarter turn on the spot did not use a clip"
+	).is_true()
+
+
+func test_a_turn_lands_on_the_angle_it_was_asked_for() -> void:
+	# The clips deliver 90, -103, 176 and -175 degrees. Landing on what was asked
+	# for rather than on what a clip happens to carry is the whole point of
+	# warping them.
+	for degrees: float in [90.0, -90.0, 180.0, -140.0, 70.0]:
+		var body: WalkerBody = _body()
+		body.face_at_once(Vector2(0, 1))
+		var wanted: float = deg_to_rad(degrees)
+		var heading: Vector2 = Vector2(sin(wanted), cos(wanted))
+
+		for frame: int in range(240):
+			body.advance(FRAME, 0.0, heading)
+
+		assert_float(
+			absf(angle_difference(body.rotation.y, wanted))
+		).override_failure_message(
+			"asked for %.0f degrees and landed on %.1f" % [degrees, rad_to_deg(body.rotation.y)]
+		).is_less(0.01)
+
+
+func test_a_step_gives_up_on_a_turn() -> void:
+	# The legs are about to carry the turn anyway. A body finishing a swivel it no
+	# longer needs is the one thing here that reads as ignoring the player.
+	var body: WalkerBody = _body()
+	body.face_at_once(Vector2(0, 1))
+	body.advance(FRAME, 0.0, Vector2(0, -1))
+	assert_bool(body.is_turning()).is_true()
+
+	body.advance(FRAME, _running, Vector2(0, -1))
+
+	assert_bool(body.is_turning()).override_failure_message(
+		"it kept turning on the spot while walking away"
+	).is_false()
+
+
 func test_a_turn_finishes() -> void:
 	var body: WalkerBody = _body()
 	body.face_at_once(Vector2(0, 1))
 
-	for frame: int in range(60):
+	for frame: int in range(240):
 		body.advance(FRAME, 0.0, Vector2(-1, 0))
 
 	assert_float(
@@ -204,3 +264,82 @@ func test_arriving_somewhere_faces_at_once() -> void:
 	assert_str(body.playing()).override_failure_message(
 		"it arrived mid-stride"
 	).is_equal(HumanoidClips.IDLE)
+
+
+# --- performing ---------------------------------------------------------------
+
+
+func test_nothing_is_being_performed_to_begin_with() -> void:
+	var body: WalkerBody = _body()
+
+	assert_bool(body.is_performing()).is_false()
+	assert_str(body.performing()).is_empty()
+
+
+func test_a_performance_runs_for_as_long_as_its_clip() -> void:
+	var body: WalkerBody = _body()
+
+	var length: float = body.perform(HumanoidClips.THROW)
+
+	assert_float(length).override_failure_message("the throw did not play").is_greater(1.0)
+	assert_bool(body.is_performing()).is_true()
+	assert_str(body.performing()).is_equal(HumanoidClips.THROW)
+
+
+func test_a_performance_ends_on_its_own_and_says_so() -> void:
+	var body: WalkerBody = _body()
+	var ended: Array[String] = []
+	body.performed.connect(func(slot: String) -> void: ended.append(slot))
+
+	var length: float = body.perform(HumanoidClips.THROW)
+	for frame: int in range(int(length / FRAME) + 4):
+		body.advance(FRAME, 0.0, Vector2(0, 1))
+
+	assert_bool(body.is_performing()).override_failure_message(
+		"the throw never finished"
+	).is_false()
+	assert_array(ended).contains([HumanoidClips.THROW])
+
+
+func test_the_ball_leaves_the_hand_part_way_through() -> void:
+	# A caller that waited for the clip would show the ball appearing two and a
+	# half seconds after the arm came down.
+	var body: WalkerBody = _body()
+	# Counted rather than timed inside the handler: a lambda captures by value, so
+	# a clock read in there is the clock as it was when the lambda was made.
+	var throws: Array[bool] = []
+	body.released.connect(func() -> void: throws.append(true))
+
+	var length: float = body.perform(HumanoidClips.THROW)
+	var elapsed: float = 0.0
+	var thrown_at: float = -1.0
+	for frame: int in range(int(length / FRAME) + 4):
+		body.advance(FRAME, 0.0, Vector2(0, 1))
+		elapsed += FRAME
+		if thrown_at < 0.0 and not throws.is_empty():
+			thrown_at = elapsed
+
+	assert_int(throws.size()).override_failure_message(
+		"the ball was released %d times" % throws.size()
+	).is_equal(1)
+	assert_float(thrown_at).is_equal_approx(length * WalkerGait.THROW_RELEASE, 0.05)
+
+
+func test_a_held_pose_runs_until_it_is_let_go() -> void:
+	# The fishing stance loops: it is a pose to stand in, not a thing that
+	# happens, so nothing ends it but the caller.
+	var body: WalkerBody = _body()
+
+	var length: float = body.perform(HumanoidClips.FISHING_IDLE)
+	for frame: int in range(int(length / FRAME) * 2):
+		body.advance(FRAME, 0.0, Vector2(0, 1))
+	assert_bool(body.is_performing()).override_failure_message(
+		"a looping pose ended by itself"
+	).is_true()
+
+	body.stop_performing()
+	assert_bool(body.is_performing()).is_false()
+
+
+func test_a_clip_nobody_has_performs_nothing() -> void:
+	assert_float(_body().perform("cartwheel")).is_equal(0.0)

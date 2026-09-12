@@ -161,3 +161,77 @@ func test_a_frame_of_no_time_turns_nothing() -> void:
 	var from: float = WalkerGait.yaw_of(VltFacing.Direction.SOUTH)
 	assert_float(WalkerGait.turned(from, 3.0, 0.0)).is_equal(from)
 	assert_float(WalkerGait.turned(from, 3.0, -1.0)).is_equal(from)
+
+
+# --- turning on the spot ------------------------------------------------------
+
+## What the four clips actually deliver, near enough. The runtime reads these off
+## the clips themselves; a test that did the same would be asserting that a
+## measurement equals itself, so the shape is restated here and the body's own
+## tests hold it against the assets.
+const DELIVERS: Dictionary[String, float] = {
+	HumanoidClips.TURN_LEFT_90: 1.5708,
+	HumanoidClips.TURN_RIGHT_90: -1.7914,
+	HumanoidClips.TURN_LEFT_180: 3.0743,
+	HumanoidClips.TURN_RIGHT_180: -3.0556,
+}
+
+
+func test_a_small_angle_is_not_worth_a_clip() -> void:
+	assert_bool(
+		WalkerGait.pivot_by(WalkerGait.TURN_FLOOR * 0.9, DELIVERS).is_turning()
+	).is_false()
+	assert_bool(
+		WalkerGait.pivot_by(-WalkerGait.TURN_FLOOR * 0.9, DELIVERS).is_turning()
+	).is_false()
+
+
+func test_a_turn_is_never_served_by_a_clip_that_goes_the_other_way() -> void:
+	# The feet cross the other way, and everybody can see it.
+	for degrees: float in [65.0, 90.0, 140.0, 180.0]:
+		var wanted: float = deg_to_rad(degrees)
+		assert_float(
+			signf(WalkerGait.pivot_by(wanted, DELIVERS).authored)
+		).override_failure_message("%.0f degrees picked a clip going the other way" % degrees).is_equal(1.0)
+		assert_float(
+			signf(WalkerGait.pivot_by(-wanted, DELIVERS).authored)
+		).override_failure_message("-%.0f degrees picked a clip going the other way" % degrees).is_equal(-1.0)
+
+
+func test_the_nearest_authored_angle_wins() -> void:
+	assert_str(WalkerGait.pivot_by(deg_to_rad(85.0), DELIVERS).clip).is_equal(
+		HumanoidClips.TURN_LEFT_90
+	)
+	assert_str(WalkerGait.pivot_by(deg_to_rad(170.0), DELIVERS).clip).is_equal(
+		HumanoidClips.TURN_LEFT_180
+	)
+
+
+func test_a_turn_delivers_the_angle_it_was_asked_for() -> void:
+	# Warped onto the exact angle rather than played at face value. The clips are
+	# 90, -103, 176 and -175 degrees, and none of those is what a player asked
+	# for.
+	for degrees: float in [70.0, 90.0, 120.0, 176.0, -90.0, -140.0, -175.0]:
+		var wanted: float = deg_to_rad(degrees)
+		var pivot: WalkerGait.Pivot = WalkerGait.pivot_by(wanted, DELIVERS)
+		assert_float(pivot.delivers).override_failure_message(
+			"%.0f degrees would have turned %.1f" % [degrees, rad_to_deg(pivot.delivers)]
+		).is_equal_approx(wanted, 0.001)
+
+
+func test_a_clip_is_never_warped_past_the_band() -> void:
+	# Outside it the feet pivot across ground the body is not turning through.
+	for degrees: float in [61.0, 90.0, 180.0, 270.0, -61.0, -180.0, -270.0]:
+		var pivot: WalkerGait.Pivot = WalkerGait.pivot_by(deg_to_rad(degrees), DELIVERS)
+		if not pivot.is_turning():
+			continue
+		assert_float(pivot.warp()).override_failure_message(
+			"%.0f degrees warped its clip by %.2f" % [degrees, pivot.warp()]
+		).is_between(WalkerGait.NARROWEST_WARP, WalkerGait.WIDEST_WARP)
+
+
+func test_nothing_is_delivered_when_no_clip_is() -> void:
+	var pivot: WalkerGait.Pivot = WalkerGait.pivot_by(0.1, DELIVERS)
+	assert_bool(pivot.is_turning()).is_false()
+	assert_float(pivot.delivers).is_equal(0.0)
+	assert_float(pivot.warp()).is_equal(1.0)

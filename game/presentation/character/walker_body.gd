@@ -23,14 +23,30 @@ extends Node3D
 ## Decision 0075 records what that is worth in centimetres and what was tried
 ## first.
 ##
+## ## Turning on the spot is a clip, and turning while walking is not
+##
+## A character who is walking turns by leaning into it: the body follows the
+## heading continuously and the legs are already carrying it. A character who is
+## **standing still** and is asked to face behind them has to pick their feet up,
+## and a body that swivelled instead would be a turret.
+##
+## So past `WalkerGait.TURN_FLOOR`, standing still, the turn is a clip — and the
+## body's yaw is driven by **that clip's own rotation**, warped so it lands on
+## exactly the angle asked for. The clips deliver 90°, -103°, 176° and -175°
+## rather than the quarters and halves they were ordered as; warping is what makes
+## that a fact about the assets rather than an error the player sees.
+##
 ## ## Everything else it does
 ##
-## - **Turns** towards the heading rather than snapping to it. A world that
-##   snapped would flick the model through ninety degrees inside one frame, which
-##   is the single cheapest thing to get wrong here.
+## - **Turns** towards the heading rather than snapping to it, whenever no clip is
+##   doing it. A world that snapped would flick the model through ninety degrees
+##   inside one frame, which is the single cheapest thing to get wrong here.
 ## - **Settles**, rather than cutting to the idle the instant a step ends. Two
 ##   steps in a row are separated by one frame in which nothing is moving, and
 ##   without a grace the legs would stutter between them.
+## - **Performs**, when something asks it to: a throw, and anything else with a
+##   clip and no gameplay yet. One at a time, over the legs, and it says when the
+##   ball leaves the hand rather than making the caller count frames.
 
 ## The model, and what to fall back to.
 ##
@@ -78,12 +94,62 @@ const BLEND_CHASE: float = 12.0
 ## `Blend2` and `Blend2 2` is a path nobody can read.
 const LEGS: String = "legs"
 const GAIT: String = "gait"
+const PIVOT: String = "pivot"
+const PERFORM: String = "perform"
+const TURN_CLIP: String = "turn"
+const ACTION_CLIP: String = "action"
+
+## How long a clip played over the legs takes to come in and go out.
+##
+## A turn is short and has to start now; an action is a performance and can
+## afford a longer hand-over at each end.
+const TURN_FADE: float = 0.10
+const ACTION_FADE: float = 0.20
+
+## How finely a turn clip's own rotation is sampled when the graph is built.
+##
+## Thirty-two points across the shortest turn is one every 29 ms, which is under
+## a frame at 30 and close to one at 60. The curve between them is straight, and
+## a turn's yaw does not change direction inside a thirtieth of a second.
+const TURN_SAMPLES: int = 32
+
+## The track a turn clip's rotation is read from. The hips are the root bone, so
+## their rotation is the body's and nothing has to be composed to get it.
+const HIPS_ROTATION: NodePath = NodePath("%GeneralSkeleton:Hips")
+
+## Said when a thrown ball leaves the hand, part way through the throw rather
+## than at the end of it. A caller that waited for the clip would show the ball
+## appearing two and a half seconds after the arm came down.
+signal released
+
+## Said when a performance has finished on its own. A looping one never does.
+signal performed(slot: String)
 
 var _model: Node3D = null
 var _player: AnimationPlayer = null
 var _tree: AnimationTree = null
 var _graph: AnimationNodeBlendTree = null
+var _turning: AnimationNodeAnimation = null
+var _acting: AnimationNodeAnimation = null
 var _since_moving: float = INF
+
+## What each turn clip delivers, in radians, and how its rotation is spread along
+## its own length. Read off the clips when the graph is built, so the arithmetic
+## and the assets cannot disagree.
+var _turns_by: Dictionary[String, float] = {}
+var _turn_curve: Dictionary[String, PackedFloat32Array] = {}
+
+## The turn in progress, or null.
+var _pivot: WalkerGait.Pivot = null
+var _pivot_from: float = 0.0
+var _pivot_at: float = 0.0
+var _pivot_length: float = 0.0
+
+## The performance in progress, or empty.
+var _action: String = ""
+var _action_at: float = 0.0
+var _action_length: float = 0.0
+var _thrown: bool = false
 
 ## The last speed that was really a speed. The grace has to keep playing the gait
 ## the character *was* using: reading the current speed during it would read the
@@ -135,7 +201,9 @@ func shown_speed() -> float:
 ## omnidirectional and the body follows it exactly, because quantising here would
 ## put the character's shoulders on a grid its feet had already left.
 func advance(delta: float, speed: float, heading: Vector2) -> void:
-	rotation.y = WalkerGait.turned(rotation.y, WalkerGait.yaw_towards(heading), delta)
+	var step: float = maxf(delta, 0.0)
+	_turn(step, speed, WalkerGait.yaw_towards(heading))
+	_perform(step)
 
 	if speed > WalkerGait.STILL:
 		_since_moving = 0.0
@@ -156,10 +224,168 @@ func advance(delta: float, speed: float, heading: Vector2) -> void:
 ## arriving somewhere needs: a warp, a load, a defeat.
 func face_at_once(heading: Vector2) -> void:
 	rotation.y = WalkerGait.yaw_towards(heading)
+	_abandon_pivot()
 	_since_moving = INF
 	_last_speed = 0.0
 	_shown_speed = 0.0
 	_drive()
+
+
+## Whether a turn clip is carrying the body round.
+func is_turning() -> bool:
+	return _pivot != null
+
+
+## Plays a clip over whatever the legs are doing, and says how long it runs.
+##
+## Zero when there is no such clip, which is an ordinary answer rather than a
+## failure: the vocabulary holds clips that nothing has gameplay for yet, and a
+## caller decides what zero is worth.
+##
+## A looping clip is held rather than played: it runs until `stop_performing`.
+## That is what the fishing stance is — a pose to stand in, not a thing that
+## happens.
+func perform(slot: String) -> float:
+	if _tree == null or _acting == null or not _player.has_animation("clips/%s" % slot):
+		return 0.0
+
+	_acting.animation = "clips/%s" % slot
+	_action = slot
+	_action_at = 0.0
+	_thrown = false
+	_action_length = _player.get_animation("clips/%s" % slot).length
+	_tree.set(
+		"parameters/%s/request" % PERFORM, AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE
+	)
+	return _action_length
+
+
+func stop_performing() -> void:
+	if _tree == null or _action.is_empty():
+		return
+	_tree.set(
+		"parameters/%s/request" % PERFORM, AnimationNodeOneShot.ONE_SHOT_REQUEST_FADE_OUT
+	)
+	_action = ""
+
+
+func is_performing() -> bool:
+	return not _action.is_empty()
+
+
+## What is being performed, or empty. For a caller — which, without a display, is
+## only ever a test — that needs to see it rather than infer it.
+func performing() -> String:
+	return _action
+
+
+# --- turning ------------------------------------------------------------------
+
+
+## One frame of facing: carried by a clip when there is one, and by the plain
+## turn when there is not.
+##
+## A turn clip is only ever started from a standstill. Walking already turns the
+## body, and a character who stopped to pivot every time the stick swung would be
+## a character who never goes where they were pointed.
+func _turn(delta: float, speed: float, wanted: float) -> void:
+	if _pivot != null:
+		# A step cancels a pivot. The legs are about to carry the turn anyway, and
+		# a body finishing a swivel it no longer needs is the one thing here that
+		# would read as the character ignoring the player.
+		if speed > WalkerGait.STILL:
+			_abandon_pivot()
+		else:
+			_carry_pivot(delta)
+			return
+
+	if speed <= WalkerGait.STILL and _shown_speed <= WalkerGait.STILL:
+		var pivot: WalkerGait.Pivot = WalkerGait.pivot_by(
+			angle_difference(rotation.y, wanted), _turns_by
+		)
+		if pivot.is_turning():
+			# Carried on the same frame it starts. A turn that spent its first
+			# frame standing still would answer the player one frame late, every
+			# time, for no reason anybody could see in the clip.
+			_begin_pivot(pivot)
+			_carry_pivot(delta)
+			return
+
+	rotation.y = WalkerGait.turned(rotation.y, wanted, delta)
+
+
+func _begin_pivot(pivot: WalkerGait.Pivot) -> void:
+	_pivot = pivot
+	_pivot_from = rotation.y
+	_pivot_at = 0.0
+	_pivot_length = _player.get_animation("clips/%s" % pivot.clip).length
+	_turning.animation = "clips/%s" % pivot.clip
+	_tree.set("parameters/%s/request" % PIVOT, AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
+
+
+## The body follows the clip's own rotation rather than a rate of its own.
+##
+## Scaled so it arrives at the angle asked for: the clip says *how* the turn is
+## spread across its length — slow at first, quickest in the middle — and the
+## warp says how far it goes. Driving the yaw at a constant rate underneath a clip
+## that does not turn at a constant rate is what makes the feet skate.
+func _carry_pivot(delta: float) -> void:
+	_pivot_at += delta
+	var along: float = _progress(_pivot.clip, _pivot_at)
+	rotation.y = _pivot_from + along * _pivot.delivers
+
+	if _pivot_at >= _pivot_length:
+		# Landed exactly, rather than wherever the last sample fell.
+		rotation.y = _pivot_from + _pivot.delivers
+		_pivot = null
+
+
+## Lets go of a turn part way through, leaving the body where the clip had got to.
+func _abandon_pivot() -> void:
+	if _pivot == null:
+		return
+	_pivot = null
+	if _tree != null:
+		_tree.set(
+			"parameters/%s/request" % PIVOT, AnimationNodeOneShot.ONE_SHOT_REQUEST_FADE_OUT
+		)
+
+
+## How much of a turn clip's rotation has happened by a moment, from zero to one.
+func _progress(slot: String, at: float) -> float:
+	var curve: PackedFloat32Array = _turn_curve.get(slot, PackedFloat32Array())
+	if curve.size() < 2 or _pivot_length <= 0.0:
+		return clampf(at / maxf(_pivot_length, 0.001), 0.0, 1.0)
+
+	var steps: int = curve.size() - 1
+	var along: float = clampf(at / _pivot_length, 0.0, 1.0) * float(steps)
+	var lower: int = mini(int(along), steps - 1)
+	return lerpf(curve[lower], curve[lower + 1], along - float(lower))
+
+
+# --- performing ---------------------------------------------------------------
+
+
+func _perform(delta: float) -> void:
+	if _action.is_empty():
+		return
+
+	_action_at += delta
+	if (
+		_action == HumanoidClips.THROW
+		and not _thrown
+		and _action_at >= _action_length * WalkerGait.THROW_RELEASE
+	):
+		_thrown = true
+		released.emit()
+
+	# A looping performance is a pose, and a pose ends when somebody says so.
+	if HumanoidClips.loops(_action) or _action_at < _action_length:
+		return
+
+	var finished: String = _action
+	_action = ""
+	performed.emit(finished)
 
 
 ## One frame of the legs: how much of each, and how fast the cycle turns.
@@ -271,7 +497,24 @@ func _animate() -> void:
 	_graph.add_node(LEGS, _mixed())
 	_graph.connect_node(LEGS, 0, HumanoidClips.IDLE)
 	_graph.connect_node(LEGS, 1, GAIT)
-	_graph.connect_node("output", 0, LEGS)
+
+	# Two clips that play *over* the legs rather than instead of them, and in this
+	# order: a performance covers a turn, because somebody who threw a ball while
+	# pivoting is doing the throw and happens to be turning.
+	_turning = AnimationNodeAnimation.new()
+	_graph.add_node(TURN_CLIP, _turning)
+	_graph.add_node(PIVOT, _over(TURN_FADE))
+	_graph.connect_node(PIVOT, 0, LEGS)
+	_graph.connect_node(PIVOT, 1, TURN_CLIP)
+
+	_acting = AnimationNodeAnimation.new()
+	_graph.add_node(ACTION_CLIP, _acting)
+	_graph.add_node(PERFORM, _over(ACTION_FADE))
+	_graph.connect_node(PERFORM, 0, PIVOT)
+	_graph.connect_node(PERFORM, 1, ACTION_CLIP)
+
+	_graph.connect_node("output", 0, PERFORM)
+	_measure_turns(clips)
 
 	_tree = AnimationTree.new()
 	_tree.root_node = NodePath("..")
@@ -307,10 +550,66 @@ static func _mixed() -> AnimationNodeBlend2:
 	return node
 
 
+## A clip laid over whatever is underneath, played once when asked for.
+static func _over(fade: float) -> AnimationNodeOneShot:
+	var node: AnimationNodeOneShot = AnimationNodeOneShot.new()
+	node.fadein_time = fade
+	node.fadeout_time = fade
+	# The legs keep turning underneath. A gait frozen for the length of a throw
+	# comes back from a stride nobody was in the middle of.
+	node.mix_mode = AnimationNodeOneShot.MIX_MODE_BLEND
+	return node
+
+
 ## What a gait's rate node is called. One rule, so the graph and the parameter
 ## path cannot drift apart.
 static func _rate_of(slot: String) -> String:
 	return "%s_rate" % slot
+
+
+## Reads each turn clip's own rotation: how far it goes, and how that is spread
+## along its length.
+##
+## Off the clip rather than out of a table somebody keeps up to date. The hips are
+## the root bone, so their track is the body's rotation and nothing has to be
+## composed to read it. What comes out is used twice: to choose a clip for an
+## angle, and to drive the body while it plays.
+func _measure_turns(clips: AnimationLibrary) -> void:
+	for slot: String in HumanoidClips.TURNS:
+		if not clips.has_animation(slot):
+			continue
+
+		var clip: Animation = clips.get_animation(slot)
+		var track: int = clip.find_track(HIPS_ROTATION, Animation.TYPE_ROTATION_3D)
+		if track < 0:
+			push_warning("%s has no hips rotation — it cannot turn anybody" % slot)
+			continue
+
+		var turned: PackedFloat32Array = PackedFloat32Array()
+		var total: float = 0.0
+		var previous: float = _yaw_at(clip, track, 0.0)
+		turned.append(0.0)
+		for sample: int in range(1, TURN_SAMPLES + 1):
+			var yaw: float = _yaw_at(
+				clip, track, clip.length * float(sample) / float(TURN_SAMPLES)
+			)
+			# Accumulated the short way round each step, so a turn past a half
+			# circle is not read as a turn back.
+			total += angle_difference(previous, yaw)
+			previous = yaw
+			turned.append(total)
+
+		if is_zero_approx(total):
+			continue
+		for sample: int in range(turned.size()):
+			turned[sample] = turned[sample] / total
+		_turns_by[slot] = total
+		_turn_curve[slot] = turned
+
+
+static func _yaw_at(clip: Animation, track: int, at: float) -> float:
+	var facing: Vector3 = Basis(clip.rotation_track_interpolate(track, at)).z
+	return atan2(facing.x, facing.z)
 
 
 ## Puts the printed look on the character.

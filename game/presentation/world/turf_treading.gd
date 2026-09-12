@@ -43,7 +43,7 @@ const MOST_CONTACTS: int = 32
 ## has stopped mattering and can have its slot back, and the shader is what draws
 ## the curve. Two places that both know it are two places that disagree the first
 ## time one is tuned, so it is pushed rather than left to the shader's default.
-const RECOVER_SECONDS: float = 1.1
+const RECOVER_SECONDS: float = 2.5
 
 ## How far somebody moves before they press the grass again, as a share of their
 ## own radius.

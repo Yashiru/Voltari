@@ -52,6 +52,24 @@ const DEFAULT_FOV: float = 75.0
 ## The side that stands nearest the camera.
 const NEAR_SIDE: int = 0
 
+## How far behind their creature the trainer stands, in metres.
+##
+## Small on purpose. The camera watches over the near creature's shoulder, so
+## anything put *behind* that creature is put in front of the lens: at a metre
+## the trainer fills a third of the frame, and at two the camera has to pull so
+## far back that both creatures become thumbnails. Beside is where a person fits.
+const TRAINER_BEHIND: float = 0.35
+
+## How far to the side of their creature the trainer stands.
+##
+## **Away from the camera's shoulder, not towards it.** The camera stands off the
+## near creature's right, so a trainer put on the same side would be under the
+## lens and would hide the creature the player is watching.
+##
+## This is the one that carries the separation, and it is roughly a creature's
+## own height: near enough to read as its trainer, far enough not to stand on it.
+const TRAINER_ASIDE: float = 1.35
+
 
 ## Where one side stands. Mirror images through the origin, so the pair is always
 ## centred whatever the separation.
@@ -63,6 +81,40 @@ static func seat(
 	var axis: Vector3 = Vector3(cos(slant), 0.0, -sin(slant))
 	var half: float = maxf(separation, 0.0) * 0.5
 	return axis * (half if side != NEAR_SIDE else -half)
+
+
+## Where the trainer stands: behind their own creature, off its far shoulder.
+##
+## Derived from the seats like everything else here, so it follows the separation
+## and the slant rather than being a transform somebody typed in once. The
+## creature stays the thing in the middle of the frame; the trainer is at its
+## edge, which is the whole reason they are not simply given a third seat.
+static func trainer_seat(
+	separation: float = SEPARATION,
+	slant_degrees: float = SLANT_DEGREES,
+	behind: float = TRAINER_BEHIND,
+	aside: float = TRAINER_ASIDE
+) -> Vector3:
+	var near: Vector3 = seat(NEAR_SIDE, separation, slant_degrees)
+	var forward: Vector3 = towards_the_foe(separation, slant_degrees)
+	var to_the_right: Vector3 = forward.cross(Vector3.UP).normalized()
+	return near - forward * behind - to_the_right * aside
+
+
+## The unit direction from the near side to the far one: the fight's own axis.
+static func towards_the_foe(
+	separation: float = SEPARATION, slant_degrees: float = SLANT_DEGREES
+) -> Vector3:
+	var along: Vector3 = (
+		seat(NEAR_SIDE + 1, separation, slant_degrees)
+		- seat(NEAR_SIDE, separation, slant_degrees)
+	)
+	along.y = 0.0
+	if along.length_squared() <= 0.0:
+		# Both on the same spot. Any direction is as wrong as any other, and this
+		# one at least matches what the camera falls back to.
+		return Vector3(0.0, 0.0, -1.0)
+	return along.normalized()
 
 
 ## The yaw that turns a body at `from` to look at `to`.
@@ -79,24 +131,75 @@ static func yaw_towards(from: Vector3, to: Vector3) -> float:
 	return atan2(along.x, along.z)
 
 
-## The middle of what has to be in frame: between the two, at half their height.
-static func centre(height: float) -> Vector3:
-	return Vector3(0.0, maxf(height, 0.0) * 0.5, 0.0)
+## The middle of what has to be in frame.
+##
+## Between the two creatures, at half their height — and half way to the trainer
+## when there is one, because a camera that framed everything and looked at the
+## pair would put the fight in a corner and the empty half of the field in the
+## middle. Passing zero for `trainer_height` leaves them out, which is what a
+## stage with nobody standing there wants.
+static func centre(
+	height: float,
+	trainer_height: float = 0.0,
+	separation: float = SEPARATION,
+	slant_degrees: float = SLANT_DEGREES
+) -> Vector3:
+	var pair: Vector3 = Vector3(0.0, maxf(height, 0.0) * 0.5, 0.0)
+	if trainer_height <= 0.0:
+		return pair
+
+	var person: Vector3 = trainer_seat(separation, slant_degrees)
+	person.y = trainer_height * 0.5
+	return (pair + person) * 0.5
 
 
-## The radius of the sphere that holds both creatures.
+## The radius of the sphere that holds everything that has to be seen.
 ##
 ## A sphere rather than a box because the camera may end up anywhere around it,
 ## and a sphere is the only shape whose silhouette does not depend on that.
+##
+## **The trainer counts.** They stand further from the middle than either creature
+## and are taller than both, so a radius that ignored them would frame the fight
+## perfectly and cut the player in half. Passing zero for `trainer_height` leaves
+## them out, which is what a stage with nobody standing there wants.
 static func framing_radius(
-	height: float, separation: float = SEPARATION, width_ratio: float = WIDTH_RATIO
+	height: float,
+	separation: float = SEPARATION,
+	width_ratio: float = WIDTH_RATIO,
+	trainer_height: float = 0.0,
+	slant_degrees: float = SLANT_DEGREES
 ) -> float:
 	var tall: float = maxf(height, 0.0)
-	var half_apart: float = maxf(separation, 0.0) * 0.5
-	var half_wide: float = tall * maxf(width_ratio, 0.0) * 0.5
-	# The furthest point of either creature from the centre: its far shoulder at
-	# the top of its head.
-	return sqrt(half_apart * half_apart + (tall * 0.5) * (tall * 0.5)) + half_wide
+	var middle: Vector3 = centre(tall, trainer_height, separation, slant_degrees)
+
+	var widest: float = 0.0
+	for side: int in [NEAR_SIDE, NEAR_SIDE + 1]:
+		widest = maxf(
+			widest, _reach(seat(side, separation, slant_degrees), tall, middle, width_ratio)
+		)
+
+	if trainer_height > 0.0:
+		widest = maxf(
+			widest,
+			_reach(
+				trainer_seat(separation, slant_degrees), trainer_height, middle, width_ratio
+			)
+		)
+	return widest
+
+
+## How far one body reaches from the middle of the frame.
+##
+## Its far shoulder at the top of its head, and the same at its feet: the middle
+## is above the ground, so for anything short the ankles are further away than the
+## hair.
+static func _reach(
+	standing: Vector3, tall: float, middle: Vector3, width_ratio: float
+) -> float:
+	var half_wide: float = maxf(tall, 0.0) * maxf(width_ratio, 0.0) * 0.5
+	var head: Vector3 = Vector3(standing.x, maxf(tall, 0.0), standing.z) - middle
+	var feet: Vector3 = Vector3(standing.x, 0.0, standing.z) - middle
+	return maxf(head.length(), feet.length()) + half_wide
 
 
 ## How far back the camera has to be for a sphere of that radius to fit.
@@ -127,11 +230,16 @@ static func eye(
 	pitch_degrees: float = PITCH_DEGREES,
 	margin: float = MARGIN,
 	shoulder_degrees: float = SHOULDER_DEGREES,
-	slant_degrees: float = SLANT_DEGREES
+	slant_degrees: float = SLANT_DEGREES,
+	trainer_height: float = 0.0
 ) -> Vector3:
-	var away: float = distance_for(framing_radius(height, separation), fov_degrees, margin)
+	var away: float = distance_for(
+		framing_radius(height, separation, WIDTH_RATIO, trainer_height, slant_degrees),
+		fov_degrees,
+		margin
+	)
 	var direction: Vector3 = shoulder(pitch_degrees, shoulder_degrees, separation, slant_degrees)
-	return centre(height) + direction * away
+	return centre(height, trainer_height, separation, slant_degrees) + direction * away
 
 
 ## The unit direction from the middle of the fight to the camera.
@@ -146,16 +254,7 @@ static func shoulder(
 	separation: float = SEPARATION,
 	slant_degrees: float = SLANT_DEGREES
 ) -> Vector3:
-	var near: Vector3 = seat(NEAR_SIDE, separation, slant_degrees)
-	var far: Vector3 = seat(NEAR_SIDE + 1, separation, slant_degrees)
-
-	var forward: Vector3 = (far - near)
-	forward.y = 0.0
-	if forward.length_squared() <= 0.0:
-		# Both on the same spot. Any direction frames it equally badly, and this
-		# one at least matches what the camera used to do.
-		forward = Vector3(0.0, 0.0, -1.0)
-	forward = forward.normalized()
+	var forward: Vector3 = towards_the_foe(separation, slant_degrees)
 
 	# Looking along `forward`, the camera's own right — the same convention Godot
 	# uses for a camera, which looks along -Z with +X to its right.
@@ -167,7 +266,12 @@ static func shoulder(
 	return (level * cos(pitch) + Vector3.UP * sin(pitch)).normalized()
 
 
-## Where the camera looks. The centre of the pair, so neither is favoured — the
-## depth already says which one is yours.
-static func target(height: float) -> Vector3:
-	return centre(height)
+## Where the camera looks. The middle of what is drawn, so neither creature is
+## favoured — the depth already says which one is yours.
+static func target(
+	height: float,
+	trainer_height: float = 0.0,
+	separation: float = SEPARATION,
+	slant_degrees: float = SLANT_DEGREES
+) -> Vector3:
+	return centre(height, trainer_height, separation, slant_degrees)

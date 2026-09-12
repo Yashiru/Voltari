@@ -57,6 +57,10 @@ var _state: VltBattleState
 var _reader: BattleLogReader
 var _stage: BattleScreenStage
 
+## The player, drawn behind their own creature, and the way they are turned.
+var _trainer: WalkerBody = null
+var _facing: Vector2 = Vector2(0.0, 1.0)
+
 ## The position the battle opened from, and everything that has happened since.
 ## Both are what the post-battle pipeline needs: experience is earned by whoever
 ## faced what fell, and only the log knows who that was (spec 10, section 4).
@@ -213,6 +217,13 @@ func _take_turn_with(mine: VltCommand) -> void:
 		return
 	_busy = true
 	_menu.hide()
+
+	# The one command the player does themselves rather than through a creature.
+	# Shown before the turn resolves, so the ball is in the air by the time the
+	# log starts shaking it — and claimed under `_busy`, so a second press during
+	# the throw is the same nothing a second press during a turn is.
+	if mine.kind == VltCommand.Kind.CATCH:
+		await _stage.throw()
 
 	var commands: Array[VltCommand] = [mine, _foe_command()]
 
@@ -622,11 +633,6 @@ func _standing(side: int) -> bool:
 
 
 func _build_interface() -> void:
-	# On its own this scene's camera becomes current by being the only one. As a
-	# child of the world it is not, and nothing was making it — which is
-	# invisible to every headless test and the first thing anybody would see.
-	_frame(_camera_or_new())
-
 	var layer: CanvasLayer = CanvasLayer.new()
 	add_child(layer)
 
@@ -662,6 +668,34 @@ func _build_interface() -> void:
 		add_child(body)
 		_stage.seat(at, title, bar, body)
 
+	_stand_the_trainer()
+
+	# Framed last, because the frame has to hold the trainer and the trainer is
+	# a model whose height is read rather than declared.
+	#
+	# On its own this scene's camera becomes current by being the only one. As a
+	# child of the world it is not, and nothing was making it — which is invisible
+	# to every headless test and the first thing anybody would see.
+	_frame(_camera_or_new())
+
+
+## Puts the player behind their own creature, looking at the other one.
+##
+## Drawn always rather than only while throwing: a trainer who appeared for three
+## seconds and vanished would read as a glitch, and standing there is what a
+## trainer does for the rest of the battle.
+func _stand_the_trainer() -> void:
+	_trainer = WalkerBody.new()
+	_trainer.position = BattleStaging.trainer_seat()
+	_trainer.rotation.y = BattleStaging.yaw_towards(
+		_trainer.position, BattleStaging.seat(_other_than(PLAYER))
+	)
+	# Kept as a vector because that is what the body is advanced with, and a yaw
+	# turned back into one every frame would drift by a rounding error a frame.
+	_facing = Vector2(sin(_trainer.rotation.y), cos(_trainer.rotation.y))
+	add_child(_trainer)
+	_stage.stand(_trainer)
+
 
 ## The other side. Two sides today, and this is the one place that would have to
 ## change if that ever stopped being true.
@@ -692,8 +726,21 @@ func _camera_or_new() -> Camera3D:
 ## follow either.
 func _frame(camera: Camera3D) -> void:
 	camera.make_current()
-	camera.position = BattleStaging.eye(CREATURE_HEIGHT, camera.fov)
-	camera.look_at(BattleStaging.target(CREATURE_HEIGHT))
+	# The trainer's own height rather than a constant: they are a model with a
+	# size, and the camera has to hold all of them.
+	camera.position = BattleStaging.eye(
+		CREATURE_HEIGHT,
+		camera.fov,
+		BattleStaging.SEPARATION,
+		BattleStaging.PITCH_DEGREES,
+		BattleStaging.MARGIN,
+		BattleStaging.SHOULDER_DEGREES,
+		BattleStaging.SLANT_DEGREES,
+		0.0 if _trainer == null else _trainer.height()
+	)
+	camera.look_at(
+		BattleStaging.target(CREATURE_HEIGHT, 0.0 if _trainer == null else _trainer.height())
+	)
 
 
 static func _label(into: Node, at: Vector2, size: int) -> Label:
@@ -783,5 +830,10 @@ func throw_ball(ball_id: String) -> void:
 
 ## Held down to skip. The reader has no opinion about this — it always awaits,
 ## and a skipping stage simply stops taking time.
-func _process(_delta: float) -> void:
+##
+## The trainer is advanced here because they are the one body on this screen that
+## keeps its own time: a creature plays a clip and stops, and a person breathes.
+func _process(delta: float) -> void:
 	_stage.skip = Input.is_key_pressed(KEY_SPACE)
+	if _trainer != null:
+		_trainer.advance(delta, 0.0, _facing)

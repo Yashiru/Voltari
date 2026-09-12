@@ -266,6 +266,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			_load_if_present()
 		KEY_M:
 			show_maps()
+		KEY_F:
+			_hold_the_rod()
 
 
 func _interact() -> void:
@@ -763,5 +765,23 @@ func _build_interface() -> void:
 	layer.add_child(_menu)
 
 
+## Stands in the fishing pose, or stops.
+##
+## The one way there is to see that clip. There is no fishing, no rod and no
+## water, and the stance holds an object the character has not got — so nothing
+## plays it by itself and this is a key in a sandbox rather than a feature
+## (decision 0076). Walking away from it is the same as letting go.
+func _hold_the_rod() -> void:
+	if _body.is_performing():
+		_body.stop_performing()
+		_message.text = ""
+		return
+	_body.perform(HumanoidClips.FISHING_IDLE)
+	_message.text = "Fishing. There is nothing to catch."
+
+
 static func _controls() -> String:
-	return "arrows or drag to walk  ·  space to interact  ·  M maps  ·  F5 save  ·  F9 load"
+	return (
+		"arrows or drag to walk  ·  space to interact  ·  M maps"
+		+ "  ·  F fish  ·  F5 save  ·  F9 load"
+	)

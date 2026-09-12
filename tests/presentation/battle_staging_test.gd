@@ -254,3 +254,79 @@ func test_nothing_here_produces_a_nan() -> void:
 			"fov %f produced %s" % [fov, eye]
 		).is_false()
 		assert_bool(eye.is_finite()).is_true()
+
+
+# --- the trainer ---------------------------------------------------------------
+
+
+func test_the_trainer_stands_on_their_own_side() -> void:
+	# Behind the line between the two, not between them: a trainer standing in
+	# the middle of the fight is in the way of it.
+	var near: Vector3 = BattleStaging.seat(BattleStaging.NEAR_SIDE)
+	var far: Vector3 = BattleStaging.seat(BattleStaging.NEAR_SIDE + 1)
+	var standing: Vector3 = BattleStaging.trainer_seat()
+
+	assert_float(standing.distance_to(far)).override_failure_message(
+		"the trainer is nearer the opponent than their own creature is"
+	).is_greater(near.distance_to(far))
+
+
+func test_the_trainer_stands_clear_of_the_camera_shoulder() -> void:
+	# The camera watches over the near creature's right. A trainer put on the
+	# same side would be under the lens and would hide what the player is
+	# watching, so they stand off the other one.
+	var forward: Vector3 = BattleStaging.towards_the_foe()
+	var to_the_right: Vector3 = forward.cross(Vector3.UP).normalized()
+	var aside: Vector3 = BattleStaging.trainer_seat() - BattleStaging.seat(BattleStaging.NEAR_SIDE)
+
+	assert_float(aside.dot(to_the_right)).override_failure_message(
+		"the trainer stands on the camera's own shoulder"
+	).is_less(0.0)
+
+
+func test_the_frame_holds_the_trainer() -> void:
+	# A radius that ignored them would frame the fight perfectly and cut the
+	# player in half.
+	var without: float = BattleStaging.framing_radius(1.0)
+	var with_them: float = BattleStaging.framing_radius(
+		1.0, BattleStaging.SEPARATION, BattleStaging.WIDTH_RATIO, 1.7
+	)
+
+	assert_float(with_them).override_failure_message(
+		"standing somebody else on the field did not widen the frame"
+	).is_greater(without)
+
+	var middle: Vector3 = BattleStaging.centre(1.0, 1.7)
+	var standing: Vector3 = BattleStaging.trainer_seat()
+	assert_float(
+		Vector3(standing.x, 1.7, standing.z).distance_to(middle)
+	).override_failure_message("the top of the trainer's head is outside the frame").is_less(
+		with_them
+	)
+
+
+func test_the_frame_still_holds_both_creatures() -> void:
+	var middle: Vector3 = BattleStaging.centre(1.0, 1.7)
+	var radius: float = BattleStaging.framing_radius(
+		1.0, BattleStaging.SEPARATION, BattleStaging.WIDTH_RATIO, 1.7
+	)
+
+	for side: int in [BattleStaging.NEAR_SIDE, BattleStaging.NEAR_SIDE + 1]:
+		var standing: Vector3 = BattleStaging.seat(side)
+		assert_float(
+			Vector3(standing.x, 1.0, standing.z).distance_to(middle)
+		).override_failure_message("creature %d fell out of the frame" % side).is_less(radius)
+
+
+func test_nobody_standing_there_frames_it_as_it_always_was() -> void:
+	# The default is the pair and nothing else, so every caller that knows
+	# nothing about a trainer is unchanged.
+	assert_vector(BattleStaging.centre(1.0, 0.0)).is_equal_approx(
+		BattleStaging.centre(1.0), Vector3.ONE * 0.0001
+	)
+	assert_float(BattleStaging.framing_radius(1.0, BattleStaging.SEPARATION)).is_equal_approx(
+		BattleStaging.framing_radius(
+			1.0, BattleStaging.SEPARATION, BattleStaging.WIDTH_RATIO, 0.0
+		),
+		0.0001
+	)

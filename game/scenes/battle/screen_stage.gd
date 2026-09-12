@@ -32,6 +32,10 @@ var _bars: Dictionary[String, ProgressBar] = {}
 var _titles: Dictionary[String, Label] = {}
 var _bodies: Dictionary[String, CreatureBody] = {}
 
+## The player, drawn behind their own creature. Null on a stage that has none,
+## which is every stage a test builds.
+var _trainer: WalkerBody = null
+
 ## Held down to skip. The reader never asks — it always awaits, and this is what
 ## makes the awaiting take no time (decision 0050).
 var skip: bool = false
@@ -56,6 +60,33 @@ func dress(at: VltSlotRef, entry: PresentationEntry) -> void:
 	var body: CreatureBody = _bodies.get(_key(at))
 	if body != null:
 		body.show_creature(entry)
+
+
+## Wires the player's own body. Once, at setup, like `seat`.
+func stand(trainer: WalkerBody) -> void:
+	_trainer = trainer
+
+
+## Throws a ball, and returns **when it leaves the hand** rather than when the
+## clip ends.
+##
+## The rest of the throw is a follow-through and a step back, and the battle does
+## not wait for it: the shakes start over the top, which is the order the player
+## sees in their head. Returning at the end instead would leave two and a half
+## seconds between the arm coming down and anything happening.
+##
+## Silence is an ordinary answer. A stage with no trainer — a test, a screen built
+## before the model existed — still spends the beat, so the pacing is the same
+## whether or not anybody is drawn.
+func throw() -> void:
+	if _trainer == null or _trainer.perform(HumanoidClips.THROW) <= 0.0:
+		await _pause(STEP)
+		return
+	if skip:
+		# Skipping takes no time here either. The clip still plays — the player
+		# asked to get on with it, not to see nothing.
+		return
+	await _trainer.released
 
 
 func skipping() -> bool:

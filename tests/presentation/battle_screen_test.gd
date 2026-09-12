@@ -515,3 +515,43 @@ func test_it_brings_its_own_camera() -> void:
 	assert_bool(found.current).override_failure_message(
 		"the battle came up looking through somebody else's camera"
 	).is_true()
+
+
+func test_the_player_is_drawn_behind_their_own_creature() -> void:
+	# Drawn always rather than only while throwing: somebody who appeared for
+	# three seconds and vanished would read as a glitch.
+	var screen: BattleScreen = _screen()
+	var trainer: WalkerBody = _trainer_in(screen)
+
+	assert_object(trainer).override_failure_message("nobody is standing there").is_not_null()
+	assert_vector(trainer.position).is_equal_approx(
+		BattleStaging.trainer_seat(), Vector3.ONE * 0.001
+	)
+
+
+func test_the_player_throws_the_ball_themselves() -> void:
+	var screen: BattleScreen = _with_bag({"basic_ball": 2})
+	var trainer: WalkerBody = _trainer_in(screen)
+	assert_bool(trainer.is_performing()).is_false()
+
+	# Not awaited: what is being pinned is that the arm starts moving as the
+	# command is taken, rather than after the turn has already resolved.
+	screen.throw_ball("basic_ball")
+
+	assert_str(trainer.performing()).override_failure_message(
+		"the ball went out with nobody throwing it"
+	).is_equal(HumanoidClips.THROW)
+
+
+func _trainer_in(screen: BattleScreen) -> WalkerBody:
+	for node: Node in _every(screen):
+		if node is WalkerBody:
+			return node as WalkerBody
+	return null
+
+
+func _every(node: Node) -> Array[Node]:
+	var found: Array[Node] = [node]
+	for child: Node in node.get_children():
+		found.append_array(_every(child))
+	return found

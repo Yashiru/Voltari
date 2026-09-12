@@ -4,17 +4,28 @@ extends GdUnitTestSuite
 ##
 ## The model is committed, so unlike a creature this one is really there and the
 ## tests can say so. What they pin is the behaviour a reviewer would look for
-## first: the clip a speed produces, that chained steps do not flicker, that a
-## turn is a turn and not a snap, and that a missing model still leaves a player.
+## first: that the legs follow the ground continuously rather than switching, that
+## chained steps do not flicker, that a turn is a turn and not a snap, and that a
+## missing model still leaves a player.
 
 const FRAME: float = 1.0 / 60.0
-const RUNNING: float = 3.6
+
+## The speeds the two gaits were authored for. Read rather than restated, so a
+## re-measurement moves the tests with it.
+var _walking: float = WalkerGait.LOOKS_RIGHT_AT[HumanoidClips.WALK]
+var _running: float = WalkerGait.LOOKS_RIGHT_AT[HumanoidClips.RUN]
 
 
 func _body() -> WalkerBody:
 	var body: WalkerBody = auto_free(WalkerBody.new())
 	add_child(body)
 	return body
+
+
+## Long enough for the blend to have caught up with the ground.
+func _hold(body: WalkerBody, speed: float, heading: Vector2 = Vector2(0, 1)) -> void:
+	for frame: int in range(60):
+		body.advance(FRAME, speed, heading)
 
 
 # --- the model itself ---------------------------------------------------------
@@ -42,7 +53,7 @@ func test_it_stands_at_human_height_and_is_not_resized() -> void:
 
 
 func test_it_is_idling_before_anything_asks_it_to() -> void:
-	assert_str(_body().playing()).is_equal(WalkerGait.IDLE_CLIP)
+	assert_str(_body().playing()).is_equal(HumanoidClips.IDLE)
 
 
 # --- standing, walking, running -----------------------------------------------
@@ -51,13 +62,51 @@ func test_it_is_idling_before_anything_asks_it_to() -> void:
 func test_moving_runs_and_stopping_settles_to_the_idle() -> void:
 	var body: WalkerBody = _body()
 
-	body.advance(FRAME, RUNNING, Vector2(0, 1))
-	assert_str(body.playing()).is_equal("Running")
+	_hold(body, _running)
+	assert_str(body.playing()).is_equal(HumanoidClips.RUN)
 
 	# Past the grace, which is what a real stop is.
-	for frame: int in range(30):
-		body.advance(FRAME, 0.0, Vector2(0, 1))
-	assert_str(body.playing()).is_equal(WalkerGait.IDLE_CLIP)
+	_hold(body, 0.0)
+	assert_str(body.playing()).is_equal(HumanoidClips.IDLE)
+
+
+func test_a_walking_pace_walks() -> void:
+	# Reachable without anything being written for it: the axis is in metres a
+	# second and the walk stands on it at the speed it was authored for.
+	var body: WalkerBody = _body()
+
+	_hold(body, _walking)
+	assert_str(body.playing()).is_equal(HumanoidClips.WALK)
+
+
+func test_the_legs_follow_the_ground_continuously() -> void:
+	# The blend position is a speed, not a choice between two clips. Every speed
+	# between the two gaits has to land somewhere between them, or there is a
+	# threshold in here that nobody declared.
+	var body: WalkerBody = _body()
+
+	var last: float = -1.0
+	for speed: float in [0.0, 0.5, _walking, 2.3, _running]:
+		_hold(body, speed)
+		assert_float(body.shown_speed()).override_failure_message(
+			"the legs did not reach %f m/s" % speed
+		).is_equal_approx(speed, 0.01)
+		assert_float(body.shown_speed()).override_failure_message(
+			"the legs went backwards between speeds"
+		).is_greater(last)
+		last = body.shown_speed()
+
+
+func test_the_legs_do_not_change_gait_inside_one_frame() -> void:
+	# A stick released goes from full to nothing in one frame. Legs that answered
+	# that exactly would be a cut wearing a blend's clothes.
+	var body: WalkerBody = _body()
+	_hold(body, _running)
+
+	body.advance(FRAME, 0.0, Vector2(0, 1))
+	assert_float(body.shown_speed()).override_failure_message(
+		"the legs stopped inside one frame"
+	).is_greater(_running * 0.5)
 
 
 func test_chained_steps_never_drop_to_the_idle() -> void:
@@ -68,84 +117,55 @@ func test_chained_steps_never_drop_to_the_idle() -> void:
 
 	for step: int in range(6):
 		for frame: int in range(9):
-			body.advance(FRAME, RUNNING, Vector2(1, 0))
+			body.advance(FRAME, _running, Vector2(1, 0))
 		# The seam between two steps.
 		body.advance(FRAME, 0.0, Vector2(1, 0))
+		# Not "is running": the legs are still coming up to speed, and which gait
+		# a blend is nearest to on the way is not the point. What must never
+		# happen at a seam is standing still.
 		assert_str(body.playing()).override_failure_message(
 			"the legs stopped between step %d and the next" % step
-		).is_equal("Running")
+		).is_not_equal(HumanoidClips.IDLE)
 
 
 func test_the_grace_is_shorter_than_a_pause() -> void:
 	# It must not turn a genuine stop into a skid.
 	var body: WalkerBody = _body()
-	body.advance(FRAME, RUNNING, Vector2(0, 1))
+	_hold(body, _running)
 
 	var elapsed: float = 0.0
-	while body.playing() != WalkerGait.IDLE_CLIP and elapsed < 1.0:
+	while body.playing() != HumanoidClips.IDLE and elapsed < 2.0:
 		body.advance(FRAME, 0.0, Vector2(0, 1))
 		elapsed += FRAME
 
 	assert_float(elapsed).override_failure_message(
 		"it took %.2f s to stop" % elapsed
-	).is_less(0.25)
+	).is_less(0.6)
 
 
-func test_the_playback_rate_follows_the_speed() -> void:
-	var body: WalkerBody = _body()
-	body.advance(FRAME, RUNNING, Vector2(0, 1))
-
-	var player: AnimationPlayer = _player(body)
-	assert_float(player.speed_scale).is_equal_approx(1.0, 0.01)
-
-	body.advance(FRAME, RUNNING * 1.2, Vector2(0, 1))
-	assert_float(player.speed_scale).is_greater(1.0)
-
-
-func test_the_idle_plays_at_its_own_rate() -> void:
-	# Standing still is not a gait, so nothing scales it.
-	var body: WalkerBody = _body()
-	for frame: int in range(30):
-		body.advance(FRAME, 0.0, Vector2(0, 1))
-
-	assert_float(_player(body).speed_scale).is_equal_approx(1.0, 0.001)
-
-
-func test_every_gait_it_can_ask_for_is_in_the_model() -> void:
-	# The vocabulary and the model, checked against each other rather than by
+func test_every_slot_the_arithmetic_can_ask_for_is_in_the_library() -> void:
+	# The vocabulary and the assets, checked against each other rather than by
 	# reading both lists. A clip named in the arithmetic and missing from the
-	# model is a character that freezes at one speed and no other.
-	var player: AnimationPlayer = _player(_body())
+	# folder is a character that freezes at one speed and no other.
+	var clips: AnimationLibrary = HumanoidClips.library()
 
-	assert_bool(player.has_animation(WalkerGait.IDLE_CLIP)).override_failure_message(
-		"the model has no %s" % WalkerGait.IDLE_CLIP
-	).is_true()
-	for clip: String in WalkerGait.LOOKS_RIGHT_AT:
-		assert_bool(player.has_animation(clip)).override_failure_message(
-			"the model has no %s" % clip
+	for slot: String in WalkerGait.LOOKS_RIGHT_AT:
+		assert_bool(clips.has_animation(slot)).override_failure_message(
+			"no clip for the gait %s" % slot
 		).is_true()
-
-
-func test_every_gait_loops() -> void:
-	# Set at import rather than by code mutating a shared resource. A gait that
-	# did not loop would stop dead at the end of its cycle.
-	var player: AnimationPlayer = _player(_body())
-
-	for clip: String in WalkerGait.LOOKS_RIGHT_AT:
-		assert_int(player.get_animation(clip).loop_mode).override_failure_message(
-			"%s does not loop" % clip
-		).is_not_equal(Animation.LOOP_NONE)
-	assert_int(player.get_animation(WalkerGait.IDLE_CLIP).loop_mode).is_not_equal(
-		Animation.LOOP_NONE
-	)
+	for slot: String in WalkerGait.TURNS_BY:
+		assert_bool(clips.has_animation(slot)).override_failure_message(
+			"no clip for the turn %s" % slot
+		).is_true()
+	assert_bool(clips.has_animation(HumanoidClips.IDLE)).is_true()
 
 
 # --- turning ------------------------------------------------------------------
 
 
 func test_it_turns_rather_than_snapping() -> void:
-	# A four-facing world that snapped would flick the model through ninety
-	# degrees inside one frame, which is the cheapest thing to get wrong here.
+	# A world that snapped would flick the model through ninety degrees inside
+	# one frame, which is the cheapest thing to get wrong here.
 	var body: WalkerBody = _body()
 	body.face_at_once(Vector2(0, 1))
 	var from: float = body.rotation.y
@@ -175,6 +195,7 @@ func test_arriving_somewhere_faces_at_once() -> void:
 	# A warp, a load and a defeat all put the player somewhere else. Turning
 	# through the change would spin them on arrival.
 	var body: WalkerBody = _body()
+	_hold(body, _running)
 	body.face_at_once(Vector2(0, -1))
 
 	assert_float(body.rotation.y).is_equal_approx(
@@ -182,18 +203,4 @@ func test_arriving_somewhere_faces_at_once() -> void:
 	)
 	assert_str(body.playing()).override_failure_message(
 		"it arrived mid-stride"
-	).is_equal(WalkerGait.IDLE_CLIP)
-
-
-func _player(body: WalkerBody) -> AnimationPlayer:
-	for node: Node in _every(body):
-		if node is AnimationPlayer:
-			return node as AnimationPlayer
-	return null
-
-
-func _every(node: Node) -> Array[Node]:
-	var found: Array[Node] = [node]
-	for child: Node in node.get_children():
-		found.append_array(_every(child))
-	return found
+	).is_equal(HumanoidClips.IDLE)

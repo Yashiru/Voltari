@@ -2,7 +2,7 @@ extends GdUnitTestSuite
 
 ## How fast a character's legs move, and which way it is turned.
 ##
-## The numbers underneath are measured by `tools/characters/measure_gaits.gd`, so
+## The numbers underneath are measured by `tools/characters/measure_clips.gd`, so
 ## what is asserted here is the *rules* that use them: the gait that fits a
 ## speed, a playback rate that never leaves the band where a cadence still reads
 ## as human, and a turn that arrives without spinning.
@@ -25,8 +25,8 @@ func test_a_speed_below_the_threshold_is_standing_still() -> void:
 
 
 func test_a_walking_pace_walks_and_a_running_pace_runs() -> void:
-	assert_str(WalkerGait.moving_at(1.4).clip).is_equal("Walking")
-	assert_str(WalkerGait.moving_at(3.6).clip).is_equal("Running")
+	assert_str(WalkerGait.moving_at(1.33).clip).is_equal(HumanoidClips.WALK)
+	assert_str(WalkerGait.moving_at(3.33).clip).is_equal(HumanoidClips.RUN)
 
 
 func test_the_nearest_authored_speed_wins() -> void:
@@ -35,30 +35,35 @@ func test_the_nearest_authored_speed_wins() -> void:
 	for speed: float in [1.0, 1.5, 2.0]:
 		assert_str(WalkerGait.moving_at(speed).clip).override_failure_message(
 			"%f should walk" % speed
-		).is_equal("Walking")
+		).is_equal(HumanoidClips.WALK)
 	for speed: float in [3.0, 4.0, 9.0]:
 		assert_str(WalkerGait.moving_at(speed).clip).override_failure_message(
 			"%f should run" % speed
-		).is_equal("Running")
+		).is_equal(HumanoidClips.RUN)
 
 
 func test_a_gait_at_its_authored_speed_plays_untouched() -> void:
-	# The whole reason the world moves at 3.6 m/s: at that speed the run plays at
+	# The whole reason the world moves at 3.33 m/s: at that speed the run plays at
 	# exactly the cadence the animator made, and the rate is one.
-	assert_float(WalkerGait.moving_at(3.6).rate).is_equal_approx(1.0, 0.01)
-	assert_float(WalkerGait.moving_at(1.47).rate).is_equal_approx(1.0, 0.01)
+	for slot: String in WalkerGait.LOOKS_RIGHT_AT:
+		assert_float(
+			WalkerGait.moving_at(WalkerGait.LOOKS_RIGHT_AT[slot]).rate
+		).override_failure_message("%s is not played untouched at its own speed" % slot).is_equal_approx(
+			1.0, 0.01
+		)
 
 
 func test_the_rate_follows_the_speed() -> void:
-	assert_float(WalkerGait.rate_for("Running", 3.6 * 1.1)).is_greater(1.0)
-	assert_float(WalkerGait.rate_for("Running", 3.6 * 0.9)).is_less(1.0)
+	var authored: float = WalkerGait.LOOKS_RIGHT_AT[HumanoidClips.RUN]
+	assert_float(WalkerGait.rate_for(HumanoidClips.RUN, authored * 1.1)).is_greater(1.0)
+	assert_float(WalkerGait.rate_for(HumanoidClips.RUN, authored * 0.9)).is_less(1.0)
 
 
 func test_the_rate_never_leaves_the_human_band() -> void:
 	# Outside it a cadence stops reading as a gait: a run at twice the rate is
 	# 340 steps a minute, which no amount of correct footfall rescues.
-	for speed: float in [0.0, 0.5, 3.6, 20.0, 500.0]:
-		var rate: float = WalkerGait.rate_for("Running", speed)
+	for speed: float in [0.0, 0.5, 3.33, 20.0, 500.0]:
+		var rate: float = WalkerGait.rate_for(HumanoidClips.RUN, speed)
 		assert_float(rate).override_failure_message(
 			"%f m/s gave a rate of %f" % [speed, rate]
 		).is_between(WalkerGait.SLOWEST_RATE, WalkerGait.FASTEST_RATE)

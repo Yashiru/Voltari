@@ -23,7 +23,7 @@ const SAVE_PATH: String = "user://sandbox.json"
 ##
 ## **The one number that sets the pace**, and it is not a matter of taste: it is
 ## the speed the character's running animation was authored for, measured by
-## `tools/characters/measure_gaits.gd` and used by `WalkerGait`. Moving faster
+## `tools/characters/measure_clips.gd` and used by `WalkerGait`. Moving faster
 ## than a gait was made for is what foot-sliding is, and moving at exactly its
 ## speed costs nothing.
 ##
@@ -31,7 +31,7 @@ const SAVE_PATH: String = "user://sandbox.json"
 ## painted on a finer grid is crossed at the same speed rather than at the same
 ## rate. The capsule this replaced crossed two metres in 0.16 s — 45 km/h, which
 ## no animation of a person can be played fast enough to match.
-const GROUND_SPEED: float = 3.6
+const GROUND_SPEED: float = WalkerGait.LOOKS_RIGHT_AT[HumanoidClips.RUN]
 
 ## Only a fallback: the grid is asked how wide a cell is. Kept for a map whose
 ## terrain layer is missing, which is a map somebody is midway through building.

@@ -9,8 +9,17 @@
 *.blend   filter=lfs diff=lfs merge=lfs -text
 *.meshlib filter=lfs diff=lfs merge=lfs -text
 
-# Textures only where they arrive in bulk. The handful in `game/presentation/`
-# are a few kilobytes each and are better off as ordinary blobs — a pointer file
-# is friction for anything that has to read one without LFS installed.
-game/assets/species/**/*.png filter=lfs diff=lfs merge=lfs -text
-game/assets/species/**/*.jpg filter=lfs diff=lfs merge=lfs -text
+# Textures under `game/assets/`, which is where they arrive in bulk. The handful
+# in `game/presentation/` are a few kilobytes each and are better off as ordinary
+# blobs — a pointer file is friction for anything that has to read one without
+# LFS installed, and a 130-byte pointer for a 144-byte shading ramp is not a
+# saving.
+#
+# **The boundary is the folder, not the subfolder.** This said
+# `game/assets/species/**` and the other two folders beside it fell through: a
+# one-megabyte logo and an 876-kilobyte character texture were committed whole.
+# `game/assets/` is the line the comment above was always describing, so it is
+# the line the rule draws now — a texture put in a new folder there is covered
+# the day it arrives rather than the day somebody notices.
+game/assets/**/*.png filter=lfs diff=lfs merge=lfs -text
+game/assets/**/*.jpg filter=lfs diff=lfs merge=lfs -text

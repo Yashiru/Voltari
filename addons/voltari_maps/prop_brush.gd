@@ -35,16 +35,6 @@ extends RefCounted
 ## where it stops.
 const SMALLEST: float = 0.01
 
-## **What is placed is not held here.** The item comes from the palette the
-## author already has open, read at the moment of the click — the same reasoning
-## that made sowing read the `GridMap` editor's own cell selection rather than
-## offer a second way to choose cells. A copy kept here would be a second answer
-## to "which model", and the two would disagree the first time somebody changed
-## one of them.
-##
-## What is held here is how the next prop is turned and sized, which the palette
-## has no opinion about.
-
 ## Which way a prop faces, in degrees about the vertical, and how far either side
 ## of that it may land.
 ##
@@ -66,6 +56,27 @@ var size_spread: float = 0.0
 var _random: RandomNumberGenerator = RandomNumberGenerator.new()
 
 
+## Which item of the palette the next prop is made of.
+##
+## Held here after all. The first attempt read it from the `GridMap` palette at
+## the moment of the click, so that there was one place a model was chosen — and
+## the argument was sound until the consequence arrived: reading that palette
+## means being in the engine's paint mode, which fights for the same click and
+## draws its own preview of the unturned, unscaled model. A source that imposes a
+## mode that contradicts the gesture is not a source worth keeping.
+var item: int = -1
+
+## The turn and size the next prop will get, drawn once and held until it lands.
+##
+## **Stable on purpose.** A preview has to show what is about to happen, and one
+## that redrew its random numbers every frame would spin and pulse under the
+## cursor while promising nothing. So the values are decided when they are first
+## asked for and kept until `placed` or `restyled` says they are spent.
+var _turn_now: float = 0.0
+var _size_now: float = 1.0
+var _drawn: bool = false
+
+
 func _init(seed_with: int = 0) -> void:
 	if seed_with != 0:
 		_random.seed = seed_with
@@ -76,10 +87,40 @@ func _init(seed_with: int = 0) -> void:
 ## The point is the origin: a model is authored standing on its own origin (the
 ## tile library leaves every one of them that way), so putting the origin on the
 ## ground is what makes a prop stand on it rather than sink into it.
+##
+## Asked twice without a placement in between, it answers the same thing. That is
+## the preview's contract, and it is why the variation is drawn here rather than
+## per call.
 func next_at(point: Vector3) -> Transform3D:
-	var angle: float = deg_to_rad(turn + _spread(turn_spread))
-	var scale: float = maxf(size + _spread(size_spread), SMALLEST)
-	return Transform3D(Basis(Vector3.UP, angle).scaled(Vector3.ONE * scale), point)
+	if not _drawn:
+		_draw()
+	return Transform3D(
+		Basis(Vector3.UP, deg_to_rad(_turn_now)).scaled(Vector3.ONE * _size_now), point
+	)
+
+
+## The pending prop has landed; the one after it is a fresh draw.
+func placed() -> void:
+	_drawn = false
+
+
+## A setting changed, so whatever was pending is out of date.
+##
+## Without this the preview would keep showing the old numbers until something
+## was placed, which is the one moment an author is definitely looking at it.
+func restyled() -> void:
+	_drawn = false
+
+
+func _draw() -> void:
+	_turn_now = turn + _spread(turn_spread)
+	_size_now = maxf(size + _spread(size_spread), SMALLEST)
+	_drawn = true
+
+
+## Whether the brush has a model to lay down.
+func ready_to_paint() -> bool:
+	return item >= 0
 
 
 ## A number somewhere in ±`either_way`, or exactly zero when there is no spread.

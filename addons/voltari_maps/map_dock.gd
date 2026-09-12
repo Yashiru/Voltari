@@ -76,6 +76,23 @@ var _turn_spread: SpinBox = null
 var _size: SpinBox = null
 var _size_spread: SpinBox = null
 
+## The models a prop can be made of, and which one is picked.
+##
+## **Its own list rather than the `GridMap` palette's.** Reading the engine's
+## palette meant being in its paint mode, which fights the placing gesture for the
+## same click and draws its own preview of the unturned model. A source that
+## imposes a contradicting mode is not worth the one place it saved.
+var _filter: LineEdit = null
+var _palette: ItemList = null
+
+## Which library the list currently shows, so it is refilled when the map changes
+## and not on every frame.
+var _library_shown: MeshLibrary = null
+
+## The item id behind each row, because the rows are filtered and their indices
+## are therefore not ids.
+var _rows: Array[int] = []
+
 ## The problems the report is currently showing, in the order it shows them.
 ##
 ## What a click resolves against. The link carries an index and not a
@@ -124,9 +141,26 @@ func _init() -> void:
 
 	add_child(HSeparator.new())
 
-	# How a placed prop is turned and sized. The *what* is not here: it is the
-	# item selected in the GridMap palette, read when the click happens, so there
-	# is no second list of models to keep in step with the engine's own.
+	# What a prop is made of. Filtered, because a real palette is hundreds of
+	# models and the categories are in their names (`Plants/Bush_1`), so typing
+	# "plants" is how anybody finds anything.
+	var picked: Label = Label.new()
+	picked.text = "Prop model"
+	add_child(picked)
+
+	_filter = LineEdit.new()
+	_filter.placeholder_text = "Filter, e.g. plants"
+	_filter.text_changed.connect(_on_filter_changed)
+	add_child(_filter)
+
+	_palette = ItemList.new()
+	_palette.custom_minimum_size = Vector2(0, 160)
+	_palette.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_palette.max_columns = 0
+	_palette.item_selected.connect(_on_item_picked)
+	add_child(_palette)
+
+	# How a placed prop is turned and sized.
 	_turn = _brush_field("Turn (deg)", 0.0, -360.0, 360.0, 1.0)
 	_turn_spread = _brush_field("Turn, give or take", 0.0, 0.0, 360.0, 1.0)
 	_size = _brush_field("Size", 1.0, 0.01, 100.0, 0.05)
@@ -194,6 +228,64 @@ func grain_field() -> LineEdit:
 func contact_field() -> LineEdit:
 	return _contact
 
+
+
+## Fills the model list from a map's own palette.
+##
+## Taken from the map being edited rather than from a path typed into this panel:
+## the palette a map paints with is the palette its props should come from, and a
+## second path here would be a second thing to keep in step.
+##
+## Cheap to call repeatedly — it returns at once unless the library has actually
+## changed, which is what lets the plugin hand it over on its own tick.
+func show_palette(library: MeshLibrary) -> void:
+	if library == _library_shown:
+		return
+	_library_shown = library
+	_refill()
+
+
+## Which model a prop will be made of, or -1 when none is picked.
+func picked_item() -> int:
+	var chosen: PackedInt32Array = _palette.get_selected_items()
+	if chosen.is_empty() or chosen[0] >= _rows.size():
+		return -1
+	return _rows[chosen[0]]
+
+
+## Rebuilds the rows for the current library and filter, keeping the picked model
+## picked if it survived the filter.
+func _refill() -> void:
+	var was: int = picked_item()
+	_palette.clear()
+	_rows.clear()
+
+	if _library_shown == null:
+		return
+
+	var wanted: String = _filter.text.strip_edges().to_lower()
+	for id: int in _library_shown.get_item_list():
+		var name_of: String = _library_shown.get_item_name(id)
+		# The invisible blocker is a rule, not a model. Offering it as something to
+		# place would offer a prop that draws nothing.
+		if name_of == VltWorldMap.BLOCKER:
+			continue
+		if not wanted.is_empty() and not name_of.to_lower().contains(wanted):
+			continue
+
+		var row: int = _palette.add_item(name_of, _library_shown.get_item_preview(id))
+		_rows.append(id)
+		if id == was:
+			_palette.select(row)
+
+
+func _on_filter_changed(_text: String) -> void:
+	_refill()
+	brush_changed.emit()
+
+
+func _on_item_picked(_row: int) -> void:
+	brush_changed.emit()
 
 
 ## The brush's numbers, reachable so a caller can read them without knowing which

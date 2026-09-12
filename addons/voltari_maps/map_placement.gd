@@ -147,42 +147,32 @@ static func snapped_to_grid(map: VltWorldMap, local: Vector3) -> Vector3:
 	return Vector3(centre.x, local.y, centre.z)
 
 
-## The top of the terrain tile in a cell, in the map's own space.
+## The height a prop stands at on a cell, in the map's own space.
 ##
-## **Not the grid plane.** A cell's own height is where the *tile* is drawn, and a
-## tile has a thickness: on the maintainer's pack a leafy ground tile's top face
-## sits over a metre above its cell. A prop placed at the grid plane therefore
-## stands with its feet a metre underground, which reads as the model being wrong
-## rather than as the placement being wrong.
+## **Where the same model would be if it were painted**, which is the cell's own
+## plane. A `GridMap` draws its items at exactly that height, so a prop and a
+## painted copy of the same model stand level with each other — and that is the
+## whole rule, needing no measurement of anything.
 ##
-## Falls back to the plane for a cell with no tile, no palette or no map — there
-## is nothing else it could honestly say, and something placed off the edge of the
-## terrain has no surface to sit on.
+## The first attempt at this took the top of the terrain tile's bounding box,
+## reasoning that a tile has a thickness. **A bounding box is not a surface.** On
+## the maintainer's pack a leafy ground tile's box reaches 1.13 m because of its
+## leaves, not because anything stands up there, so every prop was placed above
+## the foliage. `TurfPatch` uses that same height for a different question — how
+## high a blade has to clear — where it is the right answer.
 ##
-## `TurfPatch` works the same height out for its own purposes and cannot share
-## this: it is presentation and this is editor tooling, and neither may depend on
-## the other. Worth unifying into the engine if a third caller ever wants it.
-static func surface_of(map: VltWorldMap, cell: Vector2i) -> float:
-	var plane: float = centre_of(map, cell).y
-	if map == null or map.terrain == null or map.terrain.mesh_library == null:
-		return plane
-
-	var item: int = map.terrain.get_cell_item(Vector3i(cell.x, VltWorldMap.GROUND, cell.y))
-	if item == GridMap.INVALID_CELL_ITEM:
-		return plane
-
-	var mesh: Mesh = map.terrain.mesh_library.get_item_mesh(item)
-	if mesh == null:
-		return plane
-	return plane + mesh.get_aabb().end.y * maxf(map.terrain.cell_scale, 0.0001)
+## Nothing here reads a mesh, so there is nothing for a tall decorative tile to
+## mislead.
+static func stands_at(map: VltWorldMap, cell: Vector2i) -> float:
+	return centre_of(map, cell).y
 
 
-## The same point, sitting on the tile beneath it.
+## The same point, back on the plane its cell is drawn at.
 ##
-## What "drop to ground" means, and what the brush places at. Both x and z are
-## left alone: this answers a height and nothing else.
+## What "drop to ground" means. Both x and z are left alone: this answers a
+## height and nothing else.
 static func dropped(map: VltWorldMap, local: Vector3) -> Vector3:
-	return Vector3(local.x, surface_of(map, cell_at(map, local)), local.z)
+	return Vector3(local.x, stands_at(map, cell_at(map, local)), local.z)
 
 
 ## Where a ray through the viewport meets a map's floor, in the map's own space,

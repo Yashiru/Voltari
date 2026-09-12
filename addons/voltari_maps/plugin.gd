@@ -58,6 +58,13 @@ var _views: MenuButton = null
 var _place: Button = null
 var _tidy: MenuButton = null
 
+## The ghost under the cursor: what is about to be placed, where it would land.
+##
+## Never given an owner, so it is not saved into the scene and does not appear in
+## the scene tree beside the props it is previewing. Freed the moment placing is
+## switched off.
+var _preview: MeshInstance3D = null
+
 ## The tidying gestures, as menu ids.
 const TIDY_DROP: int = 0
 const TIDY_ALIGN: int = 1
@@ -158,8 +165,9 @@ func _enter_tree() -> void:
 	_place = Button.new()
 	_place.text = "Place props"
 	_place.toggle_mode = true
-	_place.tooltip_text = ("Click the ground to place the palette's selected item as a prop.\n"
-		+ "Turn and size come from the Maps dock. Off, the viewport is the engine's own.")
+	_place.tooltip_text = ("Click the ground to place the model picked in the Maps dock.\n"
+		+ "A ghost under the cursor shows what will land. Off, the viewport is the engine's own.")
+	_place.toggled.connect(_on_placing_toggled)
 	add_control_to_container(CONTAINER_SPATIAL_EDITOR_MENU, _place)
 
 	# The three tidying gestures, behind one menu for the reason the views are:
@@ -216,6 +224,7 @@ func _exit_tree() -> void:
 		remove_control_from_container(CONTAINER_SPATIAL_EDITOR_MENU, _snap)
 		_snap.queue_free()
 		_snap = null
+	_drop_preview()
 	_placed.clear()
 	_turf.clear()
 	_restless.clear()
@@ -238,6 +247,11 @@ func _process(delta: float) -> void:
 	if _looked < SETTLE:
 		return
 	_looked = 0.0
+
+	# The model list follows whichever map is open. Cheap: the dock returns at
+	# once unless the library has actually changed.
+	if _dock != null:
+		_dock.show_palette(_palette_of(_brush_map()))
 	for patch: TurfPatch in _turf_patches(root):
 		_follow(patch)
 	if _watching():
@@ -613,51 +627,84 @@ func _forward_3d_gui_input(camera: Camera3D, event: InputEvent) -> int:
 	if _place == null or not _place.button_pressed:
 		return EditorPlugin.AFTER_GUI_INPUT_PASS
 
+	var moved: InputEventMouseMotion = event as InputEventMouseMotion
+	if moved != null:
+		# Followed, not consumed: the camera still orbits and pans while the ghost
+		# tracks the ground under the cursor.
+		_show_preview(camera, moved.position)
+		return EditorPlugin.AFTER_GUI_INPUT_PASS
+
 	var click: InputEventMouseButton = event as InputEventMouseButton
 	if click == null or click.button_index != MOUSE_BUTTON_LEFT or not click.pressed:
 		return EditorPlugin.AFTER_GUI_INPUT_PASS
 
-	return (
-		EditorPlugin.AFTER_GUI_INPUT_STOP
-		if place_at(camera, click.position)
-		else EditorPlugin.AFTER_GUI_INPUT_PASS
-	)
+	if not place_at(camera, click.position):
+		return EditorPlugin.AFTER_GUI_INPUT_PASS
+
+	# The pending prop is spent, so the ghost has to show the next one rather than
+	# the one now standing under it.
+	_show_preview(camera, click.position)
+	return EditorPlugin.AFTER_GUI_INPUT_STOP
+
+
+## Puts the ghost where the next prop would land, making one if there is none.
+func _show_preview(camera: Camera3D, at: Vector2) -> void:
+	var map: VltWorldMap = _brush_map()
+	var mesh: Mesh = _brush_mesh(map)
+	if map == null or mesh == null:
+		_drop_preview()
+		return
+
+	var where: Variant = VltMapPlacement.ground_under(map, camera, at)
+	if where == null:
+		_drop_preview()
+		return
+
+	if _preview == null or _preview.get_parent() != map:
+		_drop_preview()
+		_preview = MeshInstance3D.new()
+		# Unshaded and see-through, so it reads as a promise rather than as
+		# something already placed. The model's own look is not the point here.
+		var ghost: StandardMaterial3D = StandardMaterial3D.new()
+		ghost.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		ghost.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		ghost.albedo_color = Color(0.4, 0.9, 1.0, 0.45)
+		_preview.material_override = ghost
+		# No owner: not saved into the scene, and not shown in the scene tree.
+		map.add_child(_preview)
+
+	_preview.mesh = mesh
+	@warning_ignore("unsafe_cast")
+	_preview.transform = _brush.next_at(VltMapPlacement.dropped(map, where as Vector3))
+
+
+func _drop_preview() -> void:
+	if _preview == null:
+		return
+	if _preview.get_parent() != null:
+		_preview.get_parent().remove_child(_preview)
+	_preview.queue_free()
+	_preview = null
+
+
+func _on_placing_toggled(on: bool) -> void:
+	if not on:
+		_drop_preview()
 
 
 ## Puts one prop where a ray through the viewport meets the map's ground.
-##
-## **The ground plane, not a collision shape.** The overworld has no physics by
-## design (spec 14, section 1), so there is nothing to raycast against — and there
-## should not be: a plane at the map's own floor height is exact, needs nothing
-## built, and cannot disagree with the grid about where the floor is.
 ##
 ## Returns whether anything was placed, so the caller knows whether the click was
 ## used. A click that lands on nothing has to fall through, or the viewport stops
 ## responding as soon as the camera looks at the sky.
 func place_at(camera: Camera3D, at: Vector2) -> bool:
-	var root: Node = EditorInterface.get_edited_scene_root()
-	if camera == null or root == null:
+	var map: VltWorldMap = _brush_map()
+	if map == null:
 		return false
 
-	var maps: Array[VltWorldMap] = _maps(root)
-	if maps.is_empty():
-		_say("Nothing here is a Voltari map, so there is no ground to place a prop on.")
-		return false
-	var map: VltWorldMap = maps[0]
-
-	var grid: GridMap = _brush_grid(map)
-	if grid == null or grid.mesh_library == null:
-		_say("Select a GridMap with a palette first — the prop is the item selected in it.")
-		return false
-
-	var item: int = _palette_item()
-	if item == GridMap.INVALID_CELL_ITEM:
-		_say("No item is selected in the GridMap palette, so there is nothing to place.")
-		return false
-
-	var mesh: Mesh = grid.mesh_library.get_item_mesh(item)
+	var mesh: Mesh = _brush_mesh(map)
 	if mesh == null:
-		_say("The selected palette item has no model.")
+		_say("Pick a prop model in the Maps dock first.")
 		return false
 
 	var where: Variant = VltMapPlacement.ground_under(map, camera, at)
@@ -666,42 +713,42 @@ func place_at(camera: Camera3D, at: Vector2) -> bool:
 
 	@warning_ignore("unsafe_cast")
 	var landed: Vector3 = where as Vector3
-	# Onto the tile's top face, not the grid plane. A tile has a thickness — over a
-	# metre of it on the maintainer's pack — so a prop left on the plane stands
-	# with its feet underground, which reads as the model being wrong.
-	_add_prop(
-		map, root, mesh, grid.mesh_library.get_item_name(item),
-		_brush.next_at(VltMapPlacement.dropped(map, landed))
-	)
+	_add_prop(map, mesh, _brush.next_at(VltMapPlacement.dropped(map, landed)))
+	# Spent: the prop after this one gets its own draw from the spread.
+	_brush.placed()
 	return true
 
 
-## The palette the prop comes from: whichever `GridMap` the author is editing,
-## falling back to the map's own blocking layer.
-func _brush_grid(map: VltWorldMap) -> GridMap:
-	var editing: GridMapEditorPlugin = _grid_editor()
-	if editing != null:
-		var current: GridMap = editing.get_current_grid_map()
-		if current != null:
-			return current
-
-	for node: Node in EditorInterface.get_selection().get_selected_nodes():
-		var grid: GridMap = node as GridMap
-		if grid != null:
-			return grid
-	return map.blocking
+## The map props are placed on: the first one in the edited scene.
+func _brush_map() -> VltWorldMap:
+	var root: Node = EditorInterface.get_edited_scene_root()
+	if root == null:
+		return null
+	var maps: Array[VltWorldMap] = _maps(root)
+	return null if maps.is_empty() else maps[0]
 
 
-## The item selected in the engine's own palette.
+## The model the brush is set to, out of the map's own palette.
+func _brush_mesh(map: VltWorldMap) -> Mesh:
+	var library: MeshLibrary = _palette_of(map)
+	if library == null or not _brush.ready_to_paint():
+		return null
+	return library.get_item_mesh(_brush.item)
+
+
+## The palette a map paints with.
 ##
-## Read rather than mirrored in the dock. An author picking a model has already
-## said which one, with the tool they already use, and a second list would be a
-## second thing that can disagree — the argument sowing already makes for cells.
-static func _palette_item() -> int:
-	var editing: GridMapEditorPlugin = _grid_editor()
-	if editing == null:
-		return GridMap.INVALID_CELL_ITEM
-	return editing.get_selected_palette_item()
+## The blocking layer's first, then the terrain's: they are the same library on
+## every map the tile builder has produced, and blocking is the one a prop is a
+## peer of.
+static func _palette_of(map: VltWorldMap) -> MeshLibrary:
+	if map == null:
+		return null
+	if map.blocking != null and map.blocking.mesh_library != null:
+		return map.blocking.mesh_library
+	if map.terrain != null and map.terrain.mesh_library != null:
+		return map.terrain.mesh_library
+	return null
 
 
 ## Builds the prop and hands it to the scene, undoably.
@@ -709,13 +756,15 @@ static func _palette_item() -> int:
 ## Parented to the map rather than to a group node this would have to invent.
 ## Grouping is an author's decision and the footprint walk reaches any depth, so
 ## a `Props` node created behind their back would be a structure nobody asked for.
-func _add_prop(
-	map: VltWorldMap, root: Node, mesh: Mesh, item_name: String, at: Transform3D
-) -> void:
+func _add_prop(map: VltWorldMap, mesh: Mesh, at: Transform3D) -> void:
+	var root: Node = EditorInterface.get_edited_scene_root()
+	var library: MeshLibrary = _palette_of(map)
+	var named: String = "" if library == null else library.get_item_name(_brush.item)
+
 	var prop: VltProp = VltProp.new()
 	# A palette name is a path — `Plants/Bush_1` — and a node name cannot hold a
 	# slash. The last part is what an author would call the thing anyway.
-	prop.name = item_name.get_file() if not item_name.is_empty() else "Prop"
+	prop.name = named.get_file() if not named.is_empty() else "Prop"
 
 	var part: MeshInstance3D = MeshInstance3D.new()
 	part.name = "Model"
@@ -830,11 +879,17 @@ func _move_selection(
 	map.update_gizmos()
 
 
-## The dock's numbers, taken as the brush's.
+## The dock's numbers and its picked model, taken as the brush's.
+##
+## The pending draw is thrown away with them: otherwise the ghost would keep
+## showing the old turn and size until something was placed, which is the one
+## moment an author is certainly looking at it.
 func _on_brush_changed() -> void:
 	if _dock == null:
 		return
+	_brush.item = _dock.picked_item()
 	_brush.turn = _dock.turn_value()
 	_brush.turn_spread = _dock.turn_spread_value()
 	_brush.size = _dock.size_value()
 	_brush.size_spread = _dock.size_spread_value()
+	_brush.restyled()

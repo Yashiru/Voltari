@@ -26,6 +26,7 @@ func test_with_no_spread_every_prop_is_identical() -> void:
 
 	var first: Transform3D = brush.next_at(Vector3.ZERO)
 	for repeat: int in range(MANY):
+		brush.placed()
 		assert_bool(brush.next_at(Vector3.ZERO).is_equal_approx(first)).is_true()
 
 
@@ -37,6 +38,7 @@ func test_a_prop_stands_on_the_point_it_was_given() -> void:
 	brush.size_spread = 0.5
 
 	for repeat: int in range(MANY):
+		brush.placed()
 		var where: Vector3 = Vector3(3.0, 1.25, -7.0)
 		assert_bool(brush.next_at(where).origin.is_equal_approx(where)).is_true()
 
@@ -53,6 +55,7 @@ func test_a_prop_is_never_tilted() -> void:
 	brush.size_spread = 0.4
 
 	for repeat: int in range(MANY):
+		brush.placed()
 		var basis: Basis = brush.next_at(Vector3.ZERO).basis
 		# Upright means the vertical column is vertical, and nothing else leans
 		# into it.
@@ -67,6 +70,7 @@ func test_a_turn_spread_stays_inside_what_was_asked_for() -> void:
 	brush.turn_spread = 15.0
 
 	for repeat: int in range(MANY):
+		brush.placed()
 		var degrees: float = rad_to_deg(_angle_of(brush.next_at(Vector3.ZERO)))
 		assert_float(degrees).is_between(90.0 - 15.0 - 0.001, 90.0 + 15.0 + 0.001)
 
@@ -79,6 +83,7 @@ func test_a_turn_spread_actually_varies() -> void:
 
 	var seen: Dictionary[float, bool] = {}
 	for repeat: int in range(MANY):
+		brush.placed()
 		seen[snappedf(_angle_of(brush.next_at(Vector3.ZERO)), 0.0001)] = true
 	assert_int(seen.size()).is_greater(MANY / 2)
 
@@ -92,6 +97,7 @@ func test_a_size_spread_stays_inside_what_was_asked_for() -> void:
 	brush.size_spread = 0.2
 
 	for repeat: int in range(MANY):
+		brush.placed()
 		assert_float(_size_of(brush.next_at(Vector3.ZERO))).is_between(0.8 - 0.001, 1.2 + 0.001)
 
 
@@ -108,6 +114,7 @@ func test_a_prop_is_never_scaled_to_nothing() -> void:
 	# a square root away from it. What matters is that it is the floor and not
 	# something near zero.
 	for repeat: int in range(MANY):
+		brush.placed()
 		assert_float(_size_of(brush.next_at(Vector3.ZERO))).is_greater(SMALLEST * 0.99)
 
 
@@ -119,6 +126,7 @@ func test_a_size_is_the_same_on_both_ground_axes() -> void:
 	brush.size_spread = 0.4
 
 	for repeat: int in range(MANY):
+		brush.placed()
 		var basis: Basis = brush.next_at(Vector3.ZERO).basis
 		assert_float(basis.x.length()).is_equal_approx(basis.z.length(), 0.0001)
 		assert_float(basis.x.length()).is_equal_approx(basis.y.length(), 0.0001)
@@ -165,6 +173,7 @@ func _row(brush: VltPropBrush, count: int) -> Array[Transform3D]:
 	var laid: Array[Transform3D] = []
 	for index: int in range(count):
 		laid.append(brush.next_at(Vector3(float(index), 0.0, 0.0)))
+		brush.placed()
 	return laid
 
 
@@ -176,3 +185,68 @@ static func _angle_of(at: Transform3D) -> float:
 ## The size a transform carries, on the ground plane.
 static func _size_of(at: Transform3D) -> float:
 	return at.basis.x.length()
+
+
+# --- what the preview is allowed to promise -----------------------------------
+
+
+func test_asking_twice_without_placing_answers_the_same() -> void:
+	# The preview's whole contract: what is under the cursor is what will land
+	# there. Redrawing per call would make it spin and pulse while promising
+	# nothing.
+	var brush: VltPropBrush = _brush()
+	brush.turn_spread = 45.0
+	brush.size_spread = 0.5
+
+	var shown: Transform3D = brush.next_at(Vector3.ZERO)
+	for repeat: int in range(20):
+		assert_bool(brush.next_at(Vector3.ZERO).is_equal_approx(shown)).is_true()
+
+
+func test_the_pending_prop_follows_the_cursor_without_changing() -> void:
+	# Moving the mouse moves the preview and must not reroll it.
+	var brush: VltPropBrush = _brush()
+	brush.turn_spread = 45.0
+
+	var here: Transform3D = brush.next_at(Vector3.ZERO)
+	var there: Transform3D = brush.next_at(Vector3(7.0, 0.0, 2.0))
+	assert_bool(there.basis.is_equal_approx(here.basis)).is_true()
+	assert_bool(there.origin.is_equal_approx(Vector3(7.0, 0.0, 2.0))).is_true()
+
+
+func test_placing_one_draws_the_next() -> void:
+	var brush: VltPropBrush = _brush()
+	brush.turn_spread = 45.0
+
+	var first: Transform3D = brush.next_at(Vector3.ZERO)
+	brush.placed()
+
+	var different: bool = false
+	for repeat: int in range(20):
+		if not brush.next_at(Vector3.ZERO).basis.is_equal_approx(first.basis):
+			different = true
+			break
+		brush.placed()
+	assert_bool(different).is_true()
+
+
+func test_changing_a_setting_redraws_what_is_pending() -> void:
+	# Otherwise the preview keeps showing the old numbers until something is
+	# placed — which is the one moment an author is certainly looking at it.
+	var brush: VltPropBrush = _brush()
+	brush.size = 1.0
+	var before: Transform3D = brush.next_at(Vector3.ZERO)
+
+	brush.size = 4.0
+	brush.restyled()
+	assert_float(_size_of(brush.next_at(Vector3.ZERO))).is_not_equal(_size_of(before))
+
+
+func test_a_brush_with_no_model_has_nothing_to_lay_down() -> void:
+	assert_bool(VltPropBrush.new().ready_to_paint()).is_false()
+
+
+func test_a_brush_naming_a_model_is_ready() -> void:
+	var brush: VltPropBrush = _brush()
+	brush.item = 7
+	assert_bool(brush.ready_to_paint()).is_true()

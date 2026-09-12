@@ -652,3 +652,74 @@ func test_a_wall_still_stops_the_player() -> void:
 	assert_bool(world.cell().x <= against.x + 1).override_failure_message(
 		"walked through the wall to %s" % world.cell()
 	).is_true()
+
+
+# --- where the camera sits -----------------------------------------------------
+#
+# How steep the camera should be is settled by looking at it. What is *not*
+# settled by looking is that each of the three numbers changes one thing — a sign
+# slip or a swapped axis tilts the camera the other way round and still produces a
+# plausible screenshot, which is exactly the kind of mistake a picture hides.
+#
+# Built bare rather than from the scene: the offset reads three exported numbers
+# and nothing else, so there is no reason to pay for a whole world.
+
+
+func test_the_camera_sits_above_and_behind() -> void:
+	var world: WorldSandbox = auto_free(WorldSandbox.new())
+	var offset: Vector3 = world.camera_offset()
+
+	assert_float(offset.y).override_failure_message("the camera is not above").is_greater(0.0)
+	assert_float(offset.z).override_failure_message("the camera is not behind").is_greater(0.0)
+	assert_float(offset.x).is_equal_approx(0.0, 0.0001)
+
+
+func test_the_pitch_is_the_angle_it_says() -> void:
+	var world: WorldSandbox = auto_free(WorldSandbox.new())
+	for pitch: float in [30.0, 45.0, 60.0, 75.0]:
+		world.camera_pitch = pitch
+		var offset: Vector3 = world.camera_offset()
+		assert_float(rad_to_deg(atan2(offset.y, offset.z))).is_equal_approx(pitch, 0.01)
+
+
+func test_a_steeper_camera_is_higher_and_less_far_back() -> void:
+	# "More top down" has to be one number, and this is what that means.
+	var world: WorldSandbox = auto_free(WorldSandbox.new())
+	world.camera_pitch = 45.0
+	var shallow: Vector3 = world.camera_offset()
+	world.camera_pitch = 70.0
+	var steep: Vector3 = world.camera_offset()
+
+	assert_float(steep.y).is_greater(shallow.y)
+	assert_float(steep.z).is_less(shallow.z)
+
+
+func test_the_distance_moves_the_camera_without_turning_it() -> void:
+	# What makes a long lens usable: pulling back flattens the perspective and
+	# must not change where the camera is pointed from.
+	var world: WorldSandbox = auto_free(WorldSandbox.new())
+	world.camera_pitch = 60.0
+	world.camera_distance = 10.0
+	var near: Vector3 = world.camera_offset()
+	world.camera_distance = 40.0
+	var far: Vector3 = world.camera_offset()
+
+	assert_float(near.length()).is_equal_approx(10.0, 0.001)
+	assert_float(far.length()).is_equal_approx(40.0, 0.001)
+	assert_float(far.normalized().dot(near.normalized())).is_equal_approx(1.0, 0.0001)
+
+
+func test_a_camera_cannot_be_put_underground_or_nowhere() -> void:
+	# The ends of the ranges, and what somebody typing into an inspector reaches
+	# for. Straight down must stay above; no distance at all must not put the
+	# camera inside the character's head.
+	var world: WorldSandbox = auto_free(WorldSandbox.new())
+
+	world.camera_pitch = 89.0
+	assert_float(world.camera_offset().y).is_greater(0.0)
+
+	world.camera_pitch = 0.0
+	assert_float(world.camera_offset().y).is_greater(0.0)
+
+	world.camera_distance = 0.0
+	assert_float(world.camera_offset().length()).is_greater(0.0)

@@ -860,6 +860,35 @@ func spread_selection() -> void:
 	)
 
 
+## The props the selection means, whether or not it names them.
+##
+## **Clicking a prop in the viewport does not select the prop.** Godot picks the
+## geometry, which is the `MeshInstance3D` inside it, so every gesture below would
+## have answered "select some props first" to somebody who had just clicked one.
+## The same happens in the scene tree the moment anybody opens a prop to look at
+## its model.
+##
+## So a selected node is resolved upward to the prop that owns it. Deduplicated,
+## because selecting a prop and its model is one prop and acting on it twice would
+## undo in two steps.
+static func _selected_props() -> Array[VltProp]:
+	var found: Array[VltProp] = []
+	var seen: Dictionary[int, bool] = {}
+
+	for node: Node in EditorInterface.get_selection().get_selected_nodes():
+		var walk: Node = node
+		while walk != null:
+			var prop: VltProp = walk as VltProp
+			if prop != null:
+				if not seen.has(prop.get_instance_id()):
+					seen[prop.get_instance_id()] = true
+					found.append(prop)
+				break
+			walk = walk.get_parent()
+
+	return found
+
+
 ## Says whether the selected props stop anybody.
 ##
 ## **Two entries rather than one that toggles.** A selection of six props where
@@ -872,12 +901,7 @@ func spread_selection() -> void:
 ## lives on the prop and nothing re-derives it.
 func set_selection_blocking(blocking: bool) -> void:
 	var map: VltWorldMap = _brush_map()
-	var props: Array[VltProp] = []
-	for node: Node in EditorInterface.get_selection().get_selected_nodes():
-		var prop: VltProp = node as VltProp
-		if prop != null:
-			props.append(prop)
-
+	var props: Array[VltProp] = _selected_props()
 	if props.is_empty():
 		_say("Select some props first — this acts on what is selected.")
 		return
@@ -918,12 +942,7 @@ func fit_selection() -> void:
 	var cell: float = map.cell_width()
 	var cells: int = 1 if _dock == null else _dock.fit_cells_value()
 
-	var props: Array[VltProp] = []
-	for node: Node in EditorInterface.get_selection().get_selected_nodes():
-		var prop: VltProp = node as VltProp
-		if prop != null:
-			props.append(prop)
-
+	var props: Array[VltProp] = _selected_props()
 	if props.is_empty():
 		_say("Select some props first — fitting acts on what is selected.")
 		return
@@ -960,10 +979,7 @@ func _move_selection(
 	var props: Array[VltProp] = []
 	var map: VltWorldMap = null
 
-	for node: Node in EditorInterface.get_selection().get_selected_nodes():
-		var prop: VltProp = node as VltProp
-		if prop == null:
-			continue
+	for prop: VltProp in _selected_props():
 		var owned: VltWorldMap = VltMapPlacement.map_of(prop)
 		if owned == null:
 			continue

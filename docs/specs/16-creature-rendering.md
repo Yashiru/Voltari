@@ -504,10 +504,18 @@ directions.
 **The rigs do not match and the importer is what reconciles them.** The clips are
 65 bones in a T-pose on a 1.04 m hip; the character is 27 bones in an A-pose on a
 0.84 m hip with a stylised build. Both are imported through one committed
-`BoneMap` onto `SkeletonProfileHumanoid`, with `overwrite_axis` and
-`normalize_position_tracks`. A clip then addresses `%GeneralSkeleton` and lands on
-any character imported the same way, feet on the floor to within two centimetres.
-Without it the arms fold into the chest and the body floats a quarter of a metre.
+`BoneMap` onto `SkeletonProfileHumanoid`, with `overwrite_axis`,
+`normalize_position_tracks` and `fix_silhouette`. A clip then addresses `%GeneralSkeleton` and lands on
+any character imported the same way, feet on the floor to within four
+centimetres. Without it the arms fold into the chest and the body floats a
+quarter of a metre.
+
+**`fix_silhouette` is what makes the arms right**, and it is easy to leave off:
+the clips are authored on a T-pose rest and the character's is an A-pose, so
+normalising the axes without straightening the silhouette leaves every arm forty
+degrees off and the forearm swinging into the body. Thirty centimetres of hand,
+measured, on every frame of every clip. A test measures which side of the chest
+each hand is on, because nothing else here could see it.
 
 **Clips loop because the `.import` says so**, not because the runtime patches a
 shared resource on every load. Which slots loop is a list in `HumanoidClips`, and

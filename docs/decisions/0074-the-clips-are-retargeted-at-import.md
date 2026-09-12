@@ -31,10 +31,24 @@ animation named `mixamo_com`.
 ## Decision
 
 **Both the model and the clips are imported through one committed `BoneMap` onto
-`SkeletonProfileHumanoid`, with the rest fixer's `overwrite_axis` and
-`normalize_position_tracks` on.** The map is
+`SkeletonProfileHumanoid`, with the rest fixer's `overwrite_axis`,
+`normalize_position_tracks` **and `fix_silhouette`** on.** The map is
 `game/assets/characters/mixamo_humanoid.tres`, twenty-two bones of a Mixamo rig
 against the profile's names.
+
+**`fix_silhouette` is not optional here, and leaving it off is what broke the
+arms.** The clips are authored on a rig whose rest is a T-pose; the character's
+rest is an A-pose. Normalising the axes without straightening the silhouette
+leaves each rest pointing its arms where it always did, so the clips arrive some
+forty degrees off at the shoulder and the forearm swings *into* the body.
+Measured on the same clip, at matched phases: the hand sat 0.09 m past the spine
+on the wrong side, against 0.21 m out on the model's own animation — thirty
+centimetres, every frame. With it on, 0.18 to 0.22 m, which is the reference.
+
+It was off for a day because the first version was written without it and the
+tests could not see it: they check that clips load, loop and put feet on the
+floor, and an arm inside a torso does all three. A test now measures which side
+of the chest each hand is on.
 
 The importer then rewrites both skeletons onto the profile's reference axes,
 renames their bones, and calls the skeleton node `GeneralSkeleton` with a unique
@@ -42,9 +56,9 @@ name. A clip's tracks address `%GeneralSkeleton:Hips`, and that resolves against
 **any** character imported the same way. There is no glue at runtime: the library
 is added to an `AnimationPlayer` and played.
 
-Measured after the change, across all eleven clips: the lowest a toe reaches is
-between 1.5 cm below and 2.1 cm above where the toe rests. The character stands
-on the floor.
+Measured after the change, across all eleven clips: the lowest a toe reaches lies
+between 5.8 and 9.5 cm, a four-centimetre spread over the whole vocabulary. The
+character stands on the floor and no clip stands on a different one.
 
 **Each clip imports as an `AnimationLibrary`, not as a scene**
 (`importer="animation_library"`). There is no mesh in any of them, and importing
@@ -90,7 +104,7 @@ moving the clips out of the model.
 **The bone names changed**, so anything that looked up `mixamorig_Hips` now looks
 up `Hips`. Twenty-two of the twenty-seven are renamed; the five the profile has no
 name for — the head top, the two fingertips, the two toe ends — keep theirs, and
-the tools that measure ground clearance still ask for `mixamorig_LeftToe_End`.
+the tool that measures the feet still asks for `mixamorig_LeftToe_End`.
 
 **`tools/characters/measure_gaits.gd` is gone**, replaced by
 `measure_clips.gd`. The old one could not measure what matters here, and keeping
@@ -105,12 +119,12 @@ is now read off the foot, on this rig, after the retarget — 1.33 m/s walking a
 3.33 m/s running, both feet agreeing to within 2%. The world moved from 3.6 to
 3.33 m/s as a result.
 
-**Eight of the eleven clips have nowhere to go yet.** The four turns need a system
-(decision 0075 does not cover them), the throw needs the player drawn in battle,
-the two stair loops need an overworld with more than one storey, and the fishing
-idle is a stance around a rod that does not exist. They are named, imported and
-tested; nothing plays them. That is deliberate and it is written down rather than
-left to be rediscovered.
+**Three of the eleven clips have nowhere to go.** The two stair loops need an
+overworld with more than one storey, and the fishing idle is a stance around a rod
+that does not exist. They are named, imported and tested; nothing plays them
+except a key in the sandbox. That is deliberate and it is written down rather than
+left to be rediscovered. The four turns and the throw found their homes in
+decisions 0076 and 0077.
 
 **The fingers are dropped, and two fingertips are not.** The clips animate 65
 bones and the model has 27, so 38 tracks resolve to nothing — which is what should

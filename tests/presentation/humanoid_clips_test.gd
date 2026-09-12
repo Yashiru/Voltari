@@ -92,3 +92,37 @@ func test_the_model_answers_to_that_name() -> void:
 	assert_bool(model.has_node("%GeneralSkeleton")).override_failure_message(
 		"the model's skeleton is not the profile's — was it imported without the bone map?"
 	).is_true()
+
+
+func test_the_arms_stay_on_their_own_side_of_the_body() -> void:
+	# The retarget got this wrong and nothing caught it: the upper arm landed
+	# correctly and the forearm swung inwards, so the hand came out of the middle
+	# of the chest, thirty centimetres from where the model's own clips put it.
+	# The silhouette fixer is what corrects it, and this is what says it stayed
+	# corrected — for the three clips the player is looking at all the time.
+	var model: Node = (load(WalkerBody.MODEL) as PackedScene).instantiate()
+	auto_free(model)
+	add_child(model)
+	var skeleton: Skeleton3D = model.get_node("%GeneralSkeleton") as Skeleton3D
+	var player: AnimationPlayer = AnimationPlayer.new()
+	model.add_child(player)
+	player.root_node = NodePath("..")
+	player.add_animation_library("clips", HumanoidClips.library())
+
+	var chest: int = skeleton.find_bone("Chest")
+	var sides: Dictionary[String, float] = {"LeftHand": 1.0, "RightHand": -1.0}
+
+	for slot: String in [HumanoidClips.IDLE, HumanoidClips.WALK, HumanoidClips.RUN]:
+		var clip: Animation = player.get_animation("clips/%s" % slot)
+		player.play("clips/%s" % slot)
+		for sample: int in range(6):
+			player.seek(clip.length * float(sample) / 6.0, true)
+			for hand: String in sides:
+				var apart: float = (
+					skeleton.get_bone_global_pose(skeleton.find_bone(hand)).origin.x
+					- skeleton.get_bone_global_pose(chest).origin.x
+				)
+				assert_float(apart * sides[hand]).override_failure_message(
+					"in %s the %s is %.3f m the wrong side of the chest"
+					% [slot, hand, -apart * sides[hand]]
+				).is_greater(0.05)

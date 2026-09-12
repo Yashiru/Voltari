@@ -51,10 +51,13 @@ const SLOWEST_RATE: float = 0.80
 const FASTEST_RATE: float = 1.25
 
 ## How fast a character turns when it is not playing a turn clip, in radians a
-## second. A quarter turn takes about a tenth of a second, which is under one
-## step: the turn is finished before the walk that follows it starts, and it is
-## never what you are waiting for.
-const TURN_SPEED: float = 14.0
+## second.
+##
+## This is what closes the last of a turn somebody walked out of, so it is what
+## they are actually waiting on: a quarter turn in 0.07 s and a half in 0.14 s,
+## both under a single step. It used to be 14, which was under a step too and
+## still read as the character taking its time about it.
+const TURN_SPEED: float = 22.0
 
 ## Below this a character is standing still, whatever the arithmetic says.
 const STILL: float = 0.01
@@ -63,10 +66,11 @@ const STILL: float = 0.01
 ##
 ## **This is what separates "look that way" from "go that way".** A tap turns the
 ## character on the spot and plays the clip out; a direction that is still held
-## after this is somebody who wants to walk, and they are not made to wait for an
-## animation to finish. A hundred and fifty milliseconds is under the shortest
-## deliberate keypress and over the longest accidental one.
-const TURN_TAP: float = 0.15
+## after this is somebody who wants to walk, and this is the whole of what they
+## wait for. A tenth of a second is six frames — long enough that no deliberate
+## press is read as a departure, short enough that a departure does not feel held
+## back.
+const TURN_TAP: float = 0.10
 
 ## How fast a turn clip is played. One is the clip as it was authored.
 ##

@@ -25,9 +25,11 @@ extends SceneTree
 ##
 ## ## What else it prints, and what for
 ##
-## - **Ground clearance.** The lowest a toe reaches, against where the toe rests.
-##   A retarget that put the body at the wrong height shows up here as a limb
-##   through the floor or a character on stilts, in centimetres, per clip.
+## - **The lowest a toe reaches**, in metres above the floor. Not measured against
+##   the rest, which stopped being the pose the mesh was modelled in the day the
+##   silhouette fixer straightened the legs: what says the retarget is sound is
+##   that every clip agrees with every other one to within a few centimetres. One
+##   clip on stilts among ten that are not is the failure this catches.
 ## - **Net yaw.** How far a turn clip actually turns. They were ordered as 90 and
 ##   180 and they are not, and a turn that is played without knowing that ends
 ##   the move pointing somewhere nobody asked for.
@@ -65,31 +67,25 @@ func _init() -> void:
 	var toes: Array[int] = [
 		skeleton.find_bone("mixamorig_LeftToe_End"), skeleton.find_bone("mixamorig_RightToe_End")
 	]
-	var resting: float = skeleton.get_bone_global_rest(toes[0]).origin.y
-
 	print("model   %s" % MODEL)
-	print("bones   %d      toe at rest %.3f m\n" % [skeleton.get_bone_count(), resting])
+	print("bones   %d\n" % skeleton.get_bone_count())
 	print(
 		"%-16s %7s %5s %6s | %8s | %9s | %8s | %s"
-		% ["clip", "length", "loop", "tracks", "clearance", "speed", "net yaw", "root travel"]
+		% ["clip", "length", "loop", "tracks", "toe low", "speed", "net yaw", "root travel"]
 	)
 
 	for slot: String in HumanoidClips.EVERY:
 		if not player.has_animation("clips/%s" % slot):
 			print("%-16s absent" % slot)
 			continue
-		await _report(player, skeleton, toes, resting, slot)
+		await _report(player, skeleton, toes, slot)
 
 	model.queue_free()
 	quit()
 
 
 func _report(
-	player: AnimationPlayer,
-	skeleton: Skeleton3D,
-	toes: Array[int],
-	resting: float,
-	slot: String
+	player: AnimationPlayer, skeleton: Skeleton3D, toes: Array[int], slot: String
 ) -> void:
 	var clip: Animation = player.get_animation("clips/%s" % slot)
 	var hips: int = skeleton.find_bone("Hips")
@@ -140,7 +136,7 @@ func _report(
 				clip.length,
 				"yes" if clip.loop_mode != Animation.LOOP_NONE else "no",
 				clip.get_track_count(),
-				lowest - resting,
+				lowest,
 				_speeds(speeds),
 				rad_to_deg(_turned(yaw)),
 				root[root.size() - 1].z - root[0].z,

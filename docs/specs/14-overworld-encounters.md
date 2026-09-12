@@ -282,6 +282,16 @@ This is the only mechanical guard the overworld has, which is why it validates
 what a scene genuinely cannot: a warp's destination lives in a *different* file
 from the warp.
 
+**One of those problems is prevented rather than reported** (decision 0078). A
+zone's table id is a menu of the ids the content build produced, filled by the
+editor plugin — which already holds the path for the check — and read from the
+same list in the same call, so the inspector cannot offer something the check
+then rejects. It is display only: a stale id stays in the scene until somebody
+changes it, and the check remains the thing that says it is wrong. The list is
+the only one of these the editor can prevent at the source; the rest name things
+that live in another file, which is why they are still found rather than
+forestalled.
+
 ## 8. The world reaches the save through its own section
 
 Spec 13 requires each system to declare its part of the save. The world's part is

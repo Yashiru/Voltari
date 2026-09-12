@@ -71,15 +71,24 @@ func _patch(root: Node3D) -> TurfPatch:
 ## A plane rather than a box because `center_offset` is the only way to build a
 ## primitive away from its origin and `PlaneMesh` is the only one that has it.
 ## Lying flat, so the footprint it should clear has width in both x and z.
+##
+## **It stands at blade height on purpose.** It used to sit a metre higher, which
+## did not matter while the shape was a bounding box — a box was stamped whatever
+## height it was at. It matters now that a model is sliced at the height the grass
+## stands: two metres up is somewhere no blade reaches, so the honest answer there
+## is no clearance at all, and a fixture asserting otherwise would pin the old
+## defect rather than the rule. `test_a_model_out_of_a_blades_reach_clears_nothing`
+## is that rule, stated.
 func _prop_whose_mesh_is_elsewhere(root: Node3D) -> void:
 	var mesh: PlaneMesh = PlaneMesh.new()
 	mesh.size = Vector2(2.0, 2.0)
-	mesh.center_offset = Vector3(MESH_AT.x, 1.0, MESH_AT.y)
+	mesh.center_offset = Vector3(MESH_AT.x, 0.0, MESH_AT.y)
 
 	var prop: MeshInstance3D = MeshInstance3D.new()
 	prop.mesh = mesh
-	# Above the floor, or the patch ignores it as ground rather than as a thing.
-	prop.position = Vector3(0.0, 1.0, 0.0)
+	# Just clear of the floor: in among the blades, which is what something
+	# standing in a lawn is.
+	prop.position = Vector3(0.0, 0.55, 0.0)
 	root.add_child(prop)
 
 
@@ -164,3 +173,75 @@ func test_foliage_beside_the_grid_is_not_cleared_around() -> void:
 	assert_int(_footprints(patch, terrain).size()).override_failure_message(
 		"a foliage patch was cleared around as though it were something to avoid"
 	).is_equal(alone)
+
+
+# --- the height a blade reaches -----------------------------------------------
+
+
+func test_a_model_out_of_a_blades_reach_clears_nothing() -> void:
+	# A canopy, an eave, a sign on a post. The slab a blade occupies is what
+	# decides, so something overhead lets the lawn grow under it — which a
+	# bounding box could not express, having no height in it at all.
+	var root: Node3D = _map()
+	var terrain: GridMap = root.get_node("Terrain") as GridMap
+	_prop_whose_mesh_is_elsewhere(root)
+	var overhead: MeshInstance3D = root.get_child(root.get_child_count() - 1) as MeshInstance3D
+	overhead.position = Vector3(0.0, 4.0, 0.0)
+
+	var patch: TurfPatch = _patch(root)
+	await get_tree().process_frame
+
+	assert_bool(_cleared_at(_footprints(patch, terrain), MESH_AT)).override_failure_message(
+		"a model four metres up cleared the ground under it"
+	).is_false()
+
+
+func test_a_grouped_model_is_still_made_way_for() -> void:
+	# Grouping props under a node is the first thing anybody does with more than
+	# three of them, and the walk used to read the grid's direct siblings only —
+	# so the whole group stopped clearing grass and nothing said why.
+	var root: Node3D = _map()
+	var terrain: GridMap = root.get_node("Terrain") as GridMap
+
+	var group: Node3D = Node3D.new()
+	group.name = "Props"
+	root.add_child(group)
+	_prop_whose_mesh_is_elsewhere(group)
+
+	var patch: TurfPatch = _patch(root)
+	await get_tree().process_frame
+
+	assert_bool(_cleared_at(_footprints(patch, terrain), MESH_AT)).override_failure_message(
+		"a model grouped under a node cleared nothing"
+	).is_true()
+
+
+func test_a_grouped_model_that_moves_asks_for_a_regrow() -> void:
+	# The other half of the same defect: a signature that never saw the model
+	# could not notice it moving, so the lawn kept the hole the model had left.
+	var root: Node3D = _map()
+	var group: Node3D = Node3D.new()
+	root.add_child(group)
+	_prop_whose_mesh_is_elsewhere(group)
+
+	var patch: TurfPatch = _patch(root)
+	await get_tree().process_frame
+
+	var before: int = patch.map_signature()
+	group.position += Vector3(3.0, 0.0, 0.0)
+	assert_int(patch.map_signature()).is_not_equal(before)
+
+
+func test_a_hidden_model_is_not_made_way_for() -> void:
+	# Grass makes way for what is there, and something switched off is not there.
+	var root: Node3D = _map()
+	var terrain: GridMap = root.get_node("Terrain") as GridMap
+	_prop_whose_mesh_is_elsewhere(root)
+	(root.get_child(root.get_child_count() - 1) as Node3D).visible = false
+
+	var patch: TurfPatch = _patch(root)
+	await get_tree().process_frame
+
+	assert_bool(_cleared_at(_footprints(patch, terrain), MESH_AT)).override_failure_message(
+		"a hidden model still cleared the ground"
+	).is_false()

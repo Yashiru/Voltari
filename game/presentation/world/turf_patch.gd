@@ -407,13 +407,16 @@ func map_signature() -> int:
 	var beside: Node = grid.get_parent()
 	if beside == null:
 		return tally
+
+	# The models the patch makes way for, at whatever depth they sit. Watching
+	# only the grid's direct siblings meant a prop grouped under a node could be
+	# moved all day without the lawn ever noticing.
+	var models: Array[MeshInstance3D] = []
 	for node: Node in beside.get_children():
-		if node == self or node is GridMap:
-			continue
-		var shown: VisualInstance3D = node as VisualInstance3D
-		if shown == null:
-			continue
-		tally = _fold(tally, hash(shown.global_transform))
+		_models_under(node, models)
+	for shown: MeshInstance3D in models:
+		tally = _fold(tally, hash(_relative_to(beside, shown)))
+
 	return tally
 
 
@@ -1013,36 +1016,75 @@ func _footprints(grid: GridMap) -> Array[PackedVector2Array]:
 	var beside: Node = grid.get_parent()
 	if beside == null:
 		return stamps
+
+	# **Every model on the map, at any depth.** This used to read the grid's direct
+	# siblings only, so grouping props under a node — which is the first thing
+	# anybody does with more than three of them — quietly stopped clearing grass
+	# around any of them.
+	var models: Array[MeshInstance3D] = []
 	for node: Node in beside.get_children():
-		if node is GridMap or _grows_cover(node):
-			continue
-		var shown: VisualInstance3D = node as VisualInstance3D
-		if shown == null:
-			continue
-		var where: Vector3 = grid.to_local(shown.global_position)
-		if where.y <= floor_y + 0.01:
-			continue
-		# A prop node is not in a palette, so there is no item to cache against
-		# and no cell scale to apply. Its own box is the best shape available.
-		#
-		# **Where the box is, not where the node is.** The two are not the same
-		# place. A box carries its own offset from the node that holds it, and a
-		# model instanced from a finished pack keeps the spot it stood on in the
-		# scene it was cut from — tens of metres, in the Town Islands pack. Taking
-		# the *size* from the box and the *middle* from the node stamped a
-		# rectangle as big as the model onto the origin of the map: a bald patch
-		# with nothing standing in it, and the thing itself still growing grass
-		# through its feet.
-		var box: AABB = (
-			grid.global_transform.affine_inverse() * shown.global_transform
-		) * shown.get_aabb()
-		var low: Vector2 = Vector2(box.position.x, box.position.z)
-		var high: Vector2 = low + Vector2(box.size.x, box.size.z)
-		stamps.append(PackedVector2Array([
-			low, Vector2(high.x, low.y), high,
-			low, high, Vector2(low.x, high.y),
-		]))
+		_models_under(node, models)
+
+	# Into the sown grid's space, which is what everything above is measured in.
+	# The models are the grid's siblings, so walking up from one reaches the map
+	# rather than the grid, and the grid's own place has to be taken back out.
+	var into_grid: Transform3D = grid.transform.affine_inverse()
+
+	for shown: MeshInstance3D in models:
+		var at: Transform3D = into_grid * _relative_to(beside, shown)
+		var ground: float = _ground_under(grid, sown, at.origin, floor_y)
+		# **Its real shape at blade height, not its bounding box.** A box is as
+		# wide as a tree's canopy, so a tree cleared a square of lawn the size of
+		# its crown with nothing standing in most of it. That was tolerable while
+		# a model placed as a node was a rarity; a prop is now the ordinary way to
+		# put something on a map, so the crude path had become the main one.
+		var shape: PackedVector2Array = _stamp_of(
+			shown.mesh,
+			at,
+			minf(ground - SLICE_BELOW, at.origin.y),
+			ground + maxf(blade_height + lift, SLICE_ABOVE)
+		)
+		if not shape.is_empty():
+			stamps.append(shape)
+
 	return stamps
+
+
+## Every model under a node, skipping the grids and whatever grows cover.
+##
+## A hidden branch is skipped whole: grass has to make way for what is there, and
+## something switched off is not there. The local flag is enough because the walk
+## is top-down and never reaches a hidden node's children.
+static func _models_under(node: Node, into: Array[MeshInstance3D]) -> void:
+	if node is GridMap or _grows_cover(node):
+		return
+
+	var branch: Node3D = node as Node3D
+	if branch != null and not branch.visible:
+		return
+
+	var part: MeshInstance3D = node as MeshInstance3D
+	if part != null and part.mesh != null:
+		into.append(part)
+
+	for child: Node in node.get_children():
+		_models_under(child, into)
+
+
+## Where a node stands relative to an ancestor.
+##
+## Local transforms multiplied rather than `global_transform`, which needs a
+## scene tree — and a patch is measured in tests and in the editor's own
+## rebuild, neither of which guarantees one.
+static func _relative_to(root: Node, node: Node3D) -> Transform3D:
+	var at: Transform3D = Transform3D.IDENTITY
+	var walk: Node3D = node
+
+	while walk != null and walk != root:
+		at = walk.transform * at
+		walk = walk.get_parent() as Node3D
+
+	return at
 
 
 ## Whether a node beside the grid is itself something that grows ground cover.
@@ -1141,7 +1183,29 @@ func _slice_of(
 	if mesh == null:
 		return PackedVector2Array()
 
+	# In the model's own space: a cell applies its turn, its scale and its
+	# position afterwards, which is what lets one answer serve every cell holding
+	# the item.
+	var solid: PackedVector2Array = _stamp_of(mesh, Transform3D.IDENTITY, low, high)
+	_feet[key] = solid
+	return solid
+
+
+## The same slice, for a model already standing somewhere.
+##
+## **The triangles are put where they stand before anything is measured.** A prop
+## carries its own rotation and scale, and the slab is a pair of heights in the
+## world — so slicing in the model's units and transforming afterwards would only
+## agree with this for something upright and uniformly scaled.
+##
+## The grid keeps the identity case and keeps its cache with it: the same item in
+## a hundred cells is measured once and placed a hundred times, which is what
+## makes a patch over a tiled field affordable.
+func _stamp_of(
+	mesh: Mesh, at: Transform3D, low: float, high: float
+) -> PackedVector2Array:
 	var flat: PackedVector2Array = PackedVector2Array()
+
 	for surface: int in range(mesh.get_surface_count()):
 		var arrays: Array = mesh.surface_get_arrays(surface)
 		if typeof(arrays[Mesh.ARRAY_VERTEX]) != TYPE_PACKED_VECTOR3_ARRAY:
@@ -1162,7 +1226,9 @@ func _slice_of(
 		var corner: int = 0
 		while corner + 2 < faces.size():
 			var whole: Array[Vector3] = [
-				points[faces[corner]], points[faces[corner + 1]], points[faces[corner + 2]]
+				at * points[faces[corner]],
+				at * points[faces[corner + 1]],
+				at * points[faces[corner + 2]],
 			]
 			corner += 3
 			var inside: Array[Vector3] = _slab(whole, low, high)
@@ -1191,7 +1257,6 @@ func _slice_of(
 		solid.append(hull[step])
 		solid.append(hull[step + 1])
 
-	_feet[key] = solid
 	return solid
 
 

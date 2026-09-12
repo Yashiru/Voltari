@@ -13,11 +13,18 @@ shader_type spatial;
 // copy of either would be a leaf that drifts out of step with the field it stands
 // in, which is the whole thing those two files exist to prevent.
 //
-// `cull_back` and not `cull_disabled`: `VltFoliage` already winds each leaf twice,
-// so both faces are real geometry. Turning culling off as well would draw every
-// leaf four times for nothing.
+// `cull_disabled`, and `VltFoliage` winds each leaf **once** (decision 0078).
+//
+// It was the other way round — wound twice and culled — on the reading that
+// turning culling off would draw every leaf four times. It does not: culling
+// off rasterises each triangle once and accepts either facing, while winding
+// twice submits two and discards one. Same image, twice the geometry, on the
+// hottest surface in the game.
+//
+// Nothing is lost by showing both faces: both carried the support's normal
+// already, so a leaf shades the same whichever side is turned towards you.
 
-render_mode blend_mix, cull_back, specular_disabled, ambient_light_disabled;
+render_mode blend_mix, cull_disabled, specular_disabled, ambient_light_disabled;
 
 #include "res://game/presentation/creature/comic_look.gdshaderinc"
 #include "res://game/presentation/world/wind.gdshaderinc"

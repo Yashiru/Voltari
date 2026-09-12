@@ -457,21 +457,20 @@ static func _grow(
 		# one line is the difference between a bush and a heap of flakes.
 		facing.append(out)
 
+	# **Wound once.** A leaf is a flat shape and has to be visible from either
+	# side, which it was given by winding it twice — on the stated grounds that
+	# `cull_disabled` "would draw every leaf four times". That is not what
+	# `cull_disabled` does: it rasterises each triangle once and accepts either
+	# facing. Winding twice submits two triangles and throws one away, which is
+	# twice the geometry for an identical image (decision 0078).
+	#
+	# The shader turns culling off instead. Both readings show the same thing
+	# because both faces carried the same normal — the support's — so there was
+	# never a seam to hide.
 	for corner: int in range(1, OUTLINE.size() - 1):
 		stitched.append(first)
 		stitched.append(first + corner)
 		stitched.append(first + corner + 1)
-		# And again, wound the other way. A leaf is a flat shape and the look culls
-		# back faces, so a single-sided one is simply gone the moment the camera
-		# passes behind it — half a canopy disappearing as the player walks round
-		# a tree. Both sides carry the same normal, the support's, so they shade
-		# identically and the seam is invisible.
-		#
-		# Costs indices and no vertices: the six points are shared, and four
-		# triangles become eight.
-		stitched.append(first)
-		stitched.append(first + corner + 1)
-		stitched.append(first + corner)
 
 
 ## `out`, tipped over by up to `most` radians in a random direction.

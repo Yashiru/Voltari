@@ -693,7 +693,9 @@ func _show_preview(camera: Camera3D, at: Vector2) -> void:
 
 	_preview.mesh = mesh
 	@warning_ignore("unsafe_cast")
-	_preview.transform = _brush.next_at(VltMapPlacement.dropped(map, where as Vector3))
+	_preview.transform = _brush.next_at(
+		VltMapPlacement.dropped(map, where as Vector3), _fit_for(map, mesh)
+	)
 
 
 func _drop_preview() -> void:
@@ -733,10 +735,21 @@ func place_at(camera: Camera3D, at: Vector2) -> bool:
 
 	@warning_ignore("unsafe_cast")
 	var landed: Vector3 = where as Vector3
-	_add_prop(map, mesh, _brush.next_at(VltMapPlacement.dropped(map, landed)))
+	_add_prop(map, mesh, _brush.next_at(VltMapPlacement.dropped(map, landed), _fit_for(map, mesh)))
 	# Spent: the prop after this one gets its own draw from the spread.
 	_brush.placed()
 	return true
+
+
+## What it takes to make a model fill the grid, or `ONE` when nothing is asked.
+##
+## Per axis, so what lands is a cube of the grid's own units — the same rule
+## *Tidy props > Fit to the grid* applies to what is already placed, and the same
+## consequence: a model that is not a cube is squashed into one.
+func _fit_for(map: VltWorldMap, mesh: Mesh) -> Vector3:
+	if _dock == null or mesh == null or not _dock.fit_when_placing():
+		return Vector3.ONE
+	return VltPropLayout.fitted(mesh.get_aabb(), map.cell_width(), _dock.fit_cells_value())
 
 
 ## The map props are placed on: the first one in the edited scene.

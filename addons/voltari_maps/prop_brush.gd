@@ -108,11 +108,21 @@ func _init(seed_with: int = 0) -> void:
 ## Asked twice without a placement in between, it answers the same thing. That is
 ## the preview's contract, and it is why the variation is drawn here rather than
 ## per call.
-func next_at(point: Vector3) -> Transform3D:
+## `fit` is a per-axis factor applied before the size — what it takes to make the
+## model fill the grid, or `ONE` to leave it at the size it was authored. Kept as
+## an argument rather than a field because only the caller has the model to
+## measure, and a copy of the answer here would be one more thing to keep current.
+func next_at(point: Vector3, fit: Vector3 = Vector3.ONE) -> Transform3D:
 	if not _drawn:
 		_draw()
+
+	# **Turned after being scaled, not before.** `Basis.scaled` multiplies in the
+	# parent's axes, so a non-cube fit applied that way would stretch a prop along
+	# whichever world axis it happened to be facing. Written as a product, the
+	# scale is the model's own and the turn is around it — which is also what the
+	# inspector then shows as the node's scale and rotation.
 	return Transform3D(
-		Basis(Vector3.UP, deg_to_rad(_turn_now)).scaled(Vector3.ONE * _size_now), point
+		Basis(Vector3.UP, deg_to_rad(_turn_now)) * Basis.from_scale(fit * _size_now), point
 	)
 
 

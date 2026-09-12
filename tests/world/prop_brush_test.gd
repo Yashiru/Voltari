@@ -286,3 +286,63 @@ func test_a_slab_scaled_into_a_step_stops_you() -> void:
 	var road: float = 0.1
 	assert_bool(VltPropBrush.blocks_at(road)).is_false()
 	assert_bool(VltPropBrush.blocks_at(road * 4.0)).is_true()
+
+
+# --- fitted as it lands -------------------------------------------------------
+
+
+func test_without_a_fit_a_prop_is_the_size_it_was_asked_for() -> void:
+	var brush: VltPropBrush = _brush()
+	brush.size = 2.0
+	assert_float(_size_of(brush.next_at(Vector3.ZERO))).is_equal_approx(2.0, 0.0001)
+
+
+func test_a_fit_is_applied_per_axis() -> void:
+	# What "one by one by one" means: the model comes out a cube whatever it was.
+	var brush: VltPropBrush = _brush()
+	var at: Transform3D = brush.next_at(Vector3.ZERO, Vector3(0.5, 0.25, 2.0))
+
+	assert_float(at.basis.x.length()).is_equal_approx(0.5, 0.0001)
+	assert_float(at.basis.y.length()).is_equal_approx(0.25, 0.0001)
+	assert_float(at.basis.z.length()).is_equal_approx(2.0, 0.0001)
+
+
+func test_the_size_multiplies_the_fit() -> void:
+	# So a fit of one cell and a size of three is three cells, rather than the two
+	# fighting over which one decides.
+	var brush: VltPropBrush = _brush()
+	brush.size = 3.0
+	var at: Transform3D = brush.next_at(Vector3.ZERO, Vector3(0.5, 0.25, 2.0))
+
+	assert_float(at.basis.x.length()).is_equal_approx(1.5, 0.0001)
+	assert_float(at.basis.y.length()).is_equal_approx(0.75, 0.0001)
+	assert_float(at.basis.z.length()).is_equal_approx(6.0, 0.0001)
+
+
+func test_a_fitted_prop_is_scaled_in_its_own_axes_then_turned() -> void:
+	# The order that matters the moment a fit is not a cube. Scaling in the
+	# parent's axes after turning would stretch a prop along whichever world axis
+	# it happened to face, so the same model would come out a different shape
+	# depending on its rotation.
+	var brush: VltPropBrush = _brush()
+	brush.turn = 90.0
+	var fit: Vector3 = Vector3(0.5, 1.0, 4.0)
+	var at: Transform3D = brush.next_at(Vector3.ZERO, fit)
+
+	# A quarter turn sends the model's own x to the world's -z, and its length is
+	# the model's x factor rather than the world's.
+	assert_float(at.basis.x.length()).is_equal_approx(0.5, 0.0001)
+	assert_float(at.basis.z.length()).is_equal_approx(4.0, 0.0001)
+	assert_float(absf(at.basis.x.normalized().z)).is_equal_approx(1.0, 0.0001)
+
+
+func test_a_fitted_prop_is_still_never_tilted() -> void:
+	var brush: VltPropBrush = _brush()
+	brush.turn_spread = 180.0
+
+	for repeat: int in range(MANY):
+		brush.placed()
+		var basis: Basis = brush.next_at(Vector3.ZERO, Vector3(0.3, 2.0, 5.0)).basis
+		assert_float(basis.y.normalized().dot(Vector3.UP)).is_equal_approx(1.0, 0.0001)
+		assert_float(basis.x.y).is_equal_approx(0.0, 0.0001)
+		assert_float(basis.z.y).is_equal_approx(0.0, 0.0001)

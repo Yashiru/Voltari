@@ -92,6 +92,7 @@ var _turn_spread: SpinBox = null
 var _size: SpinBox = null
 var _size_spread: SpinBox = null
 var _fit_cells: SpinBox = null
+var _fit_placed: CheckBox = null
 
 ## The models a prop can be made of, and which one is picked.
 ##
@@ -200,6 +201,14 @@ func _init() -> void:
 	_turn_spread = _brush_field("Turn, give or take", 0.0, 0.0, 360.0, 1.0)
 	_size = _brush_field("Size", 1.0, 0.01, 100.0, 0.05)
 	_size_spread = _brush_field("Size, give or take", 0.0, 0.0, 100.0, 0.05)
+
+	# Whether a placed prop is fitted as it lands. Off by default: a pack whose
+	# models are already the right size wants nothing done to them, and fitting
+	# distorts anything that is not a cube.
+	_fit_placed = CheckBox.new()
+	_fit_placed.text = "Fit to the grid when placing"
+	_fit_placed.toggled.connect(_on_fit_toggled)
+	_body.add_child(_fit_placed)
 
 	# How many cells "Fit to the grid" sizes a prop to. One is the crate; a house
 	# is three. Beside the brush numbers because it is the same kind of answer,
@@ -363,6 +372,15 @@ func size_spread_value() -> float:
 ## How many cells a prop is fitted to. A count, so it is read as one.
 func fit_cells_value() -> int:
 	return int(_fit_cells.value)
+
+
+## Whether a prop is fitted to the grid as it is placed.
+func fit_when_placing() -> bool:
+	return _fit_placed.button_pressed
+
+
+func _on_fit_toggled(_on: bool) -> void:
+	brush_changed.emit()
 
 
 ## One brush number: a spinner rather than a text field, because every one of

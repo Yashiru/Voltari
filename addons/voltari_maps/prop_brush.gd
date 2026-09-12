@@ -27,6 +27,23 @@ extends RefCounted
 ## scatter with three independent spreads would produce. The inspector does it
 ## deliberately, and the footprint follows it there too.
 
+## How tall a model has to stand, in metres, before a prop made of it blocks.
+##
+## **A road is not a wall, and the difference is measurable.** Paths, slabs,
+## carpets, painted markings and puddles are laid on the ground in numbers, and
+## having to say "this one stops nobody" for each of them is the kind of chore an
+## author stops doing — after which the map has hitboxes nobody meant.
+##
+## Fifteen centimetres is above anything laid flat and below any kerb, step or
+## threshold somebody would expect to be stopped by. It is measured on the model
+## **as placed**, so a slab scaled up until it is genuinely a step blocks like
+## one, and the same model laid flat does not.
+##
+## A default and nothing more: the answer is written onto the prop, where it can
+## be read and changed. Nothing re-derives it later, so a prop an author has
+## decided about keeps that decision even if the rule here changes.
+const STANDS: float = 0.15
+
 ## The smallest a prop may come out of a spread, as a multiple of its model.
 ##
 ## Not zero: a prop scaled to nothing draws nothing, blocks nothing and cannot be
@@ -110,6 +127,15 @@ func placed() -> void:
 ## was placed, which is the one moment an author is definitely looking at it.
 func restyled() -> void:
 	_drawn = false
+
+
+## Whether a prop standing this tall blocks, by default.
+##
+## Taller than the threshold rather than as tall: something exactly the height of
+## a kerb is the case somebody laid flat on purpose, and the friendlier mistake
+## is the one that lets them walk.
+static func blocks_at(height: float) -> bool:
+	return height > STANDS
 
 
 func _draw() -> void:

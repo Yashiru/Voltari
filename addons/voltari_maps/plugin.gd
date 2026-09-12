@@ -78,6 +78,8 @@ const TIDY_DROP: int = 0
 const TIDY_ALIGN: int = 1
 const TIDY_SPREAD: int = 2
 const TIDY_FIT: int = 3
+const TIDY_BLOCK: int = 4
+const TIDY_PASS: int = 5
 
 ## How the next prop is turned and sized. The dock writes to it; the viewport
 ## reads it (`VltPropBrush`).
@@ -193,6 +195,9 @@ func _enter_tree() -> void:
 	tidy.add_item("Space evenly", TIDY_SPREAD)
 	tidy.add_separator()
 	tidy.add_item("Fit to the grid", TIDY_FIT)
+	tidy.add_separator()
+	tidy.add_item("Give a hitbox", TIDY_BLOCK)
+	tidy.add_item("Remove the hitbox", TIDY_PASS)
 	tidy.id_pressed.connect(_on_tidy_pressed)
 	add_control_to_container(CONTAINER_SPATIAL_EDITOR_MENU, _tidy)
 
@@ -787,6 +792,10 @@ func _add_prop(map: VltWorldMap, mesh: Mesh, at: Transform3D) -> void:
 	prop.add_child(part)
 	prop.transform = at
 
+	# Measured as placed, not as modelled: a slab scaled up until it is genuinely
+	# a step blocks like one, and the same model laid flat does not.
+	prop.blocks = VltPropBrush.blocks_at(mesh.get_aabb().size.y * at.basis.y.length())
+
 	var undo: EditorUndoRedoManager = get_undo_redo()
 	undo.create_action("Place prop")
 	undo.add_do_method(map, "add_child", prop)
@@ -816,6 +825,10 @@ func _on_tidy_pressed(id: int) -> void:
 			spread_selection()
 		TIDY_FIT:
 			fit_selection()
+		TIDY_BLOCK:
+			set_selection_blocking(true)
+		TIDY_PASS:
+			set_selection_blocking(false)
 
 
 ## Sits the selected props on the tile beneath each of them.
@@ -845,6 +858,44 @@ func spread_selection() -> void:
 	_move_selection("Spread props", func(_map: VltWorldMap, points: Array[Vector3]) -> Array[Vector3]:
 		return VltPropLayout.spread(points)
 	)
+
+
+## Says whether the selected props stop anybody.
+##
+## **Two entries rather than one that toggles.** A selection of six props where
+## four block and two do not has no sensible thing to toggle to, and an author
+## picking "give a hitbox" has said what they want rather than asked for the
+## opposite of whatever was there.
+##
+## The height rule at placement is only a default (`VltPropBrush.STANDS`). This
+## is where it is overruled, and once overruled it stays that way: the answer
+## lives on the prop and nothing re-derives it.
+func set_selection_blocking(blocking: bool) -> void:
+	var map: VltWorldMap = _brush_map()
+	var props: Array[VltProp] = []
+	for node: Node in EditorInterface.get_selection().get_selected_nodes():
+		var prop: VltProp = node as VltProp
+		if prop != null:
+			props.append(prop)
+
+	if props.is_empty():
+		_say("Select some props first — this acts on what is selected.")
+		return
+
+	var undo: EditorUndoRedoManager = get_undo_redo()
+	undo.create_action("Give a hitbox" if blocking else "Remove the hitbox")
+	for prop: VltProp in props:
+		if prop.blocks == blocking:
+			continue
+		undo.add_do_property(prop, "blocks", blocking)
+		undo.add_undo_property(prop, "blocks", prop.blocks)
+	if map != null:
+		undo.add_do_method(map, "forget_shapes")
+		undo.add_undo_method(map, "forget_shapes")
+	undo.commit_action()
+
+	if map != null:
+		map.update_gizmos()
 
 
 ## Scales the selected props so each fills a whole number of cells exactly.

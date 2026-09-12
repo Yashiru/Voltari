@@ -250,3 +250,39 @@ func test_a_brush_naming_a_model_is_ready() -> void:
 	var brush: VltPropBrush = _brush()
 	brush.item = 7
 	assert_bool(brush.ready_to_paint()).is_true()
+
+
+# --- what stops you, by default -----------------------------------------------
+#
+# Paths, slabs, carpets and painted markings are laid on the ground in numbers,
+# and saying "this one stops nobody" for each of them is the chore an author stops
+# doing — after which the map has hitboxes nobody meant.
+
+
+func test_something_laid_flat_stops_nobody() -> void:
+	assert_bool(VltPropBrush.blocks_at(0.02)).is_false()
+	assert_bool(VltPropBrush.blocks_at(0.14)).is_false()
+
+
+func test_something_standing_up_stops_you() -> void:
+	assert_bool(VltPropBrush.blocks_at(0.2)).is_true()
+	assert_bool(VltPropBrush.blocks_at(3.0)).is_true()
+
+
+func test_exactly_the_threshold_stops_nobody() -> void:
+	# Taller than, not as tall as. Something exactly a kerb's height is the case
+	# somebody laid flat on purpose, and the friendlier mistake lets them walk.
+	assert_bool(VltPropBrush.blocks_at(VltPropBrush.STANDS)).is_false()
+
+
+func test_nothing_at_all_stops_nobody() -> void:
+	# A decal, a painted marking, a plane with no thickness.
+	assert_bool(VltPropBrush.blocks_at(0.0)).is_false()
+
+
+func test_a_slab_scaled_into_a_step_stops_you() -> void:
+	# The rule reads the model *as placed*, so the same road tile is walkable flat
+	# and solid once it has been scaled into something you would trip over.
+	var road: float = 0.1
+	assert_bool(VltPropBrush.blocks_at(road)).is_false()
+	assert_bool(VltPropBrush.blocks_at(road * 4.0)).is_true()

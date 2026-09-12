@@ -770,7 +770,7 @@ func _build_interface() -> void:
 ## The one way there is to see that clip. There is no fishing, no rod and no
 ## water, and the stance holds an object the character has not got — so nothing
 ## plays it by itself and this is a key in a sandbox rather than a feature
-## (decision 0076). Walking away from it is the same as letting go.
+## (decision 0074). Pressing it again is the same as letting go.
 func _hold_the_rod() -> void:
 	if _body.is_performing():
 		_body.stop_performing()

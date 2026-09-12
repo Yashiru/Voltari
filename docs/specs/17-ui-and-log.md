@@ -123,6 +123,31 @@ reader to know about it.
 Where a slot has several takes, the reader picks among them — which is the only
 reason a slot is a list at all.
 
+### The player is on the field, and throws the ball themselves
+
+**Decision 0077.** A capture is the one command the player carries out rather
+than asks a creature to, so they are drawn doing it: standing beside their own
+creature for the whole battle, off the shoulder the camera is not on, with the
+frame's centre and radius taking them into account.
+
+**The throw is not a cue from the log**, and it is the only thing on this screen
+that is not. The earliest capture event is the first shake, which is the ball
+already in the air, and a throw that fails its first check emits no shake at all
+— so a cue would play the throw after the thing it causes, or not at all. It is
+played when the command is taken instead, under the same busy flag as any other
+turn.
+
+Decision 0049 is unchanged by this: the rule is about what the player is *told*
+of a battle, and this is the player's own arm, started by the player's own
+button.
+
+**It returns when the ball leaves the hand**, not when the clip ends — 0.77 s of
+3.30, measured. The shakes play over the follow-through, which is the order it
+happens in anybody's head.
+
+A stage with nobody standing there still spends the beat, so the pacing is the
+same whether or not a trainer is drawn.
+
 ## 7. The command menu is a decider
 
 The player's menu produces commands, which is exactly what the AI does

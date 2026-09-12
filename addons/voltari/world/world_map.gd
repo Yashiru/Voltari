@@ -1,3 +1,4 @@
+@tool
 class_name VltWorldMap
 extends Node3D
 
@@ -6,6 +7,17 @@ extends Node3D
 ## Engine-native by decision 0038. The scene is the truth at runtime and nothing
 ## is exported to a payload — a grid rebuilt from JSON on load would be the same
 ## information in two places with nothing keeping them equal.
+##
+## **`@tool` so the editor can ask it what it knows** (decision 0073). The
+## overlay draws the shapes that stop you, and the only way to draw the ones the
+## game uses is to ask the class the game asks. A non-`@tool` script is held as a
+## placeholder in the editor and throws on every method call, so the alternative
+## was a second derivation of the footprints beside this one — two answers to the
+## question decision 0072 had just given one answer to.
+##
+## Nothing here runs by itself: no `_ready`, no `_process`, no `_init` that does
+## anything. What the editor gets is the same queries a test gets, and
+## `forget_shapes` was already written for it.
 ##
 ## **Three layers, and only two of them are rules.** `terrain` says which cells
 ## exist; `blocking` says which of them stop you. Walkability is painted rather

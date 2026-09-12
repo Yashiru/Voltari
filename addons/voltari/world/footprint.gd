@@ -1,7 +1,13 @@
+@tool
 class_name VltFootprint
 extends RefCounted
 
 ## The shape a model actually occupies on the ground (spec 14, section 2).
+##
+## **`@tool` so the editor draws the shape the game uses**, not one that merely
+## resembles it (decision 0073). Pure static geometry with no state and nothing
+## that runs on its own, so being reachable from the editor costs nothing and
+## risks nothing.
 ##
 ## **A cell is a metre and a model is not.** Blocking whole cells meant a fence
 ## post owned a square metre and a house owned one square metre out of the twenty

@@ -130,29 +130,50 @@ func _redraw(gizmo: EditorNode3DGizmo) -> void:
 
 
 ## What the map carries that no single node owns.
+##
+## **Each overlay is asked for only when it is switched on.** Working them all out
+## and then discarding the ones nobody wanted is what a redraw cannot afford, and
+## the switch being checked inside the drawing call was exactly that mistake: an
+## argument is evaluated before the function that ignores it.
+##
+## The cost is not theoretical. The shapes walk every mesh on the map, and the
+## strandings ask the walkability of every standable cell — which asks every
+## shape. A redraw happens whenever anything is selected, moved or repainted, so
+## a map of a few hundred cells paid all of it, several times a second, to draw
+## nothing at all.
 func _redraw_map(gizmo: EditorNode3DGizmo, map: VltWorldMap) -> void:
-	_add(gizmo, HITBOX, VltMapOverlay.hitboxes(map))
-	_add(gizmo, BLOCKED, VltMapOverlay.blocked(map))
-	_add(gizmo, EDGE, VltMapOverlay.edges(map))
-	_add(gizmo, PATCH, VltMapOverlay.patches(map))
-	# The radius belongs to the walker and is read from it, so the circle drawn
-	# here is the body the game actually refuses to fit through gaps.
-	_add(gizmo, ARRIVAL, VltMapOverlay.arrivals(map, VltFreeWalker.RADIUS))
-	_add(gizmo, STRANDED, VltMapOverlay.strandings(map))
+	if _switched(HITBOX):
+		_add(gizmo, HITBOX, VltMapOverlay.hitboxes(map))
+	if _switched(BLOCKED):
+		_add(gizmo, BLOCKED, VltMapOverlay.blocked(map))
+	if _switched(EDGE):
+		_add(gizmo, EDGE, VltMapOverlay.edges(map))
+	if _switched(PATCH):
+		_add(gizmo, PATCH, VltMapOverlay.patches(map))
+	if _switched(ARRIVAL):
+		# The radius belongs to the walker and is read from it, so the circle
+		# drawn here is the body the game refuses to fit through gaps.
+		_add(gizmo, ARRIVAL, VltMapOverlay.arrivals(map, VltFreeWalker.RADIUS))
+	if _switched(STRANDED):
+		_add(gizmo, STRANDED, VltMapOverlay.strandings(map))
 
 
-## One overlay, if it is switched on and has anything to say.
+func _switched(overlay: String) -> bool:
+	return shows.get(overlay, false)
+
+
+## One overlay's lines.
 ##
 ## The emptiness check is not an optimisation: `add_lines` with no lines leaves a
 ## mesh behind that Godot then has to draw nothing with, once per redraw.
 func _add(gizmo: EditorNode3DGizmo, material: String, lines: PackedVector3Array) -> void:
-	if not shows.get(material, false) or lines.is_empty():
+	if lines.is_empty():
 		return
 	gizmo.add_lines(lines, get_material(material, gizmo), false)
 
 
 func _redraw_placed(gizmo: EditorNode3DGizmo, node: Node3D) -> void:
-	if not shows.get(MARKERS, false):
+	if not _switched(MARKERS):
 		return
 
 	var map: VltWorldMap = VltMapPlacement.map_of(node)

@@ -35,9 +35,36 @@ const MOVED: float = 0.001
 ## author has finished looking at what they placed.
 const SETTLE: float = 0.25
 
-var _gizmos: EditorNode3DGizmoPlugin = null
+## The overlays, in the order they appear in the menu, and what each is called
+## there.
+##
+## A dictionary rather than two parallel lists: the key is what the gizmo plugin
+## switches on and the value is what an author reads, and keeping them in one
+## place is what stops a renamed entry checking the wrong box.
+const VIEWS: Dictionary[String, String] = {
+	VltMapGizmos.MARKERS: "Warps, zones, events, rest points",
+	VltMapGizmos.HITBOX: "Hitboxes — what stops you, where it is",
+	VltMapGizmos.BLOCKED: "Cells blocked whole",
+	VltMapGizmos.EDGE: "Edge of the map",
+	VltMapGizmos.PATCH: "Sown patches",
+	VltMapGizmos.ARRIVAL: "Player radius, where the player appears",
+}
+
+var _gizmos: VltMapGizmos = null
 var _dock: VltMapDock = null
 var _snap: Button = null
+var _views: MenuButton = null
+
+## What each map looked like when it was last looked at, and whether it has
+## changed since the look before that.
+##
+## The same two-dictionary shape, and the same reason, as the turf below: the
+## first answers "has anything moved", the second "has it stopped moving". The
+## overlay is redrawn only when the first says no and the second says yes,
+## because rebuilding the shapes walks every mesh on the map and doing that under
+## a moving brush would make painting unusable.
+var _painted: Dictionary[int, int] = {}
+var _unsettled: Dictionary[int, bool] = {}
 
 ## Where each node was last put, by instance id. It is what separates "the author
 ## dragged this" from "this node has never been placed" — and without it, a warp
@@ -95,11 +122,31 @@ func _enter_tree() -> void:
 	_mow.pressed.connect(sow_grass)
 	add_control_to_container(CONTAINER_SPATIAL_EDITOR_MENU, _mow)
 
+	# One menu rather than six buttons. These are questions an author asks one at
+	# a time and then stops asking, so they belong behind a list rather than
+	# occupying the toolbar for the rest of the session.
+	_views = MenuButton.new()
+	_views.text = "Voltari view"
+	_views.tooltip_text = "What the rules read, drawn over the map."
+	_views.switch_on_hover = false
+	var popup: PopupMenu = _views.get_popup()
+	var index: int = 0
+	for key: String in VIEWS:
+		popup.add_check_item(VIEWS[key], index)
+		popup.set_item_checked(index, _gizmos.shows.get(key, false))
+		index += 1
+	popup.id_pressed.connect(_on_view_toggled)
+	add_control_to_container(CONTAINER_SPATIAL_EDITOR_MENU, _views)
+
 	set_process(true)
 
 
 func _exit_tree() -> void:
 	set_process(false)
+	if _views != null:
+		remove_control_from_container(CONTAINER_SPATIAL_EDITOR_MENU, _views)
+		_views.queue_free()
+		_views = null
 	if _mow != null:
 		remove_control_from_container(CONTAINER_SPATIAL_EDITOR_MENU, _mow)
 		_mow.queue_free()
@@ -122,6 +169,8 @@ func _exit_tree() -> void:
 	_placed.clear()
 	_turf.clear()
 	_restless.clear()
+	_painted.clear()
+	_unsettled.clear()
 
 
 func _process(delta: float) -> void:
@@ -141,6 +190,93 @@ func _process(delta: float) -> void:
 	_looked = 0.0
 	for patch: TurfPatch in _turf_patches(root):
 		_follow(patch)
+	if _watching():
+		for map: VltWorldMap in _maps(root):
+			_follow_map(map)
+
+
+## Whether any overlay drawn from what is painted is switched on.
+##
+## Nothing is looked at when they are all off, so an author who never opens the
+## menu pays nothing at all for it. The markers are not in this list: they are
+## drawn from nodes, and a node that moves already redraws its own gizmo.
+func _watching() -> bool:
+	for key: String in [
+		VltMapGizmos.HITBOX, VltMapGizmos.BLOCKED,
+		VltMapGizmos.EDGE, VltMapGizmos.PATCH, VltMapGizmos.ARRIVAL,
+	]:
+		if _gizmos.shows.get(key, false):
+			return true
+	return false
+
+
+## Redraws one map's overlay if what is painted has changed and then settled.
+##
+## **Not on the change itself**, for the reason the turf below has: a brush
+## dragged across ten cells is ten changes, and rebuilding the shapes on each of
+## them walks every mesh on the map ten times. Waiting for one look that finds
+## nothing new turns a whole stroke into one rebuild.
+func _follow_map(map: VltWorldMap) -> void:
+	var id: int = map.get_instance_id()
+	var now: int = VltMapOverlay.signature_of(map)
+
+	if not _painted.has(id):
+		# First sight. What is painted is what the overlay was drawn from, so
+		# there is nothing to do but remember it.
+		_painted[id] = now
+		return
+
+	if _painted[id] != now:
+		_painted[id] = now
+		_unsettled[id] = true
+		return
+
+	if _unsettled.has(id) and _unsettled[id]:
+		_unsettled[id] = false
+		# The shapes are a cache on the map, and what they were built from has
+		# just changed. Forgetting them is what stops the overlay drawing the
+		# wall that was there a moment ago.
+		map.forget_shapes()
+		map.update_gizmos()
+
+
+## Switches one overlay, and redraws what it is drawn on.
+func _on_view_toggled(id: int) -> void:
+	var keys: Array = VIEWS.keys()
+	if id < 0 or id >= keys.size():
+		return
+
+	var key: String = keys[id]
+	var now: bool = not _gizmos.shows.get(key, false)
+	_gizmos.shows[key] = now
+	_views.get_popup().set_item_checked(id, now)
+	refresh_overlay()
+
+
+## Redraws every gizmo in the edited scene.
+##
+## The whole scene, because a switch is not about a selection: turning hitboxes
+## on has to show every hitbox, not the one belonging to whatever happens to be
+## clicked.
+func refresh_overlay() -> void:
+	var root: Node = EditorInterface.get_edited_scene_root()
+	if root == null:
+		return
+	for map: VltWorldMap in _maps(root):
+		map.forget_shapes()
+		map.update_gizmos()
+	for node: Node3D in _placed_nodes(root):
+		node.update_gizmos()
+
+
+func _maps(root: Node) -> Array[VltWorldMap]:
+	var found: Array[VltWorldMap] = []
+	var here: VltWorldMap = root as VltWorldMap
+	if here != null:
+		found.append(here)
+	for child: Node in root.get_children():
+		found.append_array(_maps(child))
+	return found
 
 
 ## Regrows one patch of turf if the map under it has changed and then settled.

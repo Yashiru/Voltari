@@ -76,7 +76,7 @@ const EYE_HEIGHT: float = 0.65
 ##
 ## The defaults frame the same height of ground as the wide, close camera they
 ## replace, so nothing else about the scene has to be retuned to try them.
-@export_range(20.0, 89.0, 0.5) var camera_pitch: float = 60.0
+@export_range(20.0, 89.0, 0.5) var camera_pitch: float = 56.0
 @export_range(2.0, 80.0, 0.5) var camera_distance: float = 27.0
 @export_range(5.0, 90.0, 0.5) var camera_lens: float = 28.0
 const BATTLE_SCENE: String = "res://game/scenes/battle/battle_screen.tscn"

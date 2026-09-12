@@ -315,3 +315,64 @@ func test_opposite_keys_cancel() -> void:
 	assert_vector(
 		VltStepIntent.of(VltStepIntent.from_keys(true, true, false, false))
 	).is_equal(Vector2.ZERO)
+
+
+# --- sliding along a shape ----------------------------------------------------
+
+
+## A map whose blocking layer speaks in shapes, with one post in the middle of
+## cell (3, 2). Two units across on a half-scale grid is a metre.
+func _posted() -> VltWorldMap:
+	var built: VltWorldMap = auto_free(VltFixtureMap.map("field", VltFixtureMap.filled(Vector2i(6, 6))))
+	built.remove_child(built.blocking)
+	built.blocking.free()
+	built.blocking = VltFixtureMap.shaped([Vector2i(3, 2)], Vector3(2.0, 3.0, 2.0))
+	built.add_child(built.blocking)
+	built.forget_shapes()
+	return built
+
+
+func test_a_shape_met_at_an_angle_is_walked_along() -> void:
+	# The rule the maintainer asked for: touching something blocking does not stop
+	# you, it takes away the part of your move that goes into it.
+	var map: VltWorldMap = _posted()
+	var walker: VltFreeWalker = _walker(map)
+	walker.place(Vector2i(2, 2), VltFacing.Direction.EAST)
+	var was: Vector2 = walker.spot
+
+	# Far enough east to reach the post's west face, and half a metre north as
+	# well. The east half is refused and the north half is not.
+	var move: VltFreeWalker.Move = walker.move(Vector2(0.9, -0.5))
+
+	assert_bool(move.blocked).override_failure_message(
+		"nothing was in the way, so this test proves nothing"
+	).is_true()
+	assert_float(walker.spot.y).override_failure_message(
+		"the move across the face was thrown away along with the move into it"
+	).is_equal_approx(was.y - 0.5, 0.001)
+	assert_float(walker.spot.x).override_failure_message(
+		"the move into the face went through"
+	).is_equal_approx(was.x, 0.001)
+	assert_bool(map.blocked_at(walker.spot, VltFreeWalker.RADIUS)).override_failure_message(
+		"sliding ended up inside the post, at %s" % walker.spot
+	).is_false()
+
+
+func test_a_shape_met_square_on_stops_you_dead() -> void:
+	# The one case that is a full stop, and it is the rule rather than a
+	# consequence of it: square to the surface there is no part of the move left
+	# once the part going into it is taken out.
+	var map: VltWorldMap = _posted()
+	var walker: VltFreeWalker = _walker(map)
+	walker.place(Vector2i(2, 2), VltFacing.Direction.EAST)
+	var was: Vector2 = walker.spot
+
+	var move: VltFreeWalker.Move = walker.move(Vector2(0.9, 0.0))
+
+	assert_bool(move.blocked).is_true()
+	assert_float(walker.spot.y).override_failure_message(
+		"a square approach slid sideways"
+	).is_equal_approx(was.y, 0.001)
+	assert_float(walker.spot.x).override_failure_message(
+		"a square approach went through"
+	).is_equal_approx(was.x, 0.001)

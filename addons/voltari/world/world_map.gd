@@ -37,9 +37,122 @@ extends Node3D
 ## Cells are (x, z); the overworld is one storey and y is fixed.
 const GROUND: int = 0
 
+## The one item in a palette that is not a model: it draws nothing, and a cell
+## holding it is blocked whole.
+##
+## **Two ways to stop somebody, and they are not two answers to one question.** A
+## model stops you where its shape is, to the centimetre (`VltFootprint`). This
+## stops you everywhere in a cell, which is the answer when nothing stands there
+## and the ground itself is the obstacle — a ledge, a hole, a boundary you do not
+## want walked over. Neither can express the other, and an author asking for one
+## has not been offered the other by mistake.
+const BLOCKER: String = "_blocked"
 
+## The shapes on this map, worked out once. Null until asked for.
+##
+## Built rather than authored, and that is what makes it right rather than
+## convenient: a model painted before any of this existed gets its shape the
+## first time the map is read, and nothing can ever be stale relative to what is
+## painted. There is no baked copy to go out of date, because there is no copy.
+var _shapes: Array[VltFootprint] = []
+var _shaped: bool = false
+
+
+## Whether a cell exists and nothing claims the whole of it.
+##
+## The grid half of the question, asked without the shapes. They are metres and
+## belong to `blocked_at`; a walker needs the two separately because the cell it
+## stands in and the place it stands are different things.
+func is_open(cell: Vector2i) -> bool:
+	return _has_cell(terrain, cell) and not _blocks_whole(cell)
+
+
+## Whether the centre of a cell can be stood on.
+##
+## Cell granularity, for everything that thinks in cells: reachability, the
+## validator, a warp's destination. A shape covering part of a cell leaves it
+## walkable, which is the honest answer — you can stand in it, just not
+## everywhere in it.
 func is_walkable(cell: Vector2i) -> bool:
-	return _has_cell(terrain, cell) and not _has_cell(blocking, cell)
+	if not is_open(cell):
+		return false
+	var middle: Vector3 = centre_of(cell)
+	return not blocked_at(Vector2(middle.x, middle.z), 0.0)
+
+
+## Whether a disc of `radius` centred on a point touches anything painted.
+func blocked_at(point: Vector2, radius: float) -> bool:
+	for shape: VltFootprint in footprints():
+		if shape.blocks(point, radius):
+			return true
+	return false
+
+
+## Which way the shapes at a point push back, as one direction.
+##
+## Averaged when several answer, so a corner between two walls pushes out of the
+## corner rather than out of whichever wall was found first. Zero when nothing
+## shaped is there — the edge of the map and a cell blocked whole have no
+## surface, and the caller has another answer for those.
+func surface_at(point: Vector2, radius: float) -> Vector2:
+	var total: Vector2 = Vector2.ZERO
+	for shape: VltFootprint in footprints():
+		if shape.blocks(point, radius):
+			total += shape.normal_at(point)
+	return Vector2.ZERO if total.is_zero_approx() else total.normalized()
+
+
+func footprints() -> Array[VltFootprint]:
+	if not _shaped:
+		_shapes.clear()
+		if _uses_shapes():
+			_shapes = VltFootprint.on(blocking)
+		_shaped = true
+	return _shapes
+
+
+## Whether this map's blocking layer speaks in shapes at all.
+##
+## **The palette answers it, by holding `_blocked` or not.** A palette carrying
+## the invisible item was built by a tool that knows about shapes; one without it
+## belongs to a map painted when a cell was the only unit there was, and on that
+## map a painted cell means a blocked cell and nothing measures a mesh.
+##
+## A switch and not a migration, because the two readings genuinely disagree:
+## under the old one a wall mesh blocks its whole cell, under the new one it
+## blocks where it is. Reading an old map the new way would open every wall
+## painted with a model narrower than its cell, quietly, everywhere at once.
+func _uses_shapes() -> bool:
+	return _blocker_item() != -1
+
+
+## The id of the invisible item in this map's palette, or -1 for a palette that
+## has none — including no palette at all, which is what a clone without the
+## quarantined models opens.
+func _blocker_item() -> int:
+	if blocking == null or blocking.mesh_library == null:
+		return -1
+	return blocking.mesh_library.find_item_by_name(BLOCKER)
+
+
+## Forgets the shapes, so the next question rebuilds them. For a caller that has
+## just changed what is painted — the editor, and a test.
+func forget_shapes() -> void:
+	_shapes.clear()
+	_shaped = false
+
+
+## Whether the blocking layer claims the whole of a cell, rather than a shape
+## inside it.
+func _blocks_whole(cell: Vector2i) -> bool:
+	if blocking == null or not _has_cell(blocking, cell):
+		return false
+	if not _uses_shapes():
+		# A map from before shapes, or a clone with no palette to measure. Every
+		# painted cell is taken at its word — the safe reading, because nothing
+		# becomes walkable that was not.
+		return true
+	return blocking.get_cell_item(Vector3i(cell.x, GROUND, cell.y)) == _blocker_item()
 
 
 ## The warp on a cell, or null. Null rather than a sentinel warp: "there is no

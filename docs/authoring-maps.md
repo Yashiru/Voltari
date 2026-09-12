@@ -167,6 +167,41 @@ Nothing detects a wall you can walk through. Painting a wall mesh into `decor`,
 or terrain with no `blocking` under a rock, produces exactly that, and no test
 will ever fail because of it. It is a visual mistake and you are the only check.
 
+### A model in `blocking` stops you where it is
+
+Paint a model into `blocking` and it stops you at its own shape, not at the cell
+it sits on (decision 0072). Nothing to press and nothing to keep up to date: the
+shape is worked out from the mesh when the map is read, so a model you placed
+before any of this existed gets one too.
+
+**The shape is what the model occupies below two metres**, which is roughly the
+character — the question is what they would walk into. An arch, an eave, a
+balcony or a canopy is walked under and takes no ground.
+
+**One shape per connected piece.** A gazebo is four posts and a roof, and the
+roof is above the band, so it is four posts. Within a piece the shape is convex,
+so an L-shaped house has its notch filled in. The error is always *more* solid
+than the model, never less.
+
+**Touching it does not stop you.** The part of your move going into the surface
+is removed and the rest goes through, so a wall met at any angle is walked along.
+Square to it there is nothing left — that is the only full stop.
+
+To block a cell where **no model stands** — a ledge, a hole, an edge you do not
+want walked over — paint `_blocked`. It is an invisible item the tile library
+keeps in every palette, and a cell holding it is blocked whole, the way every
+painted cell used to be.
+
+Two things worth knowing. **A palette without `_blocked` keeps the old reading**:
+every painted cell blocks whole, and no mesh is measured. That is what maps made
+before this mean, and reading them the new way would quietly open every wall
+painted with a model narrower than its cell — so rebuild the tile library to
+switch a map over, and expect its walls to get tighter when you do.
+
+And **the validator still thinks in cells**: a cell counts as walkable when its
+centre is clear. A shape covering part of a cell leaves it walkable, which is
+honest — you can stand in it, just not everywhere in it.
+
 ## 5. Place what the map carries
 
 Add these as **direct children of the map root**. Not under a grouping node: the

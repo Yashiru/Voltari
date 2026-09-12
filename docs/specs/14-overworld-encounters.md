@@ -68,11 +68,35 @@ felt right and then never touched again"*. That did not happen and could not: a
 boundary is a boundary whatever route reached it. **No constant was added**, and
 the rate in section 4 keeps its meaning exactly — still per cell entered.
 
-**What stops you is the painted blocking layer**, read as a lookup. The character
-has a radius; the cells under the corners of the box around it must all be
-walkable; each axis is tried on its own, so walking into a wall at an angle
-slides along it. No physics body and no collision shapes — section 1 survives
-intact, and what stops you is still one thing rather than two.
+**What stops you is the painted blocking layer**, read two ways because it says
+two things (decision 0072).
+
+A cell holding the invisible item `_blocked` stops you everywhere in it. That is
+a lookup, as it always was, and it is the answer when the ground itself is the
+obstacle and nothing stands there.
+
+A cell holding a **model** stops you where the model is: the shape it occupies
+below two metres, as a polygon in metres. A cell was the wrong unit for this — a
+fence post owned a square metre and a house owned one square metre out of the
+twenty it covered — and no rounding rule fixes a unit that is twenty times too
+coarse. The shape is derived from the mesh when the map is read, so nothing is
+authored twice and nothing can be stale.
+
+The character has a radius. Against the grid — the edge of the map, a cell
+blocked whole — the cells under the corners of the box around it must all be
+open. Against a shape it is the whole disc, because four points sixty
+centimetres apart pass either side of a five centimetre post.
+
+**A refused move is not a stopped move.** The part of it going into the surface
+is removed and the rest goes through, so a wall met at any angle is walked along.
+Square to the surface there is nothing left, and that is the only case that stops
+you dead. Against the grid, where there is no normal to project onto, each axis
+is tried on its own and reaches the same answer.
+
+Still no physics body and no collision shapes. Section 1 asked for **one** thing
+that stops you rather than two that can disagree, and there is still one: what is
+painted. It stopped being a lookup and did not stop being arithmetic — pure,
+deterministic, and testable with no engine in the loop.
 
 The radius is the only number this added, and it is bounded rather than tuned: it
 must stay under half a cell, or a one-cell corridor would refuse to admit

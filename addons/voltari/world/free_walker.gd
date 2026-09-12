@@ -121,15 +121,10 @@ func move(by: Vector2) -> Move:
 	if by.length_squared() > 0.0:
 		heading = by.normalized()
 
-	var wanted: Vector2 = spot
-	for axis: Vector2 in [Vector2(by.x, 0.0), Vector2(0.0, by.y)]:
-		if axis.length_squared() <= 0.0:
-			continue
-		var tried: Vector2 = wanted + axis
-		if _fits(tried):
-			wanted = tried
-		else:
-			result.blocked = true
+	var wanted: Vector2 = spot + by
+	if not _fits(wanted):
+		result.blocked = true
+		wanted = _slid(by)
 
 	result.moved = not wanted.is_equal_approx(spot)
 	spot = wanted
@@ -181,10 +176,37 @@ func interact() -> VltEvent:
 ## The four corners of the box around the disc, because a disc that overlapped a
 ## blocked cell only diagonally would still be inside it. Checking the origin
 ## alone is what lets a character stand halfway inside a wall.
+## Where a refused move gets to by following whatever refused it.
+##
+## **The surface first.** The part of the move that runs into the shape is taken
+## out and the rest goes through, so a wall met at any angle is walked along
+## rather than into. Square to it there is nothing left to keep, and that is the
+## one case that stops you dead — which is the rule, not a consequence of it.
+##
+## **Then the axes**, for the things that have no surface: the edge of the map,
+## and a cell blocked whole. Those are square to the grid by construction, so
+## dropping the refused axis is the same answer reached without a normal.
+func _slid(by: Vector2) -> Vector2:
+	if map != null:
+		var normal: Vector2 = map.surface_at(spot + by, RADIUS)
+		if not normal.is_zero_approx():
+			var along: Vector2 = by - normal * by.dot(normal)
+			if along.length_squared() > 0.0 and _fits(spot + along):
+				return spot + along
+
+	var wanted: Vector2 = spot
+	for axis: Vector2 in [Vector2(by.x, 0.0), Vector2(0.0, by.y)]:
+		if axis.length_squared() > 0.0 and _fits(wanted + axis):
+			wanted += axis
+	return wanted
+
+
 func _fits(at: Vector2) -> bool:
 	if map == null:
 		return true
 
+	# The grid part: off the map, or a cell something claims whole. Four corners is
+	# enough for a question whose answer is the same everywhere in a cell.
 	for corner: Vector2 in [
 		Vector2(-RADIUS, -RADIUS),
 		Vector2(RADIUS, -RADIUS),
@@ -192,9 +214,13 @@ func _fits(at: Vector2) -> bool:
 		Vector2(-RADIUS, RADIUS),
 	]:
 		var point: Vector2 = at + corner
-		if not map.is_walkable(map.cell_at(Vector3(point.x, 0.0, point.y))):
+		if not map.is_open(map.cell_at(Vector3(point.x, 0.0, point.y))):
 			return false
-	return true
+
+	# The shapes: the whole disc against them, not four points on it. Corners were
+	# enough while nothing was thinner than a cell; a five centimetre post fits
+	# between two of them and would be walked straight through.
+	return not map.blocked_at(at, RADIUS)
 
 
 func _encounter_at(where: Vector2i) -> VltEncounter.Outcome:

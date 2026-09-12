@@ -31,6 +31,71 @@ static func grid(cells: Array[Vector2i]) -> GridMap:
 	return layer
 
 
+## A blocking layer that speaks in shapes rather than in whole cells.
+##
+## **What puts a map in shape mode is `_blocked` being in its palette**, so this
+## is the smallest palette that has it: the invisible item, and one model to
+## paint. Every other fixture layer lacks it and keeps the older reading, where a
+## painted cell is a blocked cell — which is what the maps painted before shapes
+## existed still mean.
+##
+## `size` is in the model's own units, and the grid draws it scaled, so a two by
+## two model on a half-scale grid is a metre across.
+static func shaped(cells: Array[Vector2i], size: Vector3) -> GridMap:
+	var library: MeshLibrary = MeshLibrary.new()
+	library.create_item(MARKER)
+	library.set_item_name(MARKER, "post")
+	library.set_item_mesh(MARKER, block(size))
+	library.create_item(MARKER + 1)
+	library.set_item_name(MARKER + 1, VltWorldMap.BLOCKER)
+	library.set_item_mesh(MARKER + 1, ArrayMesh.new())
+
+	var layer: GridMap = GridMap.new()
+	layer.mesh_library = library
+	for cell: Vector2i in cells:
+		layer.set_cell_item(Vector3i(cell.x, VltWorldMap.GROUND, cell.y), MARKER)
+	return layer
+
+
+## A closed box standing on its own origin, centred on it, the way the tile
+## library leaves every model.
+##
+## Closed, because a floor and a ceiling with no walls between them share no
+## corner and would be found as two pieces — geometry no model ever has.
+static func block(size: Vector3) -> ArrayMesh:
+	var low: Vector3 = Vector3(-size.x * 0.5, 0.0, -size.z * 0.5)
+	var high: Vector3 = Vector3(size.x * 0.5, size.y, size.z * 0.5)
+
+	var ring: Array[Vector3] = [
+		Vector3(low.x, low.y, low.z), Vector3(high.x, low.y, low.z),
+		Vector3(high.x, low.y, high.z), Vector3(low.x, low.y, high.z),
+	]
+	var top: Array[Vector3] = []
+	for corner: Vector3 in ring:
+		top.append(Vector3(corner.x, high.y, corner.z))
+
+	var points: PackedVector3Array = PackedVector3Array()
+	for face: Array in [ring, top]:
+		@warning_ignore("unsafe_cast")
+		var corners: Array[Vector3] = face as Array[Vector3]
+		points.append_array(PackedVector3Array([
+			corners[0], corners[1], corners[2], corners[0], corners[2], corners[3]
+		]))
+	for index: int in range(4):
+		var next: int = (index + 1) % 4
+		points.append_array(PackedVector3Array([
+			ring[index], ring[next], top[next], ring[index], top[next], top[index],
+		]))
+
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = points
+
+	var mesh: ArrayMesh = ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
+
+
 ## A rectangle of terrain from (0, 0) to (size - 1), which is what almost every
 ## test wants under it.
 static func filled(size: Vector2i) -> Array[Vector2i]:

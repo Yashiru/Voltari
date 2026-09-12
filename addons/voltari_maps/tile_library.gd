@@ -543,16 +543,16 @@ static func _reserve_blocker(
 	library: MeshLibrary, by_name: Dictionary[String, int],
 	produced: Dictionary[String, bool], next_id: int, report: Report
 ) -> int:
-	produced[VltMapBlocking.BLOCKER] = true
-	if by_name.has(VltMapBlocking.BLOCKER):
-		report.kept.append(VltMapBlocking.BLOCKER)
+	produced[VltWorldMap.BLOCKER] = true
+	if by_name.has(VltWorldMap.BLOCKER):
+		report.kept.append(VltWorldMap.BLOCKER)
 		return next_id
 
 	library.create_item(next_id)
-	library.set_item_name(next_id, VltMapBlocking.BLOCKER)
+	library.set_item_name(next_id, VltWorldMap.BLOCKER)
 	library.set_item_mesh(next_id, ArrayMesh.new())
-	by_name[VltMapBlocking.BLOCKER] = next_id
-	report.added.append(VltMapBlocking.BLOCKER)
+	by_name[VltWorldMap.BLOCKER] = next_id
+	report.added.append(VltWorldMap.BLOCKER)
 	return next_id + 1
 
 

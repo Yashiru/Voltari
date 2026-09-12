@@ -15,7 +15,15 @@ extends Node3D
 ## game cannot open.
 const MAPS_FOLDER: String = "res://game/maps"
 
-const START_MAP: String = "starter_field"
+## Where a new game begins, and where on it.
+##
+## A save overrides both: `_load_if_present` runs after the first `_enter` and
+## moves the walker to wherever it was left. So this is the answer for a fresh
+## start and for nothing else.
+##
+## Falls back to whatever map is found first when this one is missing, so a build
+## without it still opens something rather than a blank screen.
+const START_MAP: String = "main"
 const START_CELL: Vector2i = Vector2i(1, 1)
 const SAVE_PATH: String = "user://sandbox.json"
 
@@ -41,11 +49,36 @@ const CELL: float = 1.0
 ## the floor tile is drawn from — so the two meet with nothing added.
 const BODY_LIFT: float = 0.0
 
-## Where the camera sits above and behind, and how far up the character it looks.
-## Aimed at the chest rather than at the feet: a camera on somebody's shoes puts
-## them at the top of the frame and the ground everywhere else.
-const EYE: Vector3 = Vector3(0, 6.5, 6.0)
+## How far up the character the camera looks. Aimed at the chest rather than at
+## the feet: a camera on somebody's shoes puts them at the top of the frame and
+## the ground everywhere else.
 const EYE_HEIGHT: float = 0.65
+
+## Where the camera sits and how flat it looks, as three numbers in the
+## inspector.
+##
+## **Exported rather than fixed, because this is art direction.** How steep a
+## camera should be is settled by looking at it, not by arguing about it — the
+## same reason `Daylight` is a node with sliders instead of constants. These live
+## on the scene root, so a value tried and kept is saved in the scene.
+##
+## They are an angle, a distance and a lens rather than a position offset, because
+## those are the three things somebody actually wants to change. "More top down"
+## is one number here; as a position it was two that had to move together to keep
+## the framing.
+##
+## ## Why a long lens and a far camera
+##
+## Perspective is what a **wide** lens close up produces. Pulling back and
+## narrowing the lens keeps the framing and flattens the convergence, which is
+## what "very little perspective" asks for — the limit of that is orthographic,
+## and stopping short of it is deliberate: the reference has some.
+##
+## The defaults frame the same height of ground as the wide, close camera they
+## replace, so nothing else about the scene has to be retuned to try them.
+@export_range(20.0, 89.0, 0.5) var camera_pitch: float = 56.0
+@export_range(2.0, 80.0, 0.5) var camera_distance: float = 27.0
+@export_range(5.0, 90.0, 0.5) var camera_lens: float = 28.0
 const BATTLE_SCENE: String = "res://game/scenes/battle/battle_screen.tscn"
 const STARTER_LEVEL: int = 12
 
@@ -685,7 +718,7 @@ func _floor_height() -> float:
 func _draw_body(where: Vector3) -> void:
 	_body.position = where
 	var looking_at: Vector3 = where + Vector3(0, _body.height() * EYE_HEIGHT, 0)
-	_camera.position = where + EYE
+	_camera.position = looking_at + camera_offset()
 	_camera.look_at(looking_at)
 
 
@@ -767,8 +800,22 @@ func save_on_background() -> bool:
 # --- what it looks like ------------------------------------------------------
 
 
+## Where the camera sits relative to what it is looking at.
+##
+## Up and back along one angle, so the pitch is the pitch whatever the distance
+## is. Public because it is worth asserting: the whole point of the three numbers
+## is that each changes one thing, and a sign slip here would tilt the camera the
+## other way round while still looking plausible in a screenshot.
+func camera_offset() -> Vector3:
+	var pitch: float = deg_to_rad(clampf(camera_pitch, 1.0, 89.0))
+	return Vector3(0.0, sin(pitch), cos(pitch)) * maxf(camera_distance, 0.1)
+
+
 func _build_interface() -> void:
 	_camera = Camera3D.new()
+	# A long lens is what flattens the perspective; the distance above is what
+	# keeps the framing while it does.
+	_camera.fov = camera_lens
 	add_child(_camera)
 
 	# The sun, the page, and the shadows everything throws on it. Taken from the

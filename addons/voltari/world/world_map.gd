@@ -200,21 +200,40 @@ func _blocks_whole(cell: Vector2i) -> bool:
 	return blocking.get_cell_item(Vector3i(cell.x, GROUND, cell.y)) == _blocker_item()
 
 
+## Everything under this map, at any depth.
+##
+## **At any depth is the point.** These used to read direct children only, and the
+## editor never agreed with them: its gizmos draw a warp wherever it sits, and
+## `VltMapPlacement.map_of` walks *upward* with a comment saying that grouping
+## doors under a node "is a reasonable thing for somebody to want". So an author
+## who tidied a map into `HomeTown/maison bas gauche` — which is what anybody does
+## past three props — got markers drawn in the viewport and a game that ignored
+## every one of them. Silent, and indistinguishable from having authored them
+## wrong.
+##
+## One walk and four filters rather than four walks. Called when a cell is
+## entered rather than every frame, so a map's node count is not on the hot path.
+##
+## The engine's own search rather than a recursion written here: `owned` false so
+## that a node added at runtime counts like an authored one, and no type filter
+## because the callers below each want a different one.
+func _everything() -> Array[Node]:
+	return find_children("*", "", true, false)
+
+
 ## The warp on a cell, or null. Null rather than a sentinel warp: "there is no
 ## warp here" is the answer for almost every cell, and inventing an object for
 ## it would mean every caller checking a field instead of a reference.
 func warp_at(cell: Vector2i) -> VltWarp:
-	for child: Node in get_children():
-		var warp: VltWarp = child as VltWarp
-		if warp != null and warp.cell == cell:
+	for warp: VltWarp in warps():
+		if warp.cell == cell:
 			return warp
 	return null
 
 
 func zone_at(cell: Vector2i) -> VltEncounterZone:
-	for child: Node in get_children():
-		var zone: VltEncounterZone = child as VltEncounterZone
-		if zone != null and zone.contains(cell):
+	for zone: VltEncounterZone in zones():
+		if zone.contains(cell):
 			return zone
 	return null
 
@@ -222,17 +241,16 @@ func zone_at(cell: Vector2i) -> VltEncounterZone:
 ## The event a cell triggers, or null. Events fire only at named moments
 ## (decision 0043), so the moment is part of the question.
 func event_at(cell: Vector2i, trigger: VltEvent.Trigger) -> VltEvent:
-	for child: Node in get_children():
-		var event: VltEvent = child as VltEvent
-		if event != null and event.fires_at(cell, trigger):
+	for event: VltEvent in events():
+		if event.fires_at(cell, trigger):
 			return event
 	return null
 
 
 func events() -> Array[VltEvent]:
 	var found: Array[VltEvent] = []
-	for child: Node in get_children():
-		var event: VltEvent = child as VltEvent
+	for node: Node in _everything():
+		var event: VltEvent = node as VltEvent
 		if event != null:
 			found.append(event)
 	return found
@@ -240,8 +258,8 @@ func events() -> Array[VltEvent]:
 
 func warps() -> Array[VltWarp]:
 	var found: Array[VltWarp] = []
-	for child: Node in get_children():
-		var warp: VltWarp = child as VltWarp
+	for node: Node in _everything():
+		var warp: VltWarp = node as VltWarp
 		if warp != null:
 			found.append(warp)
 	return found
@@ -249,8 +267,8 @@ func warps() -> Array[VltWarp]:
 
 func zones() -> Array[VltEncounterZone]:
 	var found: Array[VltEncounterZone] = []
-	for child: Node in get_children():
-		var zone: VltEncounterZone = child as VltEncounterZone
+	for node: Node in _everything():
+		var zone: VltEncounterZone = node as VltEncounterZone
 		if zone != null:
 			found.append(zone)
 	return found

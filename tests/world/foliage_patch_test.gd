@@ -55,7 +55,7 @@ func _patch(
 ## Where a patch hangs its sowings — one place per sown cell.
 ##
 ## **Not where each leaf is.** A patch draws a shared sowing once per cell now
-## (decision 0078), and the per-instance buffer of a `MultiMesh` is held by the
+## (decision 0079), and the per-instance buffer of a `MultiMesh` is held by the
 ## rendering server, which the headless run this suite requires does not have:
 ## `set_instance_transform` followed by `get_instance_transform` returns the
 ## identity, and `buffer` comes back empty.
@@ -108,7 +108,7 @@ func test_the_same_cells_grow_the_same_leaves() -> void:
 
 
 func test_a_species_is_sown_a_few_times_and_shared() -> void:
-	# **The trade decision 0078 made.** A sowing used to be built per cell, which
+	# **The trade decision 0079 made.** A sowing used to be built per cell, which
 	# cost 6.8 MB a tree and put a hundred surfaces on one patch. Cells draw from
 	# a handful of sowings now, so the memory follows the palette rather than the
 	# map — and two cells that draw the same one are identical, which is the price

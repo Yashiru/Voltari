@@ -13,7 +13,7 @@ shader_type spatial;
 // copy of either would be a leaf that drifts out of step with the field it stands
 // in, which is the whole thing those two files exist to prevent.
 //
-// `cull_disabled`, and `VltFoliage` winds each leaf **once** (decision 0078).
+// `cull_disabled`, and `VltFoliage` winds each leaf **once** (decision 0079).
 //
 // It was the other way round — wound twice and culled — on the reading that
 // turning culling off would draw every leaf four times. It does not: culling
@@ -62,7 +62,7 @@ varying float leaf_tone;
 
 void vertex() {
 	// Everything that used to be baked per vertex is per instance now, because
-	// the card is one mesh drawn by every leaf of every tree (decision 0078).
+	// the card is one mesh drawn by every leaf of every tree (decision 0079).
 	//
 	// How far up its own leaf this vertex sits is the one thing that is still the
 	// card's own, and it rides in `UV2` — `UV` is what the shared look samples

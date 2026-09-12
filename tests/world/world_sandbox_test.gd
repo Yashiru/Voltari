@@ -10,6 +10,18 @@ extends GdUnitTestSuite
 
 const SCENE: String = "res://game/scenes/world/world_sandbox.tscn"
 
+## The map this suite walks, and where on it.
+##
+## **Not where the game starts.** `WorldSandbox.START_MAP` is real content now,
+## and a smoke test that walked it would fail every time somebody moved a fence —
+## which is the opposite of what a smoke test is for. The starter maps are this
+## suite's fixtures: small, deliberate, and changed only on purpose.
+##
+## The two tests that are genuinely about *starting* still ask `WorldSandbox`,
+## because that is their subject.
+const FIELD: String = "starter_field"
+const FIELD_CELL: Vector2i = Vector2i(1, 1)
+
 
 func before_test() -> void:
 	_forget()
@@ -25,6 +37,18 @@ func _forget() -> void:
 	for suffix: String in ["", VltSaveStore.TEMPORARY_SUFFIX, VltSaveStore.BACKUP_SUFFIX]:
 		if FileAccess.file_exists(WorldSandbox.SAVE_PATH + suffix):
 			DirAccess.remove_absolute(WorldSandbox.SAVE_PATH + suffix)
+
+
+## The world, standing where this suite's assertions were written for.
+##
+## Placed rather than walked to. `go_to` lands on a map's own spawn, and walking
+## from there to here would cross cells that can fire an event or an encounter —
+## noise a fixture must not have. Reaching for `_enter` is in keeping with a suite
+## that already drives `_run` and `_advance_event` directly.
+func _on_the_field() -> WorldSandbox:
+	var world: WorldSandbox = _sandbox()
+	world._enter(FIELD, FIELD_CELL, VltFacing.Direction.SOUTH)
+	return world
 
 
 func _sandbox() -> WorldSandbox:
@@ -46,10 +70,10 @@ func test_it_comes_up_somewhere_standable() -> void:
 
 
 func test_a_step_moves_and_a_wall_does_not() -> void:
-	var world: WorldSandbox = _sandbox()
+	var world: WorldSandbox = _on_the_field()
 
 	world.walk(VltFacing.Direction.EAST)
-	assert_vector(world.cell()).is_equal(WorldSandbox.START_CELL + Vector2i(1, 0))
+	assert_vector(world.cell()).is_equal(FIELD_CELL + Vector2i(1, 0))
 
 	# North from row 1 is row 0, which exists; west from column 0 is off the map.
 	world.walk(VltFacing.Direction.WEST)
@@ -66,7 +90,7 @@ func test_a_step_moves_and_a_wall_does_not() -> void:
 
 
 func test_walking_through_the_door_changes_map() -> void:
-	var world: WorldSandbox = _sandbox()
+	var world: WorldSandbox = _on_the_field()
 
 	# East along row 3, through the gap in the wall, to the door at (7, 3).
 	world.walk(VltFacing.Direction.SOUTH)
@@ -85,7 +109,7 @@ func test_walking_through_the_door_changes_map() -> void:
 func test_reading_the_sign_sets_a_flag_the_other_map_reads() -> void:
 	# Decision 0044 in the open: the flag lands when the event finishes, not
 	# while it is playing.
-	var world: WorldSandbox = _sandbox()
+	var world: WorldSandbox = _on_the_field()
 
 	# The sign sits on a blocked cell, so you stand beside it and face it — which
 	# is spec 14's rule that interacting ignores walkability, on a real map.
@@ -127,7 +151,7 @@ func _finish(world: WorldSandbox) -> void:
 func test_a_save_carries_both_sections() -> void:
 	# Two systems that know nothing about each other, into one document. This is
 	# the first place both exist at once.
-	var world: WorldSandbox = _sandbox()
+	var world: WorldSandbox = _on_the_field()
 
 	world.walk(VltFacing.Direction.EAST)
 	world.face(VltFacing.Direction.SOUTH)
@@ -177,7 +201,7 @@ func test_an_encounter_puts_a_battle_on_top_of_the_world() -> void:
 func test_the_world_keeps_everything_while_a_battle_runs() -> void:
 	# The world stays in the tree holding position, flags and party. Nothing is
 	# saved and reloaded to cross the seam, so nothing can be lost crossing it.
-	var world: WorldSandbox = _sandbox()
+	var world: WorldSandbox = _on_the_field()
 
 	world.walk(VltFacing.Direction.EAST)
 	world.face(VltFacing.Direction.SOUTH)
@@ -371,7 +395,7 @@ func test_being_backgrounded_mid_battle_writes_nothing() -> void:
 func test_being_backgrounded_mid_event_writes_nothing() -> void:
 	# A half-run event has set no flags, so a save now records a world nothing
 	# can resume (decision 0044).
-	var world: WorldSandbox = _sandbox()
+	var world: WorldSandbox = _on_the_field()
 	world.walk(VltFacing.Direction.EAST)
 	world.face(VltFacing.Direction.SOUTH)
 	world.interact()
@@ -435,7 +459,7 @@ func _lose(world: WorldSandbox) -> void:
 
 
 func test_losing_sends_the_party_to_the_camp() -> void:
-	var world: WorldSandbox = _sandbox()
+	var world: WorldSandbox = _on_the_field()
 	world.walk(VltFacing.Direction.EAST)
 	world.walk(VltFacing.Direction.EAST)
 
@@ -464,7 +488,7 @@ func test_losing_heals_the_party() -> void:
 func test_losing_underground_comes_up_on_the_map_with_the_camp() -> void:
 	# The case the metric exists for. The cave has no rest point of its own and
 	# reaches the field's through the door.
-	var world: WorldSandbox = _sandbox()
+	var world: WorldSandbox = _on_the_field()
 	world.walk(VltFacing.Direction.SOUTH)
 	world.walk(VltFacing.Direction.SOUTH)
 	for step: int in range(7):
@@ -482,7 +506,7 @@ func test_losing_underground_comes_up_on_the_map_with_the_camp() -> void:
 func test_walking_works_after_a_defeat() -> void:
 	# A teleport that left the walker on the old map's grid would be invisible
 	# until the first step.
-	var world: WorldSandbox = _sandbox()
+	var world: WorldSandbox = _on_the_field()
 	await _lose(world)
 
 	world.walk(VltFacing.Direction.EAST)
@@ -494,7 +518,7 @@ func test_walking_works_after_a_defeat() -> void:
 func test_a_defeat_survives_a_save() -> void:
 	# Position and health both moved, and both live in sections written after
 	# the fact. A recovery the save missed would undo itself on the next load.
-	var world: WorldSandbox = _sandbox()
+	var world: WorldSandbox = _on_the_field()
 	await _lose(world)
 	world.save_now()
 
@@ -617,7 +641,7 @@ func test_it_moves_diagonally_in_one_go() -> void:
 
 func test_a_wall_still_stops_the_player() -> void:
 	# Free does not mean unbounded: the blocking layer is still what stops you.
-	var world: WorldSandbox = _sandbox()
+	var world: WorldSandbox = _on_the_field()
 	world.walk(VltFacing.Direction.SOUTH)
 	world.walk(VltFacing.Direction.EAST)
 
@@ -628,3 +652,74 @@ func test_a_wall_still_stops_the_player() -> void:
 	assert_bool(world.cell().x <= against.x + 1).override_failure_message(
 		"walked through the wall to %s" % world.cell()
 	).is_true()
+
+
+# --- where the camera sits -----------------------------------------------------
+#
+# How steep the camera should be is settled by looking at it. What is *not*
+# settled by looking is that each of the three numbers changes one thing — a sign
+# slip or a swapped axis tilts the camera the other way round and still produces a
+# plausible screenshot, which is exactly the kind of mistake a picture hides.
+#
+# Built bare rather than from the scene: the offset reads three exported numbers
+# and nothing else, so there is no reason to pay for a whole world.
+
+
+func test_the_camera_sits_above_and_behind() -> void:
+	var world: WorldSandbox = auto_free(WorldSandbox.new())
+	var offset: Vector3 = world.camera_offset()
+
+	assert_float(offset.y).override_failure_message("the camera is not above").is_greater(0.0)
+	assert_float(offset.z).override_failure_message("the camera is not behind").is_greater(0.0)
+	assert_float(offset.x).is_equal_approx(0.0, 0.0001)
+
+
+func test_the_pitch_is_the_angle_it_says() -> void:
+	var world: WorldSandbox = auto_free(WorldSandbox.new())
+	for pitch: float in [30.0, 45.0, 60.0, 75.0]:
+		world.camera_pitch = pitch
+		var offset: Vector3 = world.camera_offset()
+		assert_float(rad_to_deg(atan2(offset.y, offset.z))).is_equal_approx(pitch, 0.01)
+
+
+func test_a_steeper_camera_is_higher_and_less_far_back() -> void:
+	# "More top down" has to be one number, and this is what that means.
+	var world: WorldSandbox = auto_free(WorldSandbox.new())
+	world.camera_pitch = 45.0
+	var shallow: Vector3 = world.camera_offset()
+	world.camera_pitch = 70.0
+	var steep: Vector3 = world.camera_offset()
+
+	assert_float(steep.y).is_greater(shallow.y)
+	assert_float(steep.z).is_less(shallow.z)
+
+
+func test_the_distance_moves_the_camera_without_turning_it() -> void:
+	# What makes a long lens usable: pulling back flattens the perspective and
+	# must not change where the camera is pointed from.
+	var world: WorldSandbox = auto_free(WorldSandbox.new())
+	world.camera_pitch = 60.0
+	world.camera_distance = 10.0
+	var near: Vector3 = world.camera_offset()
+	world.camera_distance = 40.0
+	var far: Vector3 = world.camera_offset()
+
+	assert_float(near.length()).is_equal_approx(10.0, 0.001)
+	assert_float(far.length()).is_equal_approx(40.0, 0.001)
+	assert_float(far.normalized().dot(near.normalized())).is_equal_approx(1.0, 0.0001)
+
+
+func test_a_camera_cannot_be_put_underground_or_nowhere() -> void:
+	# The ends of the ranges, and what somebody typing into an inspector reaches
+	# for. Straight down must stay above; no distance at all must not put the
+	# camera inside the character's head.
+	var world: WorldSandbox = auto_free(WorldSandbox.new())
+
+	world.camera_pitch = 89.0
+	assert_float(world.camera_offset().y).is_greater(0.0)
+
+	world.camera_pitch = 0.0
+	assert_float(world.camera_offset().y).is_greater(0.0)
+
+	world.camera_distance = 0.0
+	assert_float(world.camera_offset().length()).is_greater(0.0)

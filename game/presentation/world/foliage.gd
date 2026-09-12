@@ -53,7 +53,7 @@ const OUTLINE: Array[Vector2] = [
 
 ## Where one leaf stands, before it is anything that can be drawn.
 ##
-## **The placement and the geometry are two questions now** (decision 0078).
+## **The placement and the geometry are two questions now** (decision 0079).
 ## Sowing answers where every leaf goes; what is then built from that is a
 ## choice — a mesh for one model, or an instance buffer shared by every tree of
 ## a species. One sowing, two readings, and no chance of the two disagreeing
@@ -270,7 +270,7 @@ const LEAF_SHADER: String = "res://game/presentation/world/foliage_leaf.gdshader
 ##
 ## Six vertices and four triangles, built once. Everything that used to be baked
 ## per leaf — where it stands, how big it is, which tone it drew, the normal of
-## its branch — is per instance now (decision 0078).
+## its branch — is per instance now (decision 0079).
 ##
 ## `UV2` carries how far up the leaf a vertex sits, which the wind needs. Not
 ## `UV`: that is what the shared look samples with, and a leaf reading its
@@ -291,7 +291,7 @@ static func card() -> ArrayMesh:
 		flat.append(Vector2.ZERO)
 		along.append(Vector2(0.0, point.y))
 
-	# Wound once: the shader turns culling off (decision 0078).
+	# Wound once: the shader turns culling off (decision 0079).
 	for corner: int in range(1, OUTLINE.size() - 1):
 		stitched.append(0)
 		stitched.append(corner)
@@ -602,7 +602,7 @@ static func _geometry_of(placed: Array[Leaf]) -> Array:
 			# this one line is the difference between a bush and a heap of flakes.
 			facing.append(leaf.out)
 
-		# Wound once — see the note on `OUTLINE` and decision 0078. The shader
+		# Wound once — see the note on `OUTLINE` and decision 0079. The shader
 		# turns culling off, so one winding is visible from either side.
 		for corner: int in range(1, OUTLINE.size() - 1):
 			stitched.append(first)

@@ -24,7 +24,7 @@ extends Node3D
 ## The bare model is still drawn by the `GridMap` underneath. This lays leaves
 ## *over* it and owns nothing else, which is why removing it cannot leave a hole.
 ##
-## ## Sown per species, drawn per tree (decision 0078)
+## ## Sown per species, drawn per tree (decision 0079)
 ##
 ## A sowing used to be built per cell and welded into one mesh. Measured, a
 ## single six-metre fir came to 169 872 triangles and 6.8 MB, and a hundred of
@@ -246,7 +246,7 @@ func settings() -> VltFoliage.Settings:
 ## Grows the sowings a map needs and hangs one node over each sown cell.
 ##
 ## **A sowing per species and variant, not per cell.** The same fir drawn fifty
-## times points at one buffer fifty times, which is the whole of decision 0078:
+## times points at one buffer fifty times, which is the whole of decision 0079:
 ## memory follows the palette rather than the map.
 func _regrow() -> void:
 	if not is_inside_tree():

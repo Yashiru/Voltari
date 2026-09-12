@@ -148,3 +148,88 @@ func test_a_map_offers_no_way_to_ask_about_decoration() -> void:
 		assert_bool(map.has_method(method)).override_failure_message(
 			"VltWorldMap grew %s(), which lets a rule read decoration" % method
 		).is_false()
+
+
+# --- grouped, and therefore tidy ----------------------------------------------
+#
+# A map past three props gets tidied into nodes — `HomeTown/maison bas gauche` is
+# what a real one looks like. These used to read direct children only, so the
+# editor drew every marker where it sat and the game ignored all of them: content
+# authored correctly behaved exactly like content authored wrong, with nothing
+# anywhere saying which.
+
+
+func test_a_grouped_warp_is_found() -> void:
+	var map: VltWorldMap = auto_free(VltFixtureMap.map("field", VltFixtureMap.filled(Vector2i(4, 4))))
+	var group: Node3D = Node3D.new()
+	map.add_child(group)
+	group.add_child(VltFixtureMap.warp(Vector2i(2, 2), "cave", Vector2i(0, 0), VltFacing.Direction.NORTH))
+
+	assert_int(map.warps().size()).is_equal(1)
+	assert_object(map.warp_at(Vector2i(2, 2))).is_not_null()
+
+
+func test_a_warp_grouped_two_deep_is_found() -> void:
+	# One level would have been an easy thing to special-case and still be wrong.
+	var map: VltWorldMap = auto_free(VltFixtureMap.map("field", VltFixtureMap.filled(Vector2i(4, 4))))
+	var town: Node3D = Node3D.new()
+	map.add_child(town)
+	var house: Node3D = Node3D.new()
+	town.add_child(house)
+	house.add_child(VltFixtureMap.warp(Vector2i(1, 3), "cave", Vector2i(0, 0), VltFacing.Direction.SOUTH))
+
+	assert_object(map.warp_at(Vector2i(1, 3))).is_not_null()
+
+
+func test_a_grouped_zone_is_found() -> void:
+	var map: VltWorldMap = auto_free(VltFixtureMap.map("field", VltFixtureMap.filled(Vector2i(6, 6))))
+	var group: Node3D = Node3D.new()
+	map.add_child(group)
+	group.add_child(VltFixtureMap.zone("meadow", Vector2i(1, 1), Vector2i(3, 3)))
+
+	assert_int(map.zones().size()).is_equal(1)
+	assert_object(map.zone_at(Vector2i(2, 2))).is_not_null()
+	assert_object(map.zone_at(Vector2i(5, 5))).is_null()
+
+
+func test_a_grouped_event_is_found() -> void:
+	var map: VltWorldMap = auto_free(VltFixtureMap.map("field", VltFixtureMap.filled(Vector2i(4, 4))))
+	var group: Node3D = Node3D.new()
+	map.add_child(group)
+	var steps: Array[VltEventStep] = [VltFixtureEvent.set_flag("read_it")]
+	group.add_child(VltFixtureEvent.event(steps, VltEvent.Trigger.INTERACT, Vector2i(2, 1)))
+
+	assert_int(map.events().size()).is_equal(1)
+	assert_object(map.event_at(Vector2i(2, 1), VltEvent.Trigger.INTERACT)).is_not_null()
+
+
+func test_a_grouped_rest_point_is_found() -> void:
+	# The one that reported a content problem that did not exist: a map with a
+	# camp tidied into a node was told a defeat there could not recover.
+	var map: VltWorldMap = auto_free(VltFixtureMap.map("field", VltFixtureMap.filled(Vector2i(4, 4))))
+	var group: Node3D = Node3D.new()
+	map.add_child(group)
+	group.add_child(VltFixtureMap.rest(Vector2i(1, 1)))
+
+	assert_int(VltRestPoint.points_on(map).size()).is_equal(1)
+
+
+func test_a_loose_marker_is_still_found() -> void:
+	# The old arrangement has to keep working: every committed map puts its
+	# markers directly under the root.
+	var map: VltWorldMap = auto_free(VltFixtureMap.map("field", VltFixtureMap.filled(Vector2i(4, 4))))
+	map.add_child(VltFixtureMap.warp(Vector2i(2, 2), "cave", Vector2i(0, 0), VltFacing.Direction.NORTH))
+	map.add_child(VltFixtureMap.rest(Vector2i(0, 0)))
+
+	assert_object(map.warp_at(Vector2i(2, 2))).is_not_null()
+	assert_int(VltRestPoint.points_on(map).size()).is_equal(1)
+
+
+func test_a_map_with_nothing_grouped_finds_nothing() -> void:
+	var map: VltWorldMap = auto_free(VltFixtureMap.map("field", VltFixtureMap.filled(Vector2i(4, 4))))
+	map.add_child(Node3D.new())
+
+	assert_array(map.warps()).is_empty()
+	assert_array(map.zones()).is_empty()
+	assert_array(map.events()).is_empty()
+	assert_array(VltRestPoint.points_on(map)).is_empty()

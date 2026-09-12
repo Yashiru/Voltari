@@ -10,6 +10,11 @@ export_presets.cfg
 # gdUnit4 test reports
 /reports/
 
+# Agent scratch space, and the git worktrees it opens under it. A worktree is a
+# second working copy with its own `.git`, so committing this would embed a copy
+# of the repository inside itself.
+/.claude/
+
 # Content build artefacts, generated from content/*.yaml. Never hand-edited.
 /game/data/generated/
 

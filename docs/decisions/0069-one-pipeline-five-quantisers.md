@@ -2,7 +2,7 @@
 
 **Status:** Accepted
 **Date:** 2026-09-11
-**Supersedes the shape of:** decision 0066 (six looks in one shader)
+**Supersedes the shape of:** decision 0074 (six looks in one shader)
 **Recorded in:** spec 16, section 9
 
 ## Context
@@ -13,7 +13,7 @@ The maintainer asked four questions in a row, and they were one question:
 > to do with each other? Why is there an `ink` setting for shaders that are not
 > supposed to have any ink? Nothing about these shaders is logical.
 
-Decision 0066 put six looks into one shader, which was right, and left them as six
+Decision 0074 put six looks into one shader, which was right, and left them as six
 strangers sharing an address. Each kept the vocabulary it had been written with, so
 one file declared:
 
@@ -35,7 +35,7 @@ Four of the seven findings were visible on screen, not merely untidy.
 **Three looks went to pure black in a thrown shadow.** Each ported look multiplied
 its result by the shadow term. `toon_wrap` exists precisely so that an unlit side
 keeps its colour, and multiplying by zero takes it to black anyway — so the one
-feature the look was built around was cancelled by the shadow that decision 0064
+feature the look was built around was cancelled by the shadow that decision 0073
 had just bought.
 
 **`face_flat` was honoured by two looks out of six.** Wearing `bd` laid a halftone
@@ -49,7 +49,7 @@ you had just spent an hour tuning.
 cleared anything, so a look whose preset was silent about a value inherited it. Go
 `comic-sunday` → `toon` → back and the saturation is still at 1.55 with nothing in
 any file saying so. The maintainer found this by playing with the picker, one turn
-after decision 0067 had cured the same symptom from a different cause.
+after decision 0075 had cured the same symptom from a different cause.
 
 A fifth thing was found on the way: `key_follows_camera` and six `stucco_*` values
 were **deleted from the shader** during the lit rework, and two scripts went on

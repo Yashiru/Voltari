@@ -307,7 +307,7 @@ shader, not separate looks.
 
 ### It is worn by every surface, and it is lit
 
-**Settled by decisions 0062 and 0064.** The look was applied to creatures alone, so a
+**Settled by decisions 0062 and 0073.** The look was applied to creatures alone, so a
 creature stood on ground drawn by a different set of rules — a printed drawing on
 a photograph. It now covers the tiles, the props, the grass and the character.
 
@@ -329,7 +329,7 @@ saturates. The surface declares itself white so the look keeps full control.
 Two consequences are worth knowing before writing anything that draws:
 
 - **Every scene needs exactly one `DirectionalLight3D`, and a scene with none
-  renders black.** The look is lit (decision 0064) and writes the whole surface
+  renders black.** The look is lit (decision 0073) and writes the whole surface
   itself, so nothing else writes anything. `Daylight` is the node that supplies
   the sun and the paper behind it; a second directional light would count the
   shadow tone twice. Lamps and other lights add a warm pool and never re-shade.
@@ -375,7 +375,7 @@ wall goes to exactly zero local contrast by four times the reference distance.
 
 ### The other five looks are modes of the same shader
 
-**Settled by decision 0066.** `toon`, `bd`, `vinyl`, `ramp` and `typelit` were
+**Settled by decision 0074.** `toon`, `bd`, `vinyl`, `ramp` and `typelit` were
 separate creature shaders and could not dress the world: none had a flat colour,
 so a tile wore white, and `bd` was unshaded, so a world wearing it lost every cast
 shadow. They are branches of the shared look now, and every one of them takes the

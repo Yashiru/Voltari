@@ -15,7 +15,7 @@
 // belief that Godot's `light()` stage had no screen coordinates and so could not
 // place a screentone. **That belief was wrong** — `FRAGCOORD` and `SCREEN_UV` are
 // both in scope there — and it cost the game every cast shadow it might have had.
-// Decision 0064 reopened it.
+// Decision 0073 reopened it.
 //
 // Being lit is what buys the cast shadow, and the cast shadow is most of what
 // makes a drawn world sit together: a tree that throws a shape across the ground

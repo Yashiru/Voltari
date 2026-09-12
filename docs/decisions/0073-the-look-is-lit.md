@@ -1,7 +1,9 @@
-# 0064 — The look is lit
+# 0073 — The look is lit
 
 **Status:** Accepted
 **Date:** 2026-09-11
+**Renumbered:** written as 0064, which decision 0064 (leaves are sown) already
+held. Text older than this repair cites it as 0064.
 **Supersedes:** decision 0062's `unshaded` rule, and only that. The rest of 0062 —
 one shared look, the wind kept out of it, two shaders because `render_mode` is per
 shader — stands unchanged.

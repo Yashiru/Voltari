@@ -1,8 +1,10 @@
-# 0066 — Six looks, one shader
+# 0074 — Six looks, one shader
 
 **Status:** Accepted
 **Date:** 2026-09-11
-**Builds on:** decision 0064 — being lit is what let the other five join
+**Renumbered:** written as 0066, which decision 0066 (one turf boundary) already
+held. Text older than this repair cites it as 0066.
+**Builds on:** decision 0073 — being lit is what let the other five join
 **Recorded in:** spec 16, section 9
 
 ## Context
@@ -16,10 +18,10 @@ them:
   carry their colour in their material with no texture at all. A tile wearing one
   would have come out white
 - **`bd` was `unshaded`** and lit itself from a direction uniform, so a world
-  wearing it would have lost every cast shadow decision 0064 went to get
+  wearing it would have lost every cast shadow decision 0073 went to get
 
 The other four turned out to be lit already, and already writing
-`DIFFUSE_LIGHT += ALBEDO * ... * tint` — the same composition 0064 measured. They
+`DIFFUSE_LIGHT += ALBEDO * ... * tint` — the same composition 0073 measured. They
 were much closer to the world than anyone had noticed.
 
 ## The shape of the problem

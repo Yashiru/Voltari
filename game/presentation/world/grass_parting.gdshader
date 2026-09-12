@@ -39,7 +39,7 @@ shader_type spatial;
 // material. Everything else the world wears is a closed mesh that culls.
 //
 // It is lit, like everything else, so a blade takes the shadow a tree throws over
-// it — see decision 0064. A field where the shade under a tree is cool and the
+// it — see decision 0073. A field where the shade under a tree is cool and the
 // rest is in sun is most of why a drawn world feels like a place.
 
 render_mode cull_disabled, specular_disabled, ambient_light_disabled;

@@ -1,8 +1,10 @@
-# 0067 — A custom `light()` owes the engine a 1/π
+# 0075 — A custom `light()` owes the engine a 1/π
 
 **Status:** Accepted
 **Date:** 2026-09-11
-**Fixes:** a defect introduced by decision 0064
+**Renumbered:** written as 0067, which decision 0067 (the turf watches the map)
+already held. Text older than this repair cites it as 0067.
+**Fixes:** a defect introduced by decision 0073
 **Recorded in:** spec 16, section 9
 
 ## Context

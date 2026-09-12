@@ -166,7 +166,7 @@ var accent_type: String = "neutral":
 		_push_look()
 ## **One is the identity.** It was 1.35, which was tuned against a pipeline that
 ## was rendering 3.14 times too bright and clipping every channel it touched —
-## decision 0067 took the same number out of the world's presets and missed this
+## decision 0075 took the same number out of the world's presets and missed this
 ## one, so a creature went on being pushed a third past its own colour.
 @export_range(0.5, 2.5) var saturation: float = 1.0:
 	set(value):

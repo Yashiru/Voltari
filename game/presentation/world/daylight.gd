@@ -4,7 +4,7 @@ extends Node3D
 
 ## The one sun a scene needs, and the paper it is printed on.
 ##
-## The printed look is lit (decision 0064): it reads `ATTENUATION` to know what
+## The printed look is lit (decision 0073): it reads `ATTENUATION` to know what
 ## the sun cannot see, and that is where every cast shadow in the game comes from.
 ## It follows that **a scene with no directional light renders black** — not dim,
 ## black, because the look writes the whole surface itself and nothing else writes

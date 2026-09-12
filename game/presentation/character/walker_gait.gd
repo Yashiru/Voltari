@@ -59,6 +59,13 @@ const TURN_SPEED: float = 14.0
 ## Below this a character is standing still, whatever the arithmetic says.
 const STILL: float = 0.01
 
+## Close enough to be facing something, in radians. A tenth of a degree.
+##
+## What ends a turn nobody is waiting on: the clip has delivered its angle and
+## the ordinary turn has closed whatever was left, so there is nothing more for
+## the pivot to hold on to.
+const SETTLED: float = 0.002
+
 # --- turning on the spot ------------------------------------------------------
 
 ## How far into the throw the ball leaves the hand, as a fraction of the clip.

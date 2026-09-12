@@ -40,10 +40,28 @@ rotation: sampling it gives both the total and the curve, and there is no table
 for anybody to keep in step with the assets. `WalkerGait.pivot_by` takes that
 table as an argument rather than holding one.
 
-**Moving, nothing changes.** Walking already turns the body and the legs are
-already carrying it. A step also gives up on a turn in progress, for the same
-reason: a body finishing a swivel it no longer needs is the one thing here that
-reads as the character ignoring the player.
+**A turn starts when the *legs* are standing, not when nothing has been asked
+for.** This was the other way round first, and driving the sandbox showed what
+that costs: `turn-in-place frames seen: 0`. A held key means full speed, so the
+condition never came true and the character swivelled through 180° at a run —
+exactly the artefact the clips were brought in to remove.
+
+A player pushing the stick behind them is asking to go that way, and going that
+way starts with picking your feet up. So the body turns first and **holds its own
+speed at zero** for as long as that lasts; the caller asks whether it is turning
+and does not travel while it is. Held in the body rather than left to the caller,
+because a caller that forgot would slide the character sideways through its own
+turn.
+
+**Moving already, nothing changes.** Walking turns the body and the legs are
+carrying it; a character who stopped to pivot every time the stick swung would
+never go where they were pointed.
+
+**A turn is let go early for somebody waiting to walk.** The clip covers
+everything past the floor and the last stretch closes under a walk that has
+already started. A quarter turn holds the player still for a third of a second
+rather than nine tenths; a reversal for one second rather than one and two
+thirds.
 
 ## Options rejected
 
@@ -63,6 +81,20 @@ out on one of the four, every time, with nothing in the code to explain it.
 
 **A turn clip while walking**, blended into the gait. That is a lean, not a
 pivot, and it is a different clip nobody has.
+
+## What it costs, measured
+
+A reversal on the spot is a second of not moving. That is a feel judgement and
+the number is the whole of it:
+
+| turn | walking away | nobody waiting |
+|---|---|---|
+| a quarter | **0.33 s**, handed over 46° short | 0.92 s, exact |
+| a half | **1.05 s**, handed over 45° short | 1.63 s, exact |
+
+Two knobs move it and neither is hidden: `TURN_FLOOR` decides how much of the
+turn the clip has to cover, and the clip could be played faster than one. Both
+are one constant, and this is the part to try by hand rather than to reason about.
 
 ## Consequences
 

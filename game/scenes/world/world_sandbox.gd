@@ -219,11 +219,22 @@ func _process(delta: float) -> void:
 	# whether a thumb is resting (decision 0058).
 	var wanted: Vector2 = VltStepIntent.of(stick)
 	var speed: float = wanted.length() * GROUND_SPEED
+
+	# **The direction asked for, not the one already being travelled.** The
+	# walker's own heading only moves when the walker does, so handing it back
+	# here would mean the body never heard about a change of direction until
+	# after it had happened — and a character who is standing still would never
+	# be asked to turn at all.
+	if speed > 0.0:
+		_walker.heading = wanted.normalized()
 	_body.advance(delta, speed, _walker.heading)
-	if speed <= 0.0:
+
+	# Picking your feet up is not travelling. A half turn on the spot takes about
+	# a second before the first step, and the body says when it is done.
+	if speed <= 0.0 or _body.is_turning():
 		return
 
-	_travel(wanted.normalized() * speed * delta)
+	_travel(_walker.heading * speed * delta)
 
 
 ## Moves by a displacement in metres and does whatever crossing a boundary asks

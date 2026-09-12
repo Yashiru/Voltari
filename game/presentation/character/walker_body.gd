@@ -205,6 +205,13 @@ func advance(delta: float, speed: float, heading: Vector2) -> void:
 	_turn(step, speed, WalkerGait.yaw_towards(heading))
 	_perform(step)
 
+	# A body picking its feet up is not travelling, whatever it was asked for.
+	# Held here rather than left to the caller: a caller that forgot would have
+	# the character slide sideways through its own turn, and there is no reason
+	# for two of them to have to remember.
+	if _pivot != null:
+		speed = 0.0
+
 	if speed > WalkerGait.STILL:
 		_since_moving = 0.0
 		_last_speed = speed
@@ -285,21 +292,24 @@ func performing() -> String:
 ## One frame of facing: carried by a clip when there is one, and by the plain
 ## turn when there is not.
 ##
-## A turn clip is only ever started from a standstill. Walking already turns the
-## body, and a character who stopped to pivot every time the stick swung would be
-## a character who never goes where they were pointed.
+## **A turn clip starts from a standstill, and it is the legs that say so** — not
+## the speed being asked for. A player who pushes the stick behind them is asking
+## to go that way, and going that way starts with picking your feet up: the body
+## turns first and travels afterwards, which is why `advance` holds the speed at
+## zero for as long as this lasts.
+##
+## Already walking, nothing changes. The legs are carrying the turn, and a
+## character who stopped to pivot every time the stick swung would never go where
+## they were pointed.
 func _turn(delta: float, speed: float, wanted: float) -> void:
 	if _pivot != null:
-		# A step cancels a pivot. The legs are about to carry the turn anyway, and
-		# a body finishing a swivel it no longer needs is the one thing here that
-		# would read as the character ignoring the player.
-		if speed > WalkerGait.STILL:
+		if _pivot_is_spent(speed, wanted):
 			_abandon_pivot()
 		else:
 			_carry_pivot(delta)
 			return
 
-	if speed <= WalkerGait.STILL and _shown_speed <= WalkerGait.STILL:
+	if _shown_speed <= WalkerGait.STILL:
 		var pivot: WalkerGait.Pivot = WalkerGait.pivot_by(
 			angle_difference(rotation.y, wanted), _turns_by
 		)
@@ -312,6 +322,23 @@ func _turn(delta: float, speed: float, wanted: float) -> void:
 			return
 
 	rotation.y = WalkerGait.turned(rotation.y, wanted, delta)
+
+
+## Whether a turn in progress has stopped being worth finishing.
+##
+## **Somebody waiting to walk is let go early.** The clip covers everything past
+## the floor and the last stretch is closed by the ordinary turn, underneath a
+## walk that has already started — which is what makes a reversal cost about a
+## second rather than the whole clip. Nobody waiting is turned exactly, all the
+## way, because there is nothing to be early for.
+##
+## A change of mind also ends it: a stick swung back to where the body already
+## points is a turn that would arrive somewhere nobody asked for.
+func _pivot_is_spent(speed: float, wanted: float) -> bool:
+	var remaining: float = absf(angle_difference(rotation.y, wanted))
+	if remaining < WalkerGait.TURN_FLOOR:
+		return speed > WalkerGait.STILL or remaining < WalkerGait.SETTLED
+	return false
 
 
 func _begin_pivot(pivot: WalkerGait.Pivot) -> void:

@@ -114,12 +114,15 @@ func test_chained_steps_never_drop_to_the_idle() -> void:
 	# grace the legs flicker between running and standing on every cell boundary,
 	# which is the artefact this is here to prevent.
 	var body: WalkerBody = _body()
+	# Straight ahead: a change of direction from a standstill is a turn now, and
+	# a turn is not what this is about.
+	body.face_at_once(Vector2(0, 1))
 
 	for step: int in range(6):
 		for frame: int in range(9):
-			body.advance(FRAME, _running, Vector2(1, 0))
+			body.advance(FRAME, _running, Vector2(0, 1))
 		# The seam between two steps.
-		body.advance(FRAME, 0.0, Vector2(1, 0))
+		body.advance(FRAME, 0.0, Vector2(0, 1))
 		# Not "is running": the legs are still coming up to speed, and which gait
 		# a blend is nearest to on the way is not the point. What must never
 		# happen at a seam is standing still.
@@ -224,18 +227,81 @@ func test_a_turn_lands_on_the_angle_it_was_asked_for() -> void:
 		).is_less(0.01)
 
 
-func test_a_step_gives_up_on_a_turn() -> void:
-	# The legs are about to carry the turn anyway. A body finishing a swivel it no
-	# longer needs is the one thing here that reads as ignoring the player.
+func test_asking_to_go_the_other_way_turns_first() -> void:
+	# What the player actually does: pushes the stick behind them, at full tilt,
+	# from a standstill. Going that way starts with picking your feet up — so the
+	# clip is what says no to the first step, not the speed being asked for.
 	var body: WalkerBody = _body()
 	body.face_at_once(Vector2(0, 1))
-	body.advance(FRAME, 0.0, Vector2(0, -1))
-	assert_bool(body.is_turning()).is_true()
 
 	body.advance(FRAME, _running, Vector2(0, -1))
 
 	assert_bool(body.is_turning()).override_failure_message(
-		"it kept turning on the spot while walking away"
+		"a reversal from a standstill swivelled instead of turning"
+	).is_true()
+
+
+func test_the_legs_stay_still_through_a_turn() -> void:
+	# Held by the body rather than left to the caller: a caller that forgot would
+	# have the character slide sideways through its own turn.
+	var body: WalkerBody = _body()
+	body.face_at_once(Vector2(0, 1))
+
+	for frame: int in range(20):
+		body.advance(FRAME, _running, Vector2(0, -1))
+		assert_bool(body.is_turning()).is_true()
+		assert_float(body.shown_speed()).override_failure_message(
+			"the legs ran off part way through the turn"
+		).is_equal_approx(0.0, 0.001)
+
+
+func test_a_turn_lets_go_before_the_end_for_somebody_waiting_to_walk() -> void:
+	# The clip covers everything past the floor and the last stretch closes under
+	# a walk that has already started. Finishing it would cost the player the
+	# whole clip every time they changed their mind about a direction.
+	var body: WalkerBody = _body()
+	body.face_at_once(Vector2(0, 1))
+
+	var held: float = 0.0
+	body.advance(FRAME, _running, Vector2(0, -1))
+	while body.is_turning() and held < 4.0:
+		body.advance(FRAME, _running, Vector2(0, -1))
+		held += FRAME
+
+	assert_float(held).override_failure_message(
+		"a half turn held the player still for %.2f s" % held
+	).is_less(1.4)
+	assert_float(
+		absf(angle_difference(body.rotation.y, WalkerGait.yaw_towards(Vector2(0, -1))))
+	).override_failure_message("it let go with most of the turn left").is_less(
+		WalkerGait.TURN_FLOOR
+	)
+
+
+func test_a_turn_nobody_is_waiting_on_is_finished_exactly() -> void:
+	# Nothing to be early for, so it lands on the angle rather than near it.
+	var body: WalkerBody = _body()
+	body.face_at_once(Vector2(0, 1))
+
+	for frame: int in range(240):
+		body.advance(FRAME, 0.0, Vector2(0, -1))
+
+	assert_float(
+		absf(angle_difference(body.rotation.y, WalkerGait.yaw_towards(Vector2(0, -1))))
+	).is_less(0.01)
+
+
+func test_walking_already_turns_the_body() -> void:
+	# A character who stopped to pivot every time the stick swung would never go
+	# where they were pointed.
+	var body: WalkerBody = _body()
+	body.face_at_once(Vector2(0, 1))
+	_hold(body, _running)
+
+	body.advance(FRAME, _running, Vector2(0, -1))
+
+	assert_bool(body.is_turning()).override_failure_message(
+		"it stopped to pivot in the middle of a run"
 	).is_false()
 
 

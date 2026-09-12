@@ -15,6 +15,18 @@ extends VBoxContainer
 ##
 ## Built in code rather than from a scene. A dock this small is easier to read as
 ## a list of widgets than as a `.tscn` nobody can diff.
+##
+## **Everything sits inside a `ScrollContainer`.** A dock does not add one: a bare
+## `VBoxContainer` grows to fit its children and reports that height as its
+## minimum, so the editor cannot shrink the dock below it and ends up demanding
+## more window than the screen has. That is not a cosmetic problem — the panel's
+## lower half becomes unreachable, and the whole layout scales as though the
+## window were taller than the display.
+##
+## So the only child of this node is the scroll, and `_body` is what every widget
+## is added to. Nothing here may set `SIZE_EXPAND_FILL` on a child of `_body`
+## either: inside a scroll there is no leftover height to expand into, and two
+## children asking for it is how a list ends up one row tall.
 
 const MAPS: String = "res://game/maps"
 const ENCOUNTERS: String = "res://content/generated/encounters"
@@ -66,6 +78,10 @@ var _width: SpinBox = null
 var _height: SpinBox = null
 var _report: RichTextLabel = null
 
+## What every widget is added to — see the note above. The dock itself holds only
+## the scroll.
+var _body: VBoxContainer = null
+
 ## Emitted when any brush number changes, so whoever holds the brush can take
 ## them. A signal rather than the dock reaching for the plugin: a panel knows
 ## what it was typed into and nothing about who cares.
@@ -107,7 +123,19 @@ var _shown: Array[VltMapProblem] = []
 
 func _init() -> void:
 	name = "Maps"
-	add_theme_constant_override("separation", 6)
+
+	var scroll: ScrollContainer = ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# Vertically only: the widgets are told to fit the width, so a horizontal bar
+	# would only ever appear because something refused to.
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	add_child(scroll)
+
+	_body = VBoxContainer.new()
+	_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_body.add_theme_constant_override("separation", 6)
+	scroll.add_child(_body)
 
 	_folder = _field("Maps folder", MAPS)
 	_entry = _field("Entry map", ENTRY)
@@ -115,9 +143,9 @@ func _init() -> void:
 	var check: Button = Button.new()
 	check.text = "Validate maps"
 	check.pressed.connect(_on_validate_pressed)
-	add_child(check)
+	_body.add_child(check)
 
-	add_child(HSeparator.new())
+	_body.add_child(HSeparator.new())
 
 	_new_id = _field("New map id", "")
 	_width = _size_field("Width", 12)
@@ -127,9 +155,9 @@ func _init() -> void:
 	var make: Button = Button.new()
 	make.text = "New map"
 	make.pressed.connect(_on_new_map_pressed)
-	add_child(make)
+	_body.add_child(make)
 
-	add_child(HSeparator.new())
+	_body.add_child(HSeparator.new())
 
 	_models = _field("Models folder", MODELS)
 	_library = _field("Tile library", LIBRARY)
@@ -141,28 +169,30 @@ func _init() -> void:
 	var build: Button = Button.new()
 	build.text = "Build tile library"
 	build.pressed.connect(_on_build_pressed)
-	add_child(build)
+	_body.add_child(build)
 
-	add_child(HSeparator.new())
+	_body.add_child(HSeparator.new())
 
 	# What a prop is made of. Filtered, because a real palette is hundreds of
 	# models and the categories are in their names (`Plants/Bush_1`), so typing
 	# "plants" is how anybody finds anything.
 	var picked: Label = Label.new()
 	picked.text = "Prop model"
-	add_child(picked)
+	_body.add_child(picked)
 
 	_filter = LineEdit.new()
 	_filter.placeholder_text = "Filter, e.g. plants"
 	_filter.text_changed.connect(_on_filter_changed)
-	add_child(_filter)
+	_body.add_child(_filter)
 
 	_palette = ItemList.new()
-	_palette.custom_minimum_size = Vector2(0, 160)
-	_palette.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	# A fixed height rather than an expanding one: the scroll owns the leftover
+	# space, and a list that expanded would take it all and leave the report at
+	# one line.
+	_palette.custom_minimum_size = Vector2(0, 150)
 	_palette.max_columns = 0
 	_palette.item_selected.connect(_on_item_picked)
-	add_child(_palette)
+	_body.add_child(_palette)
 
 	# How a placed prop is turned and sized.
 	_turn = _brush_field("Turn (deg)", 0.0, -360.0, 360.0, 1.0)
@@ -174,16 +204,15 @@ func _init() -> void:
 	hint.text = "Hold “Place props” in the 3D toolbar, then click the ground."
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	hint.add_theme_font_size_override("font_size", 10)
-	add_child(hint)
+	_body.add_child(hint)
 
 	_report = RichTextLabel.new()
 	_report.bbcode_enabled = true
 	_report.fit_content = false
-	_report.custom_minimum_size = Vector2(0, 180)
-	_report.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_report.custom_minimum_size = Vector2(0, 150)
 	# A problem with a place is a link, and this is where clicking one arrives.
 	_report.meta_clicked.connect(_on_problem_clicked)
-	add_child(_report)
+	_body.add_child(_report)
 
 
 ## The inputs, reachable so a caller can set them. There is no second way to
@@ -333,7 +362,7 @@ func _brush_field(
 ) -> SpinBox:
 	var row: Label = Label.new()
 	row.text = label
-	add_child(row)
+	_body.add_child(row)
 
 	var spin: SpinBox = SpinBox.new()
 	spin.min_value = least
@@ -343,7 +372,7 @@ func _brush_field(
 	spin.allow_greater = false
 	spin.allow_lesser = false
 	spin.value_changed.connect(_on_brush_field_changed)
-	add_child(spin)
+	_body.add_child(spin)
 	return spin
 
 
@@ -354,24 +383,24 @@ func _on_brush_field_changed(_value: float) -> void:
 func _field(label: String, value: String) -> LineEdit:
 	var caption: Label = Label.new()
 	caption.text = label
-	add_child(caption)
+	_body.add_child(caption)
 
 	var edit: LineEdit = LineEdit.new()
 	edit.text = value
-	add_child(edit)
+	_body.add_child(edit)
 	return edit
 
 
 func _size_field(label: String, value: int) -> SpinBox:
 	var caption: Label = Label.new()
 	caption.text = label
-	add_child(caption)
+	_body.add_child(caption)
 
 	var spin: SpinBox = SpinBox.new()
 	spin.min_value = VltNewMap.SMALLEST
 	spin.max_value = 256
 	spin.value = value
-	add_child(spin)
+	_body.add_child(spin)
 	return spin
 
 

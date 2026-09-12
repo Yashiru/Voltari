@@ -165,21 +165,34 @@ static func _moved(piece: PackedVector2Array, at: Transform3D) -> PackedVector2A
 ## own units.
 static func pieces_of(mesh: Mesh, below: float) -> Array[PackedVector2Array]:
 	var shapes: Array[PackedVector2Array] = []
-	var triangles: Array[PackedVector3Array] = _triangles(mesh)
-	if triangles.is_empty():
-		return shapes
 
-	var joined: PackedInt32Array = _pieces(triangles)
-	var points: Dictionary[int, PackedVector2Array] = {}
-
-	for index: int in range(triangles.size()):
-		var flat: PackedVector2Array = _under(triangles[index], below)
+	# The triangles with something below the band, and the flat shadow of each.
+	#
+	# **Filtered before the pieces are worked out, not after.** What physically
+	# joins a gazebo's four posts is its roof, and the roof is above the band: let
+	# it into the joining and the four posts come out as one piece, which fills
+	# the gazebo in and stops anybody walking under it. Only geometry that is in
+	# the way gets a say in what is one thing.
+	var low: Array[PackedVector3Array] = []
+	var flats: Array[PackedVector2Array] = []
+	for triangle: PackedVector3Array in _triangles(mesh):
+		var flat: PackedVector2Array = _under(triangle, below)
 		if flat.is_empty():
 			continue
+		low.append(triangle)
+		flats.append(flat)
+
+	if low.is_empty():
+		return shapes
+
+	var joined: PackedInt32Array = _pieces(low)
+	var points: Dictionary[int, PackedVector2Array] = {}
+
+	for index: int in range(low.size()):
 		var piece: int = _root_of(joined, index)
 		if not points.has(piece):
 			points[piece] = PackedVector2Array()
-		points[piece].append_array(flat)
+		points[piece].append_array(flats[index])
 
 	for piece: int in points:
 		var hull: PackedVector2Array = Geometry2D.convex_hull(points[piece])

@@ -133,11 +133,14 @@ func test_a_gazebo_is_its_posts_and_not_its_floor_plan() -> void:
 	# the band — so it must not be what decides they are one piece. Getting this
 	# wrong fills the gazebo in and stops anybody walking under it, which is the
 	# entire purpose of a gazebo.
+	# The roof shares its corners with the posts, so they are welded into one run
+	# of geometry. A roof merely hovering over them would join nothing and this
+	# would pass without testing anything.
 	var gazebo: ArrayMesh = ArrayMesh.new()
 	for x: float in [-2.0, 2.0]:
 		for z: float in [-2.0, 2.0]:
 			_box(gazebo, AABB(Vector3(x - 0.1, 0.0, z - 0.1), Vector3(0.2, 2.6, 0.2)))
-	_box(gazebo, AABB(Vector3(-2.5, 2.6, -2.5), Vector3(5.0, 0.4, 5.0)))
+	_box(gazebo, AABB(Vector3(-2.1, 2.6, -2.1), Vector3(4.2, 0.4, 4.2)))
 
 	var shapes: Array[PackedVector2Array] = VltFootprint.pieces_of(gazebo, REACH)
 

@@ -106,6 +106,7 @@ static func problems(
 		found.append_array(_check_warps(map, by_id))
 		found.append_array(_check_zones(map, known_tables))
 		found.append_array(_check_events(map, known_lines))
+		found.append_array(_check_props(map))
 
 	if not entry_map.is_empty():
 		found.append_array(_check_reachable(by_id, entry_map))
@@ -280,6 +281,25 @@ static func _check_events(
 				problems.append(VltMapProblem.at(
 					"%s: a set-counter step with no flag" % where, file, event.cell
 				))
+
+	return problems
+
+
+## A prop inside another prop, which is a mistake rather than a shape.
+##
+## The outer prop's footprint is built from every mesh below it, so the inner
+## one's geometry is already measured — and its own `blocks` says nothing at all,
+## which is the part that looks like it works. A flower marked "stops nobody",
+## dropped inside a wall, still stops everybody (decision 0075).
+static func _check_props(map: VltWorldMap) -> Array[VltMapProblem]:
+	var problems: Array[VltMapProblem] = []
+
+	for prop: VltProp in VltProp.nested_under(map):
+		problems.append(VltMapProblem.of(
+			"map \"%s\", prop \"%s\": sits inside another prop, so the outer one measures its shape and its own setting is ignored"
+			% [map.map_id, prop.name],
+			map.scene_file_path
+		))
 
 	return problems
 

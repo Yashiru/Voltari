@@ -386,3 +386,44 @@ func _carrying(found: Array[VltMapProblem], fragment: String) -> VltMapProblem:
 		if problem.message.contains(fragment):
 			return problem
 	return null
+
+
+# --- props ---------------------------------------------------------------------
+
+
+func test_a_prop_inside_another_prop_is_reported() -> void:
+	# The outer prop measures every mesh below it, so the inner one's own setting
+	# is ignored — and ignored silently, which is the part worth catching: a
+	# flower marked "stops nobody", dropped inside a wall, stops everybody.
+	var field: VltWorldMap = _field("field")
+	var outer: VltProp = VltProp.new()
+	outer.name = "Gate"
+	field.add_child(outer)
+	var inner: VltProp = VltProp.new()
+	inner.name = "Latch"
+	outer.add_child(inner)
+
+	assert_bool(_complains_about(_problems(_maps([field])), "sits inside another prop")).is_true()
+
+
+func test_props_side_by_side_are_not_reported() -> void:
+	var field: VltWorldMap = _field("field")
+	for name: String in ["Bench", "Lamp"]:
+		var prop: VltProp = VltProp.new()
+		prop.name = name
+		field.add_child(prop)
+
+	assert_bool(_complains_about(_problems(_maps([field])), "sits inside another prop")).is_false()
+
+
+func test_a_prop_grouped_under_a_node_is_not_nested() -> void:
+	# Grouping is how anybody organises a map with more than three props in it.
+	# Calling that nesting would report every tidy map.
+	var field: VltWorldMap = _field("field")
+	var group: Node3D = Node3D.new()
+	field.add_child(group)
+	var prop: VltProp = VltProp.new()
+	prop.name = "Bench"
+	group.add_child(prop)
+
+	assert_bool(_complains_about(_problems(_maps([field])), "sits inside another prop")).is_false()

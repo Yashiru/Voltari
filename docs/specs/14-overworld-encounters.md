@@ -68,8 +68,9 @@ felt right and then never touched again"*. That did not happen and could not: a
 boundary is a boundary whatever route reached it. **No constant was added**, and
 the rate in section 4 keeps its meaning exactly — still per cell entered.
 
-**What stops you is the painted blocking layer**, read two ways because it says
-two things (decision 0072).
+**What stops you is what is painted and what is placed** — three readings, and
+which one applies is decided by the thing itself rather than by a setting
+(decisions 0072 and 0075).
 
 A cell holding the invisible item `_blocked` stops you everywhere in it. That is
 a lookup, as it always was, and it is the answer when the ground itself is the
@@ -81,6 +82,23 @@ fence post owned a square metre and a house owned one square metre out of the
 twenty it covered — and no rounding rule fixes a unit that is twenty times too
 coarse. The shape is derived from the mesh when the map is read, so nothing is
 authored twice and nothing can be stale.
+
+A **prop** — a `VltProp` node placed rather than painted — stops you the same
+way, by the shape its geometry occupies below two metres. What a cell could not
+say is what it is for: a cell carries one of twenty-four turns and no scale at
+all, so anything wanted at an angle, at a size, or made of several models
+standing together has to be a node (section 3).
+
+The three are one answer to the walker and none of them is a setting on a map.
+A cell claimed whole says so by the item painted in it; a prop says so by being
+a prop, which is why placing one is the whole of declaring it. An ordinary model
+beside it stays what it always was — art, stopping nobody — so no map changes
+meaning because props exist.
+
+**The band is a height, not a distance above the thing.** Two metres above the
+ground the map is on, rather than two metres above whatever is being measured,
+which is the only way a balcony or a canopy raised out of the way can take no
+ground at all.
 
 The character has a radius. Against the grid — the edge of the map, a cell
 blocked whole — the cells under the corners of the box around it must all be
@@ -111,7 +129,19 @@ speaks in four directions and the character turns through all of them.
 
 A map is a Godot scene, and it carries **three painted layers**, of which only
 two are rules. One says which cells exist; the second says which of them stop
-you. Warps, encounter zones, events and rest points are nodes placed on top.
+you. Warps, encounter zones, events and rest points are nodes placed on top, and
+so are props.
+
+**Painted and placed are both first-class, and each is what the other cannot
+be.** A grid is how you lay a floor: a thousand cells of the same six tiles, by
+dragging. It cannot express an angle, a size, or several models standing as one
+thing, because a cell carries an item, one of twenty-four turns, and a scale that
+belongs to the whole layer rather than to the cell. Those are what a placed prop
+is for (decision 0075).
+
+Neither replaces the other, and the split is not a matter of taste: the ground
+and the walls of a room are a grid's work, and the bench in the corner at
+fifteen degrees is not.
 
 The third is **decoration, and nothing reads it** (decision 0054). A flower, a
 crack in the ground, a border: things that must not claim a cell exists and must
@@ -128,10 +158,18 @@ mistake, and it is a *visual* one: the reviewer who would catch it is the person
 looking at the map, which is section 7's whole criterion for what gets checked
 mechanically and what does not.
 
-Walkability is authored rather than inferred from the model standing on a cell,
-which keeps art and rule apart: replacing a rock with a bush becomes a change of
-art and not a change of what the player can do. The price is two passes of
-painting that can disagree, and nothing detects a wall you can walk through.
+Walkability on the painted layers is authored rather than inferred from the model
+standing on a cell, which keeps art and rule apart: replacing a rock with a bush
+becomes a change of art and not a change of what the player can do. The price is
+two passes of painting that can disagree, and nothing detects a wall you can walk
+through.
+
+**A prop is the other bargain, taken knowingly.** It blocks by default, so its
+art *is* its rule and the two passes cannot disagree — at the cost of losing the
+freedom above, which comes back as one flag on the prop for the things that
+should stop nobody. Both bargains exist because the cases differ: a painted layer
+is dragged across a room and wants the rule said separately, and a prop is placed
+one at a time and wants the obvious thing to happen without a second gesture.
 
 A cell with no terrain is off the map, and off the map blocks exactly the way a
 wall does. That falls out rather than being special-cased, so no map needs a

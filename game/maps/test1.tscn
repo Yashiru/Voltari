@@ -31,7 +31,7 @@ cell_size = Vector3(1, 1, 1)
 cell_center_y = false
 cell_scale = 0.5
 data = {
-"cells": PackedInt32Array(2, 22, 1441844, 2, 19, 1441844, 2, 16, 1441844, 3, 11, 1441838, 3, 9, 655406, 1, 10, 46, 1, 8, 1441836, 1, 12, 1441817, 2, 10, 1441817, 3, 8, 1441817, 4, 11, 1441817, 2, 6, 1441817, 2, 8, 1441841, 9, 16, 1441844, 7, 15, 303, 7, 16, 303, 7, 17, 303, 8, 15, 303, 8, 16, 303, 8, 17, 303, 9, 15, 303, 9, 17, 303, 10, 15, 303, 10, 16, 303, 10, 17, 303, 11, 15, 303, 11, 16, 303, 11, 17, 303)
+"cells": PackedInt32Array(2, 22, 1441844, 2, 19, 1441844, 2, 16, 1441844, 3, 11, 1441838, 3, 9, 655406, 1, 10, 46, 1, 8, 1441836, 1, 12, 1441817, 2, 10, 1441817, 3, 8, 1441817, 4, 11, 1441817, 2, 6, 1441817, 2, 8, 1441841, 8, 17, 297)
 }
 
 [node name="Decor" type="GridMap" parent="." unique_id=486606239]
@@ -59,6 +59,7 @@ metadata/_custom_type_script = "uid://b8qte8v1m6dkx"
 [node name="VltEncounterZone" type="Node3D" parent="." unique_id=241912385]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14.5, 0, 12.5)
 script = ExtResource("5_64ewn")
+table_id = "species_meadow"
 origin = Vector2i(14, 12)
 size = Vector2i(8, 6)
 metadata/_custom_type_script = "uid://dpasdcyi6n3do"
@@ -82,3 +83,10 @@ dominant_share = 0.0
 script = ExtResource("7_nvmgc")
 layer = NodePath("../Blocking")
 cells = Array[Vector3i]([Vector3i(2, 0, 8)])
+
+[node name="@MeshInstance3D@23856" type="MeshInstance3D" parent="." unique_id=1193183431]
+script = ExtResource("7_nvmgc")
+layer = NodePath("../Blocking")
+cells = Array[Vector3i]([Vector3i(8, 0, 17)])
+colour = Color(0.11955919, 0.4881956, 0.049654618, 1)
+dominant_share = 1.0

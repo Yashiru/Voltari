@@ -225,7 +225,7 @@ static func leaves(source: Mesh, seed: int, settings: Settings) -> ArrayMesh:
 		# unless a colour was asked for.
 		grown.surface_set_material(
 			grown.get_surface_count() - 1,
-			_coloured(array_source.surface_get_material(sowing.surface), settings)
+			leaf_material(array_source.surface_get_material(sowing.surface), settings)
 		)
 
 	return grown
@@ -266,6 +266,82 @@ static func scatter(source: Mesh, seed: int, settings: Settings) -> Array[Sowing
 const LEAF_SHADER: String = "res://game/presentation/world/foliage_leaf.gdshader"
 
 
+## The one leaf, in its own plane, drawn by every instance of every tree.
+##
+## Six vertices and four triangles, built once. Everything that used to be baked
+## per leaf — where it stands, how big it is, which tone it drew, the normal of
+## its branch — is per instance now (decision 0078).
+##
+## `UV2` carries how far up the leaf a vertex sits, which the wind needs. Not
+## `UV`: that is what the shared look samples with, and a leaf reading its
+## branch's artwork at coordinates meaning something else is the defect the
+## colour channel was avoiding before instancing took the colour channel away.
+static func card() -> ArrayMesh:
+	var points: PackedVector3Array = PackedVector3Array()
+	var facing: PackedVector3Array = PackedVector3Array()
+	var flat: PackedVector2Array = PackedVector2Array()
+	var along: PackedVector2Array = PackedVector2Array()
+	var stitched: PackedInt32Array = PackedInt32Array()
+
+	for point: Vector2 in OUTLINE:
+		points.append(Vector3(point.x, point.y, 0.0))
+		# Replaced in the shader by the branch's normal, carried per instance.
+		# Written anyway so the vertex format is complete.
+		facing.append(Vector3(0.0, 0.0, 1.0))
+		flat.append(Vector2.ZERO)
+		along.append(Vector2(0.0, point.y))
+
+	# Wound once: the shader turns culling off (decision 0078).
+	for corner: int in range(1, OUTLINE.size() - 1):
+		stitched.append(0)
+		stitched.append(corner)
+		stitched.append(corner + 1)
+
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = points
+	arrays[Mesh.ARRAY_NORMAL] = facing
+	arrays[Mesh.ARRAY_TEX_UV] = flat
+	arrays[Mesh.ARRAY_TEX_UV2] = along
+	arrays[Mesh.ARRAY_INDEX] = stitched
+
+	var made: ArrayMesh = ArrayMesh.new()
+	made.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return made
+
+
+## One sowing as instances of that card.
+##
+## **This is what the game draws.** The buffer belongs to a species and a
+## variant, not to a tree, so every fir on the map points at the same one and
+## the memory stops scaling with how many there are.
+##
+## Each instance carries its place, and two things the card cannot know: the
+## normal of the branch it grew on, and how long it is. The normal is written in
+## the leaf's *own* frame, so that the model matrix — which already carries the
+## leaf's orientation and the patch's — turns it back into the world direction
+## the look wants. Storing it in the tree's frame instead would need the patch's
+## basis as a uniform, and a uniform is per material while a patch is per map.
+static func instances(placed: Array[Leaf], leaf_card: Mesh) -> MultiMesh:
+	var spread: MultiMesh = MultiMesh.new()
+	spread.transform_format = MultiMesh.TRANSFORM_3D
+	spread.use_colors = true
+	spread.use_custom_data = true
+	spread.mesh = leaf_card
+	spread.instance_count = placed.size()
+
+	for index: int in range(placed.size()):
+		var leaf: Leaf = placed[index]
+		spread.set_instance_transform(index, leaf.at)
+		spread.set_instance_color(index, Color(leaf.tone, 0.0, 0.0, 1.0))
+		var own: Vector3 = leaf.at.basis.inverse() * leaf.out
+		spread.set_instance_custom_data(
+			index, Color(own.x, own.y, own.z, leaf.size)
+		)
+
+	return spread
+
+
 ## The material a leaf wears, from the material of the surface it grew on.
 ##
 ## Copied rather than changed: the material belongs to the source mesh, which is
@@ -276,7 +352,7 @@ const LEAF_SHADER: String = "res://game/presentation/world/foliage_leaf.gdshader
 ## material is not one of ours — a mesh that never went through the tile library
 ## has nothing this knows how to read, and guessing would be worse than leaving
 ## it alone.
-static func _coloured(source: Material, settings: Settings) -> Material:
+static func leaf_material(source: Material, settings: Settings) -> Material:
 	var dressed: ShaderMaterial = source as ShaderMaterial
 	if dressed == null:
 		return source

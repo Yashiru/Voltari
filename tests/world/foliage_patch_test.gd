@@ -52,13 +52,43 @@ func _patch(
 	return patch
 
 
-## A patch's first surface of leaves, in world space.
-func _points(patch: VltFoliagePatch) -> PackedVector3Array:
-	@warning_ignore("unsafe_cast")
-	var points: PackedVector3Array = (
-		patch.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX] as PackedVector3Array
-	)
-	return points
+## Where a patch hangs its sowings — one place per sown cell.
+##
+## **Not where each leaf is.** A patch draws a shared sowing once per cell now
+## (decision 0078), and the per-instance buffer of a `MultiMesh` is held by the
+## rendering server, which the headless run this suite requires does not have:
+## `set_instance_transform` followed by `get_instance_transform` returns the
+## identity, and `buffer` comes back empty.
+##
+## So the two halves are asserted where each is actually decided. Where a leaf
+## sits on a model is `VltFoliage.scatter`, and `foliage_test.gd` holds it. Where
+## a sowing is hung on the map is this, and it is the patch's whole job.
+func _places(patch: VltFoliagePatch) -> Array[Transform3D]:
+	var found: Array[Transform3D] = []
+	for child: Node in patch.get_children():
+		var shown: MultiMeshInstance3D = child as MultiMeshInstance3D
+		if shown != null:
+			found.append(shown.transform)
+	return found
+
+
+## Which sowings a patch is drawing, by identity. What makes "one per species and
+## variant, not one per cell" checkable.
+func _buffers(patch: VltFoliagePatch) -> Array[int]:
+	var found: Array[int] = []
+	for child: Node in patch.get_children():
+		var shown: MultiMeshInstance3D = child as MultiMeshInstance3D
+		if shown == null or shown.multimesh == null:
+			continue
+		var id: int = shown.multimesh.get_instance_id()
+		if not found.has(id):
+			found.append(id)
+	return found
+
+
+## Whether a patch is drawing anything at all.
+func _grew(patch: VltFoliagePatch) -> bool:
+	return patch.leaf_total() > 0
 
 
 # --- a cell keeps its own tree -----------------------------------------------
@@ -70,45 +100,86 @@ func test_the_same_cells_grow_the_same_leaves() -> void:
 	var again: VltFoliagePatch = _patch(cells, cells)
 
 	assert_int(again.leaf_total()).is_equal(once.leaf_total())
-	var first: PackedVector3Array = _points(once)
-	var second: PackedVector3Array = _points(again)
-	for point: int in range(first.size()):
-		assert_vector(second[point]).is_equal(first[point])
+	var first: Array[Transform3D] = _places(once)
+	var second: Array[Transform3D] = _places(again)
+	assert_int(second.size()).is_equal(first.size())
+	for place: int in range(first.size()):
+		assert_bool(second[place].is_equal_approx(first[place])).is_true()
 
 
-func test_two_cells_of_one_item_are_not_the_same_tree() -> void:
-	# Both cells hold the same box. If the seed were the item's rather than the
-	# cell's, the two would be identical down to the last leaf and a row of trees
-	# would read as a wallpaper.
-	var near: Array[Vector3i] = [Vector3i(0, 0, 0)]
-	var far: Array[Vector3i] = [Vector3i(9, 0, 0)]
-	var one: VltFoliagePatch = _patch(near, near)
-	var other: VltFoliagePatch = _patch(far, far)
-
-	# Compared where the cell is not: the leaves of the far cell, moved back.
-	var first: PackedVector3Array = _points(one)
-	var second: PackedVector3Array = _points(other)
-	var same: bool = first.size() == second.size()
-	if same:
-		for point: int in range(first.size()):
-			if not first[point].is_equal_approx(second[point] - Vector3(9.0, 0.0, 0.0)):
-				same = false
-				break
-	assert_bool(same).override_failure_message(
-		"two cells grew the same tree, so the seed is not the cell's"
-	).is_false()
-
-
-func test_rerolling_the_patch_changes_every_cell() -> void:
-	var cells: Array[Vector3i] = [Vector3i(0, 0, 0)]
+func test_a_species_is_sown_a_few_times_and_shared() -> void:
+	# **The trade decision 0078 made.** A sowing used to be built per cell, which
+	# cost 6.8 MB a tree and put a hundred surfaces on one patch. Cells draw from
+	# a handful of sowings now, so the memory follows the palette rather than the
+	# map — and two cells that draw the same one are identical, which is the price
+	# and is stated here rather than discovered.
+	var cells: Array[Vector3i] = []
+	for x: int in range(12):
+		cells.append(Vector3i(x, 0, 0))
 	var patch: VltFoliagePatch = _patch(cells, cells)
-	var before: PackedVector3Array = _points(patch)
+
+	assert_int(_places(patch).size()).override_failure_message(
+		"a sowing is hung once per sown cell"
+	).is_equal(12)
+	assert_int(_buffers(patch).size()).override_failure_message(
+		"twelve cells drew more sowings than the species has variants"
+	).is_less_equal(3)
+
+
+func test_one_variant_is_one_sowing_however_many_cells() -> void:
+	# The memory claim, made checkable: what is held does not grow with the map.
+	var few: Array[Vector3i] = [Vector3i(0, 0, 0)]
+	var many: Array[Vector3i] = []
+	for x: int in range(20):
+		many.append(Vector3i(x, 0, 0))
+
+	var one: VltFoliagePatch = _patch(few, few)
+	one.variants = 1
+	var lots: VltFoliagePatch = _patch(many, many)
+	lots.variants = 1
+
+	assert_int(_buffers(lots).size()).is_equal(1)
+	assert_int(lots.buffer_total()).override_failure_message(
+		"twenty cells held twenty times the leaves of one"
+	).is_equal(one.buffer_total())
+	# And it is still drawn everywhere it was sown.
+	assert_int(lots.leaf_total()).is_equal(one.leaf_total() * 20)
+
+
+func test_a_cell_keeps_its_own_tree_when_its_neighbours_change() -> void:
+	# What survived the move to shared sowings, and the reason editing one corner
+	# of a map does not reshuffle another.
+	var alone: Array[Vector3i] = [Vector3i(4, 0, 4)]
+	var crowded: Array[Vector3i] = [Vector3i(4, 0, 4), Vector3i(5, 0, 4), Vector3i(6, 0, 4)]
+	var one: VltFoliagePatch = _patch(alone, alone)
+	var among: VltFoliagePatch = _patch(crowded, crowded)
+
+	assert_int(among.variant_of(Vector3i(4, 0, 4))).is_equal(one.variant_of(Vector3i(4, 0, 4)))
+
+
+func test_rerolling_the_patch_changes_which_tree_a_cell_draws() -> void:
+	# Over enough cells a reroll has to land somewhere. Asked of the variant
+	# rather than of the leaves: where a leaf sits is `VltFoliage`'s and is held
+	# by `foliage_test.gd`, and the buffer it lands in cannot be read back
+	# headlessly.
+	var cells: Array[Vector3i] = []
+	for x: int in range(16):
+		cells.append(Vector3i(x, 0, 0))
+	var patch: VltFoliagePatch = _patch(cells, cells)
+
+	var before: Array[int] = []
+	for cell: Vector3i in cells:
+		before.append(patch.variant_of(cell))
 
 	patch.seed = SEED + 1
-	var after: PackedVector3Array = _points(patch)
-	assert_bool(before == after).override_failure_message(
-		"the seed was changed and the same leaves came back"
-	).is_false()
+
+	var moved: int = 0
+	for index: int in range(cells.size()):
+		if patch.variant_of(cells[index]) != before[index]:
+			moved += 1
+	assert_int(moved).override_failure_message(
+		"the seed was changed and every cell drew the same tree as before"
+	).is_greater(0)
 
 
 # --- it owns nothing but its leaves ------------------------------------------
@@ -116,28 +187,25 @@ func test_rerolling_the_patch_changes_every_cell() -> void:
 
 func test_a_patch_over_empty_cells_grows_nothing() -> void:
 	var patch: VltFoliagePatch = _patch([Vector3i(4, 0, 4)], [])
-	assert_object(patch.mesh).is_null()
+	assert_bool(_grew(patch)).is_false()
 	assert_int(patch.leaf_total()).is_equal(0)
 
 
 func test_a_patch_with_no_cells_grows_nothing() -> void:
 	var patch: VltFoliagePatch = _patch([], [Vector3i(0, 0, 0)])
-	assert_object(patch.mesh).is_null()
+	assert_bool(_grew(patch)).is_false()
 
 
-func test_the_leaves_stand_at_the_cell_they_were_sown_on() -> void:
+func test_a_sowing_is_hung_over_the_cell_it_was_sown_on() -> void:
 	var cells: Array[Vector3i] = [Vector3i(5, 0, 2)]
 	var patch: VltFoliagePatch = _patch(cells, cells)
-	var points: PackedVector3Array = _points(patch)
+	var places: Array[Transform3D] = _places(patch)
 
-	assert_int(points.size()).is_greater(0)
-	# The box is two units across and the grid's cells are one, so everything a
-	# cell grows sits within a couple of units of its centre.
-	var middle: Vector3 = Vector3(5.0, 0.0, 2.0)
-	for point: Vector3 in points:
-		assert_float(point.distance_to(middle)).override_failure_message(
-			"a leaf grew at %s, which is nowhere near cell (5, 0, 2)" % point
-		).is_less(3.0)
+	assert_int(places.size()).is_equal(1)
+	var grid: GridMap = patch.get_node(patch.layer) as GridMap
+	assert_vector(places[0].origin).is_equal_approx(
+		grid.map_to_local(Vector3i(5, 0, 2)), Vector3.ONE * 0.001
+	)
 
 
 # --- the settings belong to the patch ----------------------------------------
@@ -155,10 +223,10 @@ func test_turning_the_density_up_grows_more_leaves() -> void:
 # --- a turned cell grows turned leaves ---------------------------------------
 
 
-func test_leaves_follow_a_cell_that_was_painted_turned() -> void:
+func test_a_sowing_follows_a_cell_that_was_painted_turned() -> void:
 	# The defect this exists for: a cell stores an item *and* one of twenty-four
-	# orientations. Sown against an identity basis, the leaves stayed in the
-	# model's untouched pose while the GridMap drew the model turned — foliage
+	# orientations. Hung against an identity basis, the leaves stay in the model's
+	# untouched pose while the `GridMap` draws the model turned — foliage
 	# crossways to the thing it grew on. On an unrotated cell the two agree, which
 	# is why every render made here missed it.
 	var cells: Array[Vector3i] = [Vector3i(0, 0, 0)]
@@ -166,51 +234,44 @@ func test_leaves_follow_a_cell_that_was_painted_turned() -> void:
 	# 16 is a quarter turn about Y in Godot's orthogonal table.
 	var sideways: VltFoliagePatch = _patch(cells, cells, 16)
 
-	var straight: PackedVector3Array = _points(upright)
-	var turned: PackedVector3Array = _points(sideways)
+	var straight: Array[Transform3D] = _places(upright)
+	var turned: Array[Transform3D] = _places(sideways)
 	assert_int(turned.size()).is_equal(straight.size())
+	assert_int(straight.size()).is_greater(0)
 
 	# Asked of the grid rather than written out: which way orientation 16 turns is
 	# the engine's convention, and a test that guesses it is testing the guess.
 	var grid: GridMap = sideways.get_node(sideways.layer) as GridMap
 	var quarter: Basis = grid.get_basis_with_orthogonal_index(16)
-	# A cell turns about its own centre, not about the world origin.
-	var centre: Vector3 = grid.map_to_local(Vector3i.ZERO)
 
-	var moved: int = 0
-	for point: int in range(straight.size()):
-		if not straight[point].is_equal_approx(turned[point]):
-			moved += 1
-	assert_int(moved).override_failure_message(
-		"turning the cell moved no leaf, so the cell's orientation is being ignored"
-	).is_greater(0)
-
-	# And it is the cell's turn exactly, not some other transform: every leaf of
-	# the turned cell is a leaf of the upright one, rotated.
-	for point: int in range(straight.size()):
-		assert_vector(turned[point]).is_equal_approx(
-			centre + quarter * (straight[point] - centre), Vector3.ONE * 0.001
-		)
+	assert_bool(turned[0].basis.is_equal_approx(straight[0].basis)).override_failure_message(
+		"turning the cell changed nothing, so its orientation is being ignored"
+	).is_false()
+	assert_bool(
+		turned[0].basis.is_equal_approx(quarter.scaled(Vector3.ONE * grid.cell_scale))
+	).override_failure_message(
+		"the sowing was turned by something other than the cell's own orientation"
+	).is_true()
 
 
 # --- the leaves are never written into the scene ------------------------------
 
 
-func test_saving_the_scene_does_not_carry_the_mesh_into_it() -> void:
-	# The mesh is derived from the cells and the numbers beside them, and it is
+func test_saving_the_scene_does_not_carry_the_leaves_into_it() -> void:
+	# The leaves are derived from the cells and the numbers beside them, and are
 	# grown again on load — so a copy in the `.tscn` is one nobody reads. It is
 	# also not small: four cells of this came to 45 MB of base64 inside one map,
 	# and every world built afterwards paid six seconds to parse it.
 	var patch: VltFoliagePatch = _patch([Vector3i(0, 0, 0)], [Vector3i(0, 0, 0)])
-	assert_object(patch.mesh).override_failure_message(
+	assert_bool(_grew(patch)).override_failure_message(
 		"the fixture grew nothing, so this test cannot say anything"
-	).is_not_null()
+	).is_true()
 
 	patch.notification(Node.NOTIFICATION_EDITOR_PRE_SAVE)
 
-	assert_object(patch.mesh).override_failure_message(
-		"the grown mesh was still on the node when the scene was packed"
-	).is_null()
+	assert_bool(_grew(patch)).override_failure_message(
+		"the leaves were still on the node when the scene was packed"
+	).is_false()
 
 
 func test_the_leaves_come_back_once_the_scene_is_written() -> void:
@@ -223,7 +284,7 @@ func test_the_leaves_come_back_once_the_scene_is_written() -> void:
 	patch.notification(Node.NOTIFICATION_EDITOR_PRE_SAVE)
 	patch.notification(Node.NOTIFICATION_EDITOR_POST_SAVE)
 
-	assert_object(patch.mesh).is_not_null()
+	assert_bool(_grew(patch)).is_true()
 	assert_int(patch.leaf_total()).override_failure_message(
-		"the leaves came back different, so the mesh is not purely derived"
+		"the leaves came back different, so they are not purely derived"
 	).is_equal(before)

@@ -61,14 +61,18 @@ varying float leaf_tone;
 
 
 void vertex() {
-	// Baked per vertex by the generator: how far up its own leaf this point sits,
-	// and how long the leaf is. Neither survives the merge into one patch mesh,
-	// which is why they are carried rather than derived.
-	float along = COLOR.r;
-	float length_of_leaf = COLOR.g;
+	// Everything that used to be baked per vertex is per instance now, because
+	// the card is one mesh drawn by every leaf of every tree (decision 0078).
+	//
+	// How far up its own leaf this vertex sits is the one thing that is still the
+	// card's own, and it rides in `UV2` — `UV` is what the shared look samples
+	// with, and a leaf reading its branch's artwork at coordinates meaning
+	// something else is exactly the defect being avoided.
+	float along = UV2.y;
+	float length_of_leaf = INSTANCE_CUSTOM.w;
 	// Carried rather than read again later: `COLOR` belongs to this stage, and the
 	// tone is wanted in `light()`.
-	leaf_tone = COLOR.b;
+	leaf_tone = COLOR.r;
 
 	// Asked per vertex, not per instance. A patch is one mesh covering many cells,
 	// so an instance origin would give the whole patch a single phase and the gust
@@ -86,8 +90,13 @@ void vertex() {
 	VERTEX.x += push.x;
 	VERTEX.z += push.y;
 
+	// **The branch's normal, not the leaf's** — decision 0064, the one line that
+	// separates a bush from a heap of flakes. Carried per instance in the leaf's
+	// own frame, so the model matrix, which already holds the leaf's orientation
+	// and the patch's, turns it back into the world direction the look wants.
+	//
 	// Last, and in that order: the look is handed the leaf as the wind left it.
-	world_normal = comic_normal(NORMAL, MODEL_MATRIX);
+	world_normal = comic_normal(INSTANCE_CUSTOM.xyz, MODEL_MATRIX);
 	world_here = comic_point(VERTEX, MODEL_MATRIX);
 	round_normal = world_here - comic_point(shape_centre, MODEL_MATRIX);
 	model_up = comic_up(VERTEX.y);

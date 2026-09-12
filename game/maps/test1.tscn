@@ -72,19 +72,19 @@ cells = Array[Vector3i]([Vector3i(0, 0, 0), Vector3i(0, 0, 1), Vector3i(0, 0, 2)
 edge_jitter = 0.5
 edge_jitter_size = 0.1
 
-[node name="Foliage" type="MeshInstance3D" parent="." unique_id=1705434443]
+[node name="Foliage" type="Node3D" parent="." unique_id=1705434443]
 script = ExtResource("7_nvmgc")
 layer = NodePath("../Blocking")
 cells = Array[Vector3i]([Vector3i(2, 0, 16), Vector3i(2, 0, 19), Vector3i(2, 0, 22)])
 colour = Color(0.35547888, 0.7413368, 0.063932344, 1)
 dominant_share = 0.0
 
-[node name="@MeshInstance3D@43312" type="MeshInstance3D" parent="." unique_id=141436346]
+[node name="@MeshInstance3D@43312" type="Node3D" parent="." unique_id=141436346]
 script = ExtResource("7_nvmgc")
 layer = NodePath("../Blocking")
 cells = Array[Vector3i]([Vector3i(2, 0, 8)])
 
-[node name="@MeshInstance3D@23856" type="MeshInstance3D" parent="." unique_id=1193183431]
+[node name="@MeshInstance3D@23856" type="Node3D" parent="." unique_id=1193183431]
 script = ExtResource("7_nvmgc")
 layer = NodePath("../Blocking")
 cells = Array[Vector3i]([Vector3i(8, 0, 17)])

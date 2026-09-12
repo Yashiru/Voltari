@@ -1,6 +1,6 @@
 @tool
 class_name VltFoliagePatch
-extends MeshInstance3D
+extends Node3D
 
 ## Leaves on the cells somebody chose, with the settings they chose at the time.
 ##
@@ -23,6 +23,22 @@ extends MeshInstance3D
 ##
 ## The bare model is still drawn by the `GridMap` underneath. This lays leaves
 ## *over* it and owns nothing else, which is why removing it cannot leave a hole.
+##
+## ## Sown per species, drawn per tree (decision 0078)
+##
+## A sowing used to be built per cell and welded into one mesh. Measured, a
+## single six-metre fir came to 169 872 triangles and 6.8 MB, and a hundred of
+## them to a hundred surfaces and 680 MB — against a budget that guesses a
+## million triangles for a flagship phone, for the whole scene.
+##
+## So the scatter is baked a few times per *species* and every tree of that
+## species points at the same buffer. Memory stops following the number of trees
+## and starts following the number of models in the palette.
+##
+## **One child node per sown cell**, each drawing the shared buffer at that
+## cell's place. Not one batch for the whole patch, which would be fewer draw
+## calls and would defeat the thing that matters more: a node the engine can see
+## is off screen is a node it does not draw at all.
 
 ## The layer whose cells these are, and whose palette says what grows where.
 ##
@@ -47,6 +63,17 @@ extends MeshInstance3D
 		_regrow()
 
 @export_group("sowing")
+
+## How many different sowings a species gets, drawn from by cell.
+##
+## One would make every fir on the map identical leaf for leaf. A handful, with
+## the free rotation the prop brush already gives each tree, makes the repetition
+## very hard to catch — and the memory is this number times one sowing, whatever
+## the map holds.
+@export_range(1, 8, 1) var variants: int = 3:
+	set(value):
+		variants = value
+		_regrow()
 
 ## Leaves per square unit of the model's own space — see `VltFoliage.Settings`.
 ##
@@ -158,7 +185,7 @@ func _ready() -> void:
 ## drop what is derived, let the scene be written without it, put it back.
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_EDITOR_PRE_SAVE:
-		mesh = null
+		_clear()
 	elif what == NOTIFICATION_EDITOR_POST_SAVE:
 		_regrow()
 
@@ -166,16 +193,35 @@ func _notification(what: int) -> void:
 ## How many leaves this patch is carrying. For a report, and for an author who
 ## wants to know what a density is costing before a profiler tells them.
 func leaf_total() -> int:
-	if mesh == null:
-		return 0
-	var vertices: int = 0
-	for surface: int in range(mesh.get_surface_count()):
-		@warning_ignore("unsafe_cast")
-		var points: PackedVector3Array = (
-			mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX] as PackedVector3Array
-		)
-		vertices += points.size()
-	return vertices / VltFoliage.OUTLINE.size()
+	var total: int = 0
+	for shown: MultiMeshInstance3D in _drawn():
+		if shown.multimesh != null:
+			total += shown.multimesh.instance_count
+	return total
+
+
+## How much the sowings themselves weigh, whatever the map draws them at. What
+## makes "per species, not per tree" checkable rather than asserted.
+func buffer_total() -> int:
+	var seen: Dictionary[int, bool] = {}
+	var total: int = 0
+	for shown: MultiMeshInstance3D in _drawn():
+		var spread: MultiMesh = shown.multimesh
+		if spread == null or seen.has(spread.get_instance_id()):
+			continue
+		seen[spread.get_instance_id()] = true
+		total += spread.instance_count
+	return total
+
+
+## The nodes this patch draws through.
+func _drawn() -> Array[MultiMeshInstance3D]:
+	var found: Array[MultiMeshInstance3D] = []
+	for child: Node in get_children():
+		var shown: MultiMeshInstance3D = child as MultiMeshInstance3D
+		if shown != null:
+			found.append(shown)
+	return found
 
 
 ## Settings as the generator wants them.
@@ -193,21 +239,22 @@ func settings() -> VltFoliage.Settings:
 	wanted.stem_hold = stem_hold
 	wanted.tone_spread = tone_spread
 	wanted.tone_steps = tone_steps
+	wanted.variants = maxi(variants, 1)
 	return wanted
 
 
-## Grows every cell's leaves and merges them into this node's one mesh.
+## Grows the sowings a map needs and hangs one node over each sown cell.
 ##
-## One mesh and not one node per cell: a hundred sown cells would otherwise be a
-## hundred nodes in the scene tree and a hundred draw calls, and nothing about a
-## leaf needs to be addressable on its own.
+## **A sowing per species and variant, not per cell.** The same fir drawn fifty
+## times points at one buffer fifty times, which is the whole of decision 0078:
+## memory follows the palette rather than the map.
 func _regrow() -> void:
 	if not is_inside_tree():
 		return
+	_clear()
 
 	var grid: GridMap = get_node_or_null(layer) as GridMap
 	if grid == null or grid.mesh_library == null or cells.is_empty():
-		mesh = null
 		return
 
 	# Where the leaves are measured from. A patch sits wherever it was dropped,
@@ -215,8 +262,8 @@ func _regrow() -> void:
 	# and the node is put where the grid is.
 	global_transform = grid.global_transform
 
-	var grown: ArrayMesh = ArrayMesh.new()
 	var wanted: VltFoliage.Settings = settings()
+	var sown: Dictionary[String, Array] = {}
 
 	for cell: Vector3i in cells:
 		var item: int = grid.get_cell_item(cell)
@@ -226,29 +273,76 @@ func _regrow() -> void:
 		if source == null:
 			continue
 
-		# The seed is the cell's own, so two cells of the same item are never the
-		# same tree and a cell keeps its tree when its neighbours change.
-		var sprigs: ArrayMesh = VltFoliage.leaves(source, _seed_of(cell), wanted)
-		if sprigs.get_surface_count() == 0:
-			continue
+		# Which of the species' sowings this cell drew. From the cell's own seed,
+		# so a cell keeps its tree when its neighbours change.
+		var pick: int = variant_of(cell)
+		var key: String = "%d:%d" % [item, pick]
+		if not sown.has(key):
+			# Three numbers rather than two added together. `pick + seed` collides
+			# whenever a reroll moves the pick down as the seed moves up, and a
+			# reroll that quietly returns the same tree is the one thing this
+			# setting exists to prevent.
+			sown[key] = _variant(source, hash(Vector3i(item, pick, seed)), wanted)
 
 		# The grid's own placement: the cell's centre, the scale it draws its
 		# palette at, **and the way the item was turned when it was painted**.
 		#
-		# That last one was missing, and it is the whole of why foliage could come
-		# out crossways to the model it grew on. A cell stores an item and one of
-		# twenty-four orientations; the mesh is sown in its own space, so leaves
-		# placed against an identity basis stayed in the model's untouched pose
-		# while the `GridMap` drew the model turned. On an unrotated cell the two
-		# agree and nothing looks wrong — which is exactly why it survived every
-		# render made here, none of which had turned anything.
+		# That last one was missing once, and it is the whole of why foliage could
+		# come out crossways to the model it grew on.
 		var placed: Transform3D = Transform3D(
 			grid.get_cell_item_basis(cell).scaled(Vector3.ONE * grid.cell_scale),
 			grid.map_to_local(cell)
 		)
-		_merge(grown, sprigs, placed)
 
-	mesh = grown if grown.get_surface_count() > 0 else null
+		for spread: Variant in sown[key]:
+			var shown: MultiMeshInstance3D = MultiMeshInstance3D.new()
+			@warning_ignore("unsafe_cast")
+			shown.multimesh = spread as MultiMesh
+			shown.transform = placed
+			# Never given an owner: these are derived from the settings above and
+			# rebuilt on load, so a copy in the `.tscn` is one nobody reads. That
+			# mattered enough to be worth a comment of its own — see below.
+			add_child(shown)
+
+
+## One species' sowing, as instance buffers ready to be drawn anywhere.
+##
+## One buffer per surface that was sown, because the material is the surface's:
+## a leaf is the colour of what it grew from.
+func _variant(source: Mesh, from_seed: int, wanted: VltFoliage.Settings) -> Array:
+	var made: Array = []
+	var array_source: ArrayMesh = source as ArrayMesh
+	if array_source == null:
+		return made
+
+	for sowing: VltFoliage.Sowing in VltFoliage.scatter(source, from_seed, wanted):
+		# A card per material rather than one card and an override per node: the
+		# card is six vertices, and carrying the material on it keeps every node
+		# drawing this buffer identical.
+		var leaf_card: ArrayMesh = VltFoliage.card()
+		leaf_card.surface_set_material(
+			0,
+			VltFoliage.leaf_material(array_source.surface_get_material(sowing.surface), wanted)
+		)
+		made.append(VltFoliage.instances(sowing.leaves, leaf_card))
+
+	return made
+
+
+## Takes down what was drawn, so a regrow replaces rather than accumulates.
+func _clear() -> void:
+	for shown: MultiMeshInstance3D in _drawn():
+		remove_child(shown)
+		shown.queue_free()
+
+
+## Which of the species' sowings a cell draws.
+##
+## From the cell's own seed, so a cell keeps its tree when its neighbours change
+## — the property that survived the move to shared sowings, and the reason
+## editing one corner of a map does not reshuffle another.
+func variant_of(cell: Vector3i) -> int:
+	return absi(_seed_of(cell)) % maxi(variants, 1)
 
 
 ## A seed that depends on the cell and on this patch, and on nothing else. Two
@@ -256,31 +350,3 @@ func _regrow() -> void:
 ## do not.
 func _seed_of(cell: Vector3i) -> int:
 	return hash(Vector4i(cell.x, cell.y, cell.z, seed))
-
-
-## Adds `sprigs`, moved into place, to `into` — one surface per material so the
-## colours stay apart.
-static func _merge(into: ArrayMesh, sprigs: ArrayMesh, placed: Transform3D) -> void:
-	for surface: int in range(sprigs.get_surface_count()):
-		var arrays: Array = sprigs.surface_get_arrays(surface)
-		@warning_ignore("unsafe_cast")
-		var points: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array
-		@warning_ignore("unsafe_cast")
-		var facing: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL] as PackedVector3Array
-
-		var moved: PackedVector3Array = PackedVector3Array()
-		moved.resize(points.size())
-		for point: int in range(points.size()):
-			moved[point] = placed * points[point]
-		var turned: PackedVector3Array = PackedVector3Array()
-		turned.resize(facing.size())
-		for point: int in range(facing.size()):
-			# The basis without the translation: a normal is a direction.
-			turned[point] = (placed.basis * facing[point]).normalized()
-
-		arrays[Mesh.ARRAY_VERTEX] = moved
-		arrays[Mesh.ARRAY_NORMAL] = turned
-		into.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-		into.surface_set_material(
-			into.get_surface_count() - 1, sprigs.surface_get_material(surface)
-		)

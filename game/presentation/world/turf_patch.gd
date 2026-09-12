@@ -364,6 +364,19 @@ func blade_total() -> int:
 	return amount
 
 
+## The material that places the blades.
+##
+## For `TurfTreading`, which writes where somebody is standing into it every frame.
+## Handed over rather than having this file learn who is walking: a patch is grown
+## from a map and knows nothing about actors, and giving it a second job would put
+## the whole world's movement through a node that exists to sow grass.
+##
+## Null until the patch has been built, which is the honest answer — an unsown
+## patch has nothing to press.
+func scatter_material() -> ShaderMaterial:
+	return _scatter
+
+
 ## Grows the patch again from the map as it stands now.
 ##
 ## Everything a patch is made of is already recomputed from scratch whenever one

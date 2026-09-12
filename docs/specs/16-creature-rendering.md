@@ -657,6 +657,28 @@ one.
 The ground under a patch is a mat in the colour of the blade roots, wearing the
 roughcast of decision 0065 at the blades' own scale.
 
+**The lawn is pressed underfoot, and the tufts still jostle** (decision 0076).
+Blades within a press are turned over towards the ground, away from its middle,
+and stand back up over about a second. Laid over and never shortened: a shortened
+blade sinks into the ground and leaves a bald disc under anybody standing still,
+which is the reading decision 0060 refused. The strongest press wins rather than
+presses adding, because the ground cannot go down twice and somebody standing
+still presses the same spot every frame.
+
+Decision 0060's verdict — a tuft never changes shape, it only changes which way it
+leans — **keeps the tall tufts and stops at the lawn.** A tuft is a mesh an artist
+made and a blade of turf is five triangles placed from an index; you walk through
+one and on top of the other. The two therefore react differently on purpose, and
+0076 records why one mechanism cannot mean both.
+
+Where somebody stands arrives as a **list of presses, each a place, an age and a
+width** — not as a field written into the grid above. A press is spaced against
+the presser's own radius rather than against a clock, so a walk and a run leave
+the same footprints. The shader keeps no state, as it keeps none for the wind.
+Thirty-two presses may be recovering at once, which is about two seconds of one
+person walking; past that the oldest goes first. Nothing survives recovery, so no
+record of where anybody walked exists anywhere.
+
 **A patch follows the map it was sown on** (decision 0067). The editor plugin
 looks four times a second at a cheap signature of everything the patch was grown
 from — cells, items, orientations, prop transforms — and regrows it on the first

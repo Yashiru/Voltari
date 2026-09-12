@@ -67,6 +67,14 @@ var _walker: VltFreeWalker
 ## a rule, and grass has never blocked anything.
 var _grass: GrassField = GrassField.new()
 
+## The lawn's counterpart to `_grass`. Two objects because the two herbs react
+## differently on purpose — a tuft jostles, turf is laid over (decision 0076).
+var _turf: TurfTreading = TurfTreading.new()
+
+## What the turf calls the player. One actor today; the mechanism takes as many as
+## there are, and this is the number that says which one is which.
+const PLAYER_UNDERFOOT: int = 0
+
 var _run: VltEventRun = null
 var _battle: BattleScreen = null
 
@@ -196,6 +204,10 @@ func load_now() -> void:
 
 func _process(delta: float) -> void:
 	_grass.advance(delta)
+	# Unconditionally, and before the early return below: grass already pressed has
+	# to finish standing back up even while a battle is on top of the world, or it
+	# stays flat for as long as the fight lasts and springs upright when it ends.
+	_turf.advance(delta)
 
 	if _battle != null or _run != null:
 		# Standing still, and still alive: the character settles out of its run
@@ -245,6 +257,20 @@ func _process(delta: float) -> void:
 func _travel(by: Vector2) -> void:
 	var move: VltFreeWalker.Move = _walker.move(by)
 	_place_body()
+
+	# Where the player actually is, not the middle of their cell. The tufts below
+	# are rung per cell because a tuft is a cell's worth of grass; the lawn is
+	# pressed where the feet are, which is the whole difference between the two.
+	#
+	# Called on every move rather than only on the ones that cross a cell, and a
+	# refused move still presses nothing — not because of where this sits, but
+	# because a press is spaced against how far the walker got. Walking into a wall
+	# moves it nowhere, so there is nothing to space away from the last press.
+	_turf.stand(
+		PLAYER_UNDERFOOT,
+		Vector3(_walker.spot.x, 0.0, _walker.spot.y),
+		VltFreeWalker.RADIUS
+	)
 
 	if not move.entered:
 		return
@@ -412,6 +438,11 @@ func _show_world(visible_now: bool) -> void:
 	# Grass bent around a player who is not on screen is worse than grass that
 	# stands up.
 	_grass.set_strength(1.0 if visible_now else 0.0)
+	_turf.set_strength(1.0 if visible_now else 0.0)
+	# And the player is no longer standing anywhere. Without this, coming back from
+	# a battle has to walk a whole radius before the lawn reacts again, because the
+	# last press is still remembered at the spot the fight started on.
+	_turf.lift(PLAYER_UNDERFOOT)
 
 
 func _born(species_id: String, level: int) -> VltBattleCreature:
@@ -604,6 +635,12 @@ func _enter(into: String, at: Vector2i, facing: VltFacing.Direction) -> void:
 	# one you came from would ring a cell nobody has stepped on.
 	_grass.of_map(_map)
 	_grass.quiet()
+
+	# The same for the lawn, which brings its patches with the map. `quiet` after
+	# collecting, not before: it is what writes the empty list into the materials
+	# that were just picked up.
+	_turf.of_patches(TurfTreading.patches_under(_map))
+	_turf.quiet()
 	_message.text = into
 
 	# Arriving on a map is one of the three moments an event may fire

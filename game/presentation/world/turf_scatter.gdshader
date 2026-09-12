@@ -103,6 +103,61 @@ uniform float blade_bend : hint_range(0.0, 1.2) = 0.45;
 // The turf is shorter and stiffer than a tuft, so it takes less of the same wind.
 uniform float blade_give : hint_range(0.0, 2.0) = 0.55;
 
+group_uniforms underfoot;
+
+// Where somebody has put their weight, and how long ago.
+//
+//   xy  where, in world metres on the ground
+//   z   how long ago, in seconds
+//   w   how wide the press is, in metres
+//
+// **A list, and not a field.** The obvious way to press a lawn is a texture over
+// the ground that a footfall writes into and that fades out — and this patch
+// already has a grid to hang one on, at eight texels a metre. It was rejected on
+// cost: a sixty-four metre patch is a 512-square field, and decaying it means
+// rewriting a quarter of a million texels every frame for a quantity that is never
+// more than a few dozen numbers. A walk leaves one press every fifteen centimetres
+// and they are all gone a second later.
+//
+// Handing the numbers over directly is the same picture for none of the bandwidth,
+// and it keeps the promise the top of this file makes: **nothing is stored**, here
+// least of all a record of where anybody has walked.
+//
+// The width arrives per contact rather than living in this file, because what
+// presses the grass is what knows how wide it is. A character already has a radius
+// the world computes with — `VltFreeWalker.RADIUS`, bounded under half a cell — and
+// a number here would be a second opinion about the same thing.
+uniform vec4 contacts[32];
+
+// How many of the slots above are live, newest last.
+//
+// The loop is bounded by this and not by the array's own size, so a still player
+// costs one iteration and an empty field costs none. `turf_treading.gd` keeps them
+// packed against the front for exactly that reason.
+uniform int contact_count = 0;
+
+// How long a blade takes to stand back up, in seconds.
+//
+// **Held in two places on purpose, and they must agree.** This is the curve; the
+// same number in `turf_treading.gd` is what decides a contact has stopped
+// mattering and can have its slot back. One of them without the other is either a
+// blade that snaps upright or a slot held by a press nobody can see.
+uniform float recover_seconds : hint_range(0.05, 6.0) = 1.1;
+
+// How far over a blade is laid at the middle of a press, as a share of all the way
+// flat. One lies on the ground.
+//
+// **Not one.** A lawn somebody walked over does not lie down like wet hair, and a
+// blade that did would be invisible from the camera this game is played from —
+// which is above it. What reads as a footstep is the blade turning most of the way
+// over, not the ground going bald.
+uniform float press_depth : hint_range(0.0, 1.0) = 0.75;
+
+// Fades the press out without pretending nobody is there, exactly as the tufts'
+// `walker_strength` does and for the same reason: a battle hides the world, and
+// grass reacting to somebody off screen is worse than grass standing still.
+uniform float press_strength : hint_range(0.0, 1.0) = 1.0;
+
 
 // Two numbers from a pair of integers, stable across frames. A blade must find
 // the same height and the same facing every time or the lawn boils.
@@ -110,6 +165,53 @@ vec2 blade_hash(vec2 cell) {
 	vec3 spread = fract(vec3(cell.xyx) * vec3(0.1031, 0.1030, 0.0973));
 	spread += dot(spread, spread.yzx + 33.33);
 	return fract((spread.xx + spread.yz) * spread.zy);
+}
+
+
+// How hard this blade is pressed down, and which way that lays it.
+//
+// The direction comes back in xy and the amount in z, because both come from the
+// same contact: finding the strongest press and then asking which way it pushed
+// would be this loop run twice.
+//
+// **The strongest press wins — they are not added.** Two footfalls that overlap
+// cannot press the ground twice, because the blade is already down. Summing them
+// matters immediately rather than in some corner case: a player standing still
+// drops contact after contact in one spot, and a sum would drive the blade through
+// the floor and out the other side within a second of not moving.
+//
+// `facing` is where a blade points when it is pressed from dead centre and there
+// is no direction to be pushed in. Its own bow, so the handful of blades directly
+// under a foot lay the way they were already leaning rather than all snapping to
+// one axis of the world.
+vec3 turf_press(vec2 on_ground, vec2 facing) {
+	vec3 laid = vec3(0.0);
+	for (int i = 0; i < contact_count; i++) {
+		vec4 contact = contacts[i];
+
+		// Squared on the way out, so a blade settles upright rather than arriving
+		// there — the same curve the tufts' swing leaves on.
+		float left = 1.0 - clamp(contact.z / max(recover_seconds, 0.001), 0.0, 1.0);
+		left *= left;
+		if (left <= 0.0) {
+			continue;
+		}
+
+		vec2 away = on_ground - contact.xy;
+		float span = max(contact.w, 0.001);
+		float gap = length(away);
+
+		// Eased from the middle outwards rather than from zero: a footprint has an
+		// inside, and a cone reads as a dent poked in the lawn instead of as
+		// something having stood on it.
+		float amount = (1.0 - smoothstep(span * 0.35, span, gap)) * left;
+		if (amount <= laid.z) {
+			continue;
+		}
+
+		laid = vec3(gap > 1e-4 ? away / gap : facing, amount);
+	}
+	return laid;
 }
 
 
@@ -208,13 +310,33 @@ void process() {
 
 	// The lean is a shear of the up axis rather than a rotation: a blade bends
 	// from its root and keeps its feet planted, which a rotation would not.
+	vec3 standing_up = vec3(push.x, 1.0, push.y);
+
+	// --- underfoot ----------------------------------------------------------
+	//
+	// A press turns that same axis the rest of the way over. **Laid over, never
+	// shortened**: scaling the height would sink a blade into the ground and leave
+	// a bald disc wherever anybody stood, which is the failure decision 0060 named
+	// on the tufts — grass that reads as damage rather than as somebody passing.
+	//
+	// Interpolated towards a vector of the axis's own length, so that at no press
+	// this is `standing_up` exactly and **the lawn nobody is standing on is
+	// arithmetically what it was before this feature existed.** A press that
+	// changed the wind by a percent everywhere would be a regression bought with a
+	// feature, and it would be invisible in review.
+	vec3 pressed = turf_press(out_there.xz, vec2(across, turn));
+	float lay = pressed.z * press_depth * press_strength;
+	vec3 laid_over = normalize(vec3(pressed.x, 0.0, pressed.y) + vec3(0.0, 1e-3, 0.0))
+		* length(standing_up);
+	vec3 up_axis = mix(standing_up, laid_over, lay);
+
 	// The third column is the bow, not a depth: a blade is a card with none, and
 	// its local z carries how far along the bend each vertex sits. Scaling that
 	// column by the blade's own height is what makes a tall blade bow further
 	// than a short one by the same share.
 	mat4 standing = mat4(
 		vec4(vec3(turn, 0.0, -across) * wide, 0.0),
-		vec4(vec3(push.x, 1.0, push.y) * tall, 0.0),
+		vec4(up_axis * tall, 0.0),
 		vec4(vec3(across, 0.0, turn) * (tall * blade_bend), 0.0),
 		vec4(here, 1.0)
 	);

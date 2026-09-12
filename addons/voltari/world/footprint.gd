@@ -144,7 +144,7 @@ static func under(root: Node3D, into: Node3D, below: float) -> Array[VltFootprin
 		return found
 
 	var shown: Array[MeshInstance3D] = []
-	_meshes_under(root, shown)
+	meshes_under(root, shown)
 
 	for part: MeshInstance3D in shown:
 		if part.mesh == null:
@@ -179,6 +179,11 @@ static func _relative_to(root: Node, node: Node3D) -> Transform3D:
 
 ## Every `MeshInstance3D` under a node, the node itself included.
 ##
+## **Public because the editor asks it too**, to size a prop to the grid. The turf
+## keeps a walk of its own and that is deliberate: it drops a grid and a patch at
+## every level, because a patch is not an obstacle to a patch, and nothing about
+## the blocking shapes has that exception to make.
+##
 ## **A hidden branch is skipped whole**, itself and everything under it. Hiding a
 ## node hides what is below it on screen, and a shape nobody can see is not a
 ## shape anybody should walk into — an author hiding a prop to look behind it
@@ -186,7 +191,7 @@ static func _relative_to(root: Node, node: Node3D) -> Transform3D:
 ##
 ## The local flag rather than `is_visible_in_tree`, because the walk is top-down
 ## and a hidden parent never reaches its children.
-static func _meshes_under(node: Node, into: Array[MeshInstance3D]) -> void:
+static func meshes_under(node: Node, into: Array[MeshInstance3D]) -> void:
 	var branch: Node3D = node as Node3D
 	if branch != null and not branch.visible:
 		return
@@ -196,7 +201,7 @@ static func _meshes_under(node: Node, into: Array[MeshInstance3D]) -> void:
 		into.append(part)
 
 	for child: Node in node.get_children():
-		_meshes_under(child, into)
+		meshes_under(child, into)
 
 
 ## Every shape a blocking layer holds.

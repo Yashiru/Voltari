@@ -77,6 +77,7 @@ var _from_palette: int = -1
 const TIDY_DROP: int = 0
 const TIDY_ALIGN: int = 1
 const TIDY_SPREAD: int = 2
+const TIDY_FIT: int = 3
 
 ## How the next prop is turned and sized. The dock writes to it; the viewport
 ## reads it (`VltPropBrush`).
@@ -190,6 +191,8 @@ func _enter_tree() -> void:
 	tidy.add_item("Drop to ground", TIDY_DROP)
 	tidy.add_item("Align on one line", TIDY_ALIGN)
 	tidy.add_item("Space evenly", TIDY_SPREAD)
+	tidy.add_separator()
+	tidy.add_item("Fit to the grid", TIDY_FIT)
 	tidy.id_pressed.connect(_on_tidy_pressed)
 	add_control_to_container(CONTAINER_SPATIAL_EDITOR_MENU, _tidy)
 
@@ -811,6 +814,8 @@ func _on_tidy_pressed(id: int) -> void:
 			align_selection()
 		TIDY_SPREAD:
 			spread_selection()
+		TIDY_FIT:
+			fit_selection()
 
 
 ## Sits the selected props on the tile beneath each of them.
@@ -840,6 +845,56 @@ func spread_selection() -> void:
 	_move_selection("Spread props", func(_map: VltWorldMap, points: Array[Vector3]) -> Array[Vector3]:
 		return VltPropLayout.spread(points)
 	)
+
+
+## Scales the selected props so each fills a whole number of cells exactly.
+##
+## **Per axis, so what comes out is a cube.** A pack's models arrive at whatever
+## size the pack was authored at, and the point of this is that a crate lines up
+## with the grid — which is a statement about the grid's units and not about the
+## crate's proportions. A model that is not a cube is squashed into one, and that
+## is what was asked for rather than an oversight.
+##
+## Measured in each prop's own space, so the scale it already carries is not in
+## the answer. Fitting twice therefore gives the same result as fitting once,
+## rather than measuring each time through the last attempt.
+func fit_selection() -> void:
+	var map: VltWorldMap = _brush_map()
+	if map == null:
+		_say("Open a map first — fitting is to that map's grid.")
+		return
+
+	var cell: float = map.cell_width()
+	var cells: int = 1 if _dock == null else _dock.fit_cells_value()
+
+	var props: Array[VltProp] = []
+	for node: Node in EditorInterface.get_selection().get_selected_nodes():
+		var prop: VltProp = node as VltProp
+		if prop != null:
+			props.append(prop)
+
+	if props.is_empty():
+		_say("Select some props first — fitting acts on what is selected.")
+		return
+
+	var undo: EditorUndoRedoManager = get_undo_redo()
+	undo.create_action("Fit props to the grid")
+
+	for prop: VltProp in props:
+		var box: AABB = VltPropLayout.bounds_of(prop)
+		if box.size.is_zero_approx():
+			# Nothing to measure. Left alone rather than scaled by a guess.
+			continue
+		var wanted: Vector3 = VltPropLayout.fitted(box, cell, cells)
+		if wanted.is_equal_approx(prop.scale):
+			continue
+		undo.add_do_property(prop, "scale", wanted)
+		undo.add_undo_property(prop, "scale", prop.scale)
+
+	undo.add_do_method(map, "forget_shapes")
+	undo.add_undo_method(map, "forget_shapes")
+	undo.commit_action()
+	map.update_gizmos()
 
 
 ## The shape all three share: read the selected props' positions, hand them to

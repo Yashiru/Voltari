@@ -15,6 +15,69 @@ extends RefCounted
 ## by clicking.
 
 
+## The box a prop's geometry fills, in the prop's own space.
+##
+## Its own space and not its parent's, so the prop's current scale is not in the
+## answer — otherwise sizing it twice would give two different sizes, each
+## measured through the last one.
+##
+## Empty when there is no geometry, which is what an empty prop honestly fills.
+static func bounds_of(root: Node3D) -> AABB:
+	var shown: Array[MeshInstance3D] = []
+	VltFootprint.meshes_under(root, shown)
+
+	var box: AABB = AABB()
+	var started: bool = false
+
+	for part: MeshInstance3D in shown:
+		if part.mesh == null:
+			continue
+		var here: AABB = _relative_to(root, part) * part.mesh.get_aabb()
+		box = here if not started else box.merge(here)
+		started = true
+
+	return box
+
+
+## The scale that makes a box exactly `cells` cells on every axis.
+##
+## **Per axis, so a model that is not a cube comes out as one.** That is what
+## "one by one by one of the grid" says, and it is what was asked for: a crate
+## lands on the grid, and a lamp post is squashed into a metre cube. The
+## alternative — one factor, keeping proportions — was weighed and declined,
+## because a crate is the case this exists for and a crate has no proportions to
+## lose.
+##
+## An axis the model has no thickness on is left alone. A flat sign has no
+## height, and there is no factor that turns nothing into a metre; stretching by
+## infinity would produce a prop that is everywhere and nowhere.
+static func fitted(box: AABB, cell: float, cells: int) -> Vector3:
+	var wanted: float = cell * float(maxi(cells, 1))
+	return Vector3(
+		_factor(box.size.x, wanted), _factor(box.size.y, wanted), _factor(box.size.z, wanted)
+	)
+
+
+static func _factor(has: float, wanted: float) -> float:
+	return 1.0 if absf(has) < 0.0001 else wanted / absf(has)
+
+
+## Where a node stands relative to an ancestor, by multiplying local transforms.
+##
+## `VltFootprint` keeps the same walk for the same reason — `global_transform`
+## needs a scene tree, and a prop is measured here from a dock that has no
+## guarantee of one.
+static func _relative_to(root: Node, node: Node3D) -> Transform3D:
+	var at: Transform3D = Transform3D.IDENTITY
+	var walk: Node3D = node
+
+	while walk != null and walk != root:
+		at = walk.transform * at
+		walk = walk.get_parent() as Node3D
+
+	return at
+
+
 ## Which way the points vary least, which is the line they are nearly on.
 ##
 ## Chosen rather than asked for, because an author selecting a row of posts has

@@ -91,6 +91,7 @@ var _turn: SpinBox = null
 var _turn_spread: SpinBox = null
 var _size: SpinBox = null
 var _size_spread: SpinBox = null
+var _fit_cells: SpinBox = null
 
 ## The models a prop can be made of, and which one is picked.
 ##
@@ -199,6 +200,11 @@ func _init() -> void:
 	_turn_spread = _brush_field("Turn, give or take", 0.0, 0.0, 360.0, 1.0)
 	_size = _brush_field("Size", 1.0, 0.01, 100.0, 0.05)
 	_size_spread = _brush_field("Size, give or take", 0.0, 0.0, 100.0, 0.05)
+
+	# How many cells "Fit to the grid" sizes a prop to. One is the crate; a house
+	# is three. Beside the brush numbers because it is the same kind of answer,
+	# even though the gesture that reads it is in the Tidy menu.
+	_fit_cells = _brush_field("Fit to (cells)", 1.0, 1.0, 32.0, 1.0)
 
 	var hint: Label = Label.new()
 	hint.text = "Hold “Place props” in the 3D toolbar, then click the ground."
@@ -352,6 +358,11 @@ func size_value() -> float:
 
 func size_spread_value() -> float:
 	return _size_spread.value
+
+
+## How many cells a prop is fitted to. A count, so it is read as one.
+func fit_cells_value() -> int:
+	return int(_fit_cells.value)
 
 
 ## One brush number: a spinner rather than a text field, because every one of

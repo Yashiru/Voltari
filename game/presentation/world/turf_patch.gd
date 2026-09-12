@@ -1065,7 +1065,14 @@ func _footprints(grid: GridMap) -> Array[PackedVector2Array]:
 
 ## Every model under a node, skipping the grids and whatever grows cover.
 ##
-## A hidden branch is skipped whole: grass has to make way for what is there, and
+## **Its own walk, not `VltFootprint`'s.** The shape is the same and the rule is
+## not: this one drops a grid and a cover-grower *at every level*, because a
+## patch grouped under a node is still not an obstacle to a patch — and the
+## blocking shapes have no such exception to make. Handing the difference over as
+## a predicate would be one walk with a parameter nobody reading either caller
+## could resolve.
+##
+## A hidden branch is skipped whole: grass makes way for what is there, and
 ## something switched off is not there. The local flag is enough because the walk
 ## is top-down and never reaches a hidden node's children.
 static func _models_under(node: Node, into: Array[MeshInstance3D]) -> void:

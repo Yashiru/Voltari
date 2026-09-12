@@ -245,3 +245,24 @@ func test_a_hidden_model_is_not_made_way_for() -> void:
 	assert_bool(_cleared_at(_footprints(patch, terrain), MESH_AT)).override_failure_message(
 		"a hidden model still cleared the ground"
 	).is_false()
+
+
+func test_a_grouped_patch_is_still_not_an_obstacle() -> void:
+	# The rule has to hold at every level, not just for the grid's own children:
+	# grouping patches under a node is ordinary tidying, and a patch cleared
+	# around itself eats exactly the lawn it was put there to stand in.
+	var root: Node3D = _map()
+	var terrain: GridMap = root.get_node("Terrain") as GridMap
+	var patch: TurfPatch = _patch(root)
+	await get_tree().process_frame
+	var alone: int = _footprints(patch, terrain).size()
+
+	var group: Node3D = Node3D.new()
+	root.add_child(group)
+	var leaves: VltFoliagePatch = VltFoliagePatch.new()
+	leaves.position = Vector3(0.0, 2.0, 0.0)
+	group.add_child(leaves)
+
+	assert_int(_footprints(patch, terrain).size()).override_failure_message(
+		"a foliage patch grouped under a node was cleared around as an obstacle"
+	).is_equal(alone)

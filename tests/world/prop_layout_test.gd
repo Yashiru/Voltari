@@ -179,3 +179,104 @@ func _points(pairs: Array) -> Array[Vector3]:
 		var along: float = xz[1]
 		made.append(Vector3(across, 0.0, along))
 	return made
+
+
+# --- fitting to the grid -------------------------------------------------------
+#
+# A pack's models arrive at whatever size the pack was authored at, so a crate can
+# be a tenth of a cell or ten of them. Fitting is per axis on purpose: what comes
+# out is a cube of the grid's own units, which is what "one by one by one" says.
+
+
+func test_a_box_becomes_exactly_one_cell() -> void:
+	var wanted: Vector3 = VltPropLayout.fitted(AABB(Vector3.ZERO, Vector3(2.0, 2.0, 2.0)), 1.0, 1)
+	assert_bool(wanted.is_equal_approx(Vector3(0.5, 0.5, 0.5))).is_true()
+
+
+func test_a_box_becomes_exactly_the_cells_asked_for() -> void:
+	var wanted: Vector3 = VltPropLayout.fitted(AABB(Vector3.ZERO, Vector3(2.0, 2.0, 2.0)), 1.0, 3)
+	assert_bool(wanted.is_equal_approx(Vector3(1.5, 1.5, 1.5))).is_true()
+
+
+func test_a_lamp_post_is_squashed_into_a_cube() -> void:
+	# The consequence of fitting per axis, stated rather than discovered: a model
+	# with proportions loses them. It is what was asked for, and a crate — the
+	# case this exists for — has none to lose.
+	var lamp: AABB = AABB(Vector3.ZERO, Vector3(0.3, 3.0, 0.3))
+	var wanted: Vector3 = VltPropLayout.fitted(lamp, 1.0, 1)
+
+	assert_float(lamp.size.x * wanted.x).is_equal_approx(1.0, 0.0001)
+	assert_float(lamp.size.y * wanted.y).is_equal_approx(1.0, 0.0001)
+	assert_float(lamp.size.z * wanted.z).is_equal_approx(1.0, 0.0001)
+
+
+func test_fitting_follows_the_grid_s_own_cell() -> void:
+	# Two metres a cell is a real setting, and a fit that assumed one would put
+	# every prop at half the size on such a map.
+	var wanted: Vector3 = VltPropLayout.fitted(AABB(Vector3.ZERO, Vector3(4.0, 4.0, 4.0)), 2.0, 1)
+	assert_bool(wanted.is_equal_approx(Vector3(0.5, 0.5, 0.5))).is_true()
+
+
+func test_an_axis_with_no_thickness_is_left_alone() -> void:
+	# A flat sign has no height, and no factor turns nothing into a metre.
+	# Stretching by infinity would make a prop that is everywhere and nowhere.
+	var flat: Vector3 = VltPropLayout.fitted(AABB(Vector3.ZERO, Vector3(2.0, 0.0, 2.0)), 1.0, 1)
+	assert_float(flat.y).is_equal_approx(1.0, 0.0001)
+	assert_float(flat.x).is_equal_approx(0.5, 0.0001)
+
+
+func test_asking_for_no_cells_still_fits_one() -> void:
+	var wanted: Vector3 = VltPropLayout.fitted(AABB(Vector3.ZERO, Vector3(2.0, 2.0, 2.0)), 1.0, 0)
+	assert_bool(wanted.is_equal_approx(Vector3(0.5, 0.5, 0.5))).is_true()
+
+
+func test_a_box_reaching_backwards_still_fits() -> void:
+	# A model authored around its origin has a box starting at a negative corner,
+	# and a size read without its sign would come out negative and mirror it.
+	var around: AABB = AABB(Vector3(-1.0, 0.0, -1.0), Vector3(2.0, 2.0, 2.0))
+	assert_bool(VltPropLayout.fitted(around, 1.0, 1).is_equal_approx(Vector3(0.5, 0.5, 0.5))).is_true()
+
+
+# --- measuring what a prop fills -----------------------------------------------
+
+
+func test_a_prop_is_measured_in_its_own_space() -> void:
+	# Not through the scale it already carries, or fitting twice would give two
+	# answers — each measured through the last attempt.
+	var prop: VltProp = _prop(Vector3(2.0, 2.0, 2.0))
+	prop.scale = Vector3(7.0, 7.0, 7.0)
+	assert_bool(VltPropLayout.bounds_of(prop).size.is_equal_approx(Vector3(2.0, 2.0, 2.0))).is_true()
+
+
+func test_fitting_a_prop_twice_lands_on_the_same_size() -> void:
+	var prop: VltProp = _prop(Vector3(2.0, 2.0, 2.0))
+	prop.scale = VltPropLayout.fitted(VltPropLayout.bounds_of(prop), 1.0, 1)
+	var once: Vector3 = prop.scale
+
+	prop.scale = VltPropLayout.fitted(VltPropLayout.bounds_of(prop), 1.0, 1)
+	assert_bool(prop.scale.is_equal_approx(once)).is_true()
+
+
+func test_a_prop_of_several_models_is_measured_across_all_of_them() -> void:
+	var prop: VltProp = _prop(Vector3(1.0, 1.0, 1.0))
+	var second: MeshInstance3D = MeshInstance3D.new()
+	second.mesh = VltFixtureMap.block(Vector3(1.0, 1.0, 1.0))
+	prop.add_child(second)
+	second.position = Vector3(4.0, 0.0, 0.0)
+
+	assert_float(VltPropLayout.bounds_of(prop).size.x).is_equal_approx(5.0, 0.0001)
+
+
+func test_a_prop_with_no_model_fills_nothing() -> void:
+	var prop: VltProp = auto_free(VltProp.new())
+	assert_bool(VltPropLayout.bounds_of(prop).size.is_zero_approx()).is_true()
+
+
+## A prop holding one box, centred on its origin in x and z and standing up from
+## it — the way the tile library leaves every model.
+func _prop(size: Vector3) -> VltProp:
+	var prop: VltProp = auto_free(VltProp.new())
+	var part: MeshInstance3D = MeshInstance3D.new()
+	part.mesh = VltFixtureMap.block(size)
+	prop.add_child(part)
+	return prop

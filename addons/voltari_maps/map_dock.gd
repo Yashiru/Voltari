@@ -62,7 +62,11 @@ const ROUGH: String = ""
 ## Where a new game begins. Reachability is the one check that needs a fact no
 ## map carries, and it is skipped rather than guessed at when this is empty
 ## (spec 14, section 7).
-const ENTRY: String = "starter_field"
+##
+## **Read from the game rather than written again here.** Where a new game starts
+## is one fact, and the reachability check measures from it — two literals would
+## have let the validator quietly report on a map nobody opens.
+const ENTRY: String = WorldSandbox.START_MAP
 
 var _folder: LineEdit = null
 var _entry: LineEdit = null

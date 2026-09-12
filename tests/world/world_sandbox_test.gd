@@ -10,6 +10,18 @@ extends GdUnitTestSuite
 
 const SCENE: String = "res://game/scenes/world/world_sandbox.tscn"
 
+## The map this suite walks, and where on it.
+##
+## **Not where the game starts.** `WorldSandbox.START_MAP` is real content now,
+## and a smoke test that walked it would fail every time somebody moved a fence —
+## which is the opposite of what a smoke test is for. The starter maps are this
+## suite's fixtures: small, deliberate, and changed only on purpose.
+##
+## The two tests that are genuinely about *starting* still ask `WorldSandbox`,
+## because that is their subject.
+const FIELD: String = "starter_field"
+const FIELD_CELL: Vector2i = Vector2i(1, 1)
+
 
 func before_test() -> void:
 	_forget()
@@ -25,6 +37,18 @@ func _forget() -> void:
 	for suffix: String in ["", VltSaveStore.TEMPORARY_SUFFIX, VltSaveStore.BACKUP_SUFFIX]:
 		if FileAccess.file_exists(WorldSandbox.SAVE_PATH + suffix):
 			DirAccess.remove_absolute(WorldSandbox.SAVE_PATH + suffix)
+
+
+## The world, standing where this suite's assertions were written for.
+##
+## Placed rather than walked to. `go_to` lands on a map's own spawn, and walking
+## from there to here would cross cells that can fire an event or an encounter —
+## noise a fixture must not have. Reaching for `_enter` is in keeping with a suite
+## that already drives `_run` and `_advance_event` directly.
+func _on_the_field() -> WorldSandbox:
+	var world: WorldSandbox = _sandbox()
+	world._enter(FIELD, FIELD_CELL, VltFacing.Direction.SOUTH)
+	return world
 
 
 func _sandbox() -> WorldSandbox:
@@ -46,10 +70,10 @@ func test_it_comes_up_somewhere_standable() -> void:
 
 
 func test_a_step_moves_and_a_wall_does_not() -> void:
-	var world: WorldSandbox = _sandbox()
+	var world: WorldSandbox = _on_the_field()
 
 	world.walk(VltFacing.Direction.EAST)
-	assert_vector(world.cell()).is_equal(WorldSandbox.START_CELL + Vector2i(1, 0))
+	assert_vector(world.cell()).is_equal(FIELD_CELL + Vector2i(1, 0))
 
 	# North from row 1 is row 0, which exists; west from column 0 is off the map.
 	world.walk(VltFacing.Direction.WEST)
@@ -66,7 +90,7 @@ func test_a_step_moves_and_a_wall_does_not() -> void:
 
 
 func test_walking_through_the_door_changes_map() -> void:
-	var world: WorldSandbox = _sandbox()
+	var world: WorldSandbox = _on_the_field()
 
 	# East along row 3, through the gap in the wall, to the door at (7, 3).
 	world.walk(VltFacing.Direction.SOUTH)
@@ -85,7 +109,7 @@ func test_walking_through_the_door_changes_map() -> void:
 func test_reading_the_sign_sets_a_flag_the_other_map_reads() -> void:
 	# Decision 0044 in the open: the flag lands when the event finishes, not
 	# while it is playing.
-	var world: WorldSandbox = _sandbox()
+	var world: WorldSandbox = _on_the_field()
 
 	# The sign sits on a blocked cell, so you stand beside it and face it — which
 	# is spec 14's rule that interacting ignores walkability, on a real map.
@@ -127,7 +151,7 @@ func _finish(world: WorldSandbox) -> void:
 func test_a_save_carries_both_sections() -> void:
 	# Two systems that know nothing about each other, into one document. This is
 	# the first place both exist at once.
-	var world: WorldSandbox = _sandbox()
+	var world: WorldSandbox = _on_the_field()
 
 	world.walk(VltFacing.Direction.EAST)
 	world.face(VltFacing.Direction.SOUTH)
@@ -177,7 +201,7 @@ func test_an_encounter_puts_a_battle_on_top_of_the_world() -> void:
 func test_the_world_keeps_everything_while_a_battle_runs() -> void:
 	# The world stays in the tree holding position, flags and party. Nothing is
 	# saved and reloaded to cross the seam, so nothing can be lost crossing it.
-	var world: WorldSandbox = _sandbox()
+	var world: WorldSandbox = _on_the_field()
 
 	world.walk(VltFacing.Direction.EAST)
 	world.face(VltFacing.Direction.SOUTH)
@@ -371,7 +395,7 @@ func test_being_backgrounded_mid_battle_writes_nothing() -> void:
 func test_being_backgrounded_mid_event_writes_nothing() -> void:
 	# A half-run event has set no flags, so a save now records a world nothing
 	# can resume (decision 0044).
-	var world: WorldSandbox = _sandbox()
+	var world: WorldSandbox = _on_the_field()
 	world.walk(VltFacing.Direction.EAST)
 	world.face(VltFacing.Direction.SOUTH)
 	world.interact()
@@ -435,7 +459,7 @@ func _lose(world: WorldSandbox) -> void:
 
 
 func test_losing_sends_the_party_to_the_camp() -> void:
-	var world: WorldSandbox = _sandbox()
+	var world: WorldSandbox = _on_the_field()
 	world.walk(VltFacing.Direction.EAST)
 	world.walk(VltFacing.Direction.EAST)
 
@@ -464,7 +488,7 @@ func test_losing_heals_the_party() -> void:
 func test_losing_underground_comes_up_on_the_map_with_the_camp() -> void:
 	# The case the metric exists for. The cave has no rest point of its own and
 	# reaches the field's through the door.
-	var world: WorldSandbox = _sandbox()
+	var world: WorldSandbox = _on_the_field()
 	world.walk(VltFacing.Direction.SOUTH)
 	world.walk(VltFacing.Direction.SOUTH)
 	for step: int in range(7):
@@ -482,7 +506,7 @@ func test_losing_underground_comes_up_on_the_map_with_the_camp() -> void:
 func test_walking_works_after_a_defeat() -> void:
 	# A teleport that left the walker on the old map's grid would be invisible
 	# until the first step.
-	var world: WorldSandbox = _sandbox()
+	var world: WorldSandbox = _on_the_field()
 	await _lose(world)
 
 	world.walk(VltFacing.Direction.EAST)
@@ -494,7 +518,7 @@ func test_walking_works_after_a_defeat() -> void:
 func test_a_defeat_survives_a_save() -> void:
 	# Position and health both moved, and both live in sections written after
 	# the fact. A recovery the save missed would undo itself on the next load.
-	var world: WorldSandbox = _sandbox()
+	var world: WorldSandbox = _on_the_field()
 	await _lose(world)
 	world.save_now()
 
@@ -617,7 +641,7 @@ func test_it_moves_diagonally_in_one_go() -> void:
 
 func test_a_wall_still_stops_the_player() -> void:
 	# Free does not mean unbounded: the blocking layer is still what stops you.
-	var world: WorldSandbox = _sandbox()
+	var world: WorldSandbox = _on_the_field()
 	world.walk(VltFacing.Direction.SOUTH)
 	world.walk(VltFacing.Direction.EAST)
 

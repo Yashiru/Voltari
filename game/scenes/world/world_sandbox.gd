@@ -15,7 +15,15 @@ extends Node3D
 ## game cannot open.
 const MAPS_FOLDER: String = "res://game/maps"
 
-const START_MAP: String = "starter_field"
+## Where a new game begins, and where on it.
+##
+## A save overrides both: `_load_if_present` runs after the first `_enter` and
+## moves the walker to wherever it was left. So this is the answer for a fresh
+## start and for nothing else.
+##
+## Falls back to whatever map is found first when this one is missing, so a build
+## without it still opens something rather than a blank screen.
+const START_MAP: String = "main"
 const START_CELL: Vector2i = Vector2i(1, 1)
 const SAVE_PATH: String = "user://sandbox.json"
 

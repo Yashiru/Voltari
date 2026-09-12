@@ -485,28 +485,72 @@ framing a battle impossible.
 A second runtime beside the creature one, not a shared base: what they have in
 common is "instance a model and play a clip", and everything else differs.
 
-- **A character turns** towards its grid facing rather than snapping to it.
+- **A character turns** towards its heading rather than snapping to it.
 - **Its legs answer to the ground.** A creature's clip is a reaction to an event;
   a character's is a function of a speed.
 - **It settles.** Two steps in a row are separated by a frame at zero speed, and
   without a grace the legs flicker on every cell boundary.
 
-**The world moves at the speed the animation was authored for, and that speed is
-measured.** An in-place clip carries a compressed stride and an honest cadence,
-so the speed comes from the cadence and a step length proportional to height.
-`tools/characters/measure_gaits.gd` prints it; the runtime uses it; nobody has to
-believe a number.
+### A character model is a rig, and the clips are files beside it
 
-How long a cell takes is `cell width / ground speed`, with the width read from
-the map's own grid — so a map on a finer grid is crossed at the same speed rather
-than at the same rate.
+**Decision 0074.** A character `.glb` carries a skeleton and a mesh and no
+animations; every clip is its own FBX under
+`game/assets/characters/humanoid_animations/`, imported as an `AnimationLibrary`.
+The slot name is the file name, because every file's take is called `mixamo.com`
+and the name on disk is the only one that means anything. `HumanoidClips` holds
+the vocabulary; a meta-test holds it and the folder to each other in both
+directions.
 
-**A character is not scaled.** A creature's size is a design fact its manifest
-declares; a person's is not, and 1.7 m with feet at the origin is already a
-person on a two-metre grid.
+**The rigs do not match and the importer is what reconciles them.** The clips are
+65 bones in a T-pose on a 1.04 m hip; the character is 27 bones in an A-pose on a
+0.84 m hip with a stylised build. Both are imported through one committed
+`BoneMap` onto `SkeletonProfileHumanoid`, with `overwrite_axis` and
+`normalize_position_tracks`. A clip then addresses `%GeneralSkeleton` and lands on
+any character imported the same way, feet on the floor to within two centimetres.
+Without it the arms fold into the chest and the body floats a quarter of a metre.
 
 **Clips loop because the `.import` says so**, not because the runtime patches a
-shared resource on every load.
+shared resource on every load. Which slots loop is a list in `HumanoidClips`, and
+the test compares the two.
+
+### The gaits are blended, and held in step
+
+**Decision 0075.** Standing, walking and running are one continuous thing: two
+mixes in an `AnimationTree`, both functions of the ground speed and of nothing
+else, with each mix's midpoint at a speed a clip was authored for rather than at a
+threshold somebody picked.
+
+Both gaits are driven to turn **one cycle in the same time**, interpolated from
+the two cadences they were made at. A 1.033 s walk and a 0.700 s run blended at
+their own rates drift apart within a second and read as a limp: measured, the left
+foot hovered 9.5 cm off the ground at mid-blend. Held in step, no foot at any
+speed is more than 4 cm from where it rests.
+
+### The world moves at the speed the animation was authored for
+
+**That speed is measured, and measured off the foot.** An in-place clip has the
+planted foot sliding backwards at exactly the ground speed, so the reading has
+nothing assumed in it: 1.33 m/s walking and 3.33 m/s running on this character's
+rig, both feet agreeing to within two percent.
+`tools/characters/measure_clips.gd` prints it; the runtime uses it; nobody has to
+believe a number.
+
+How long a cell takes follows from that and from how wide a cell is, so a map on
+a finer grid is crossed at the same speed rather than at the same rate.
+
+**A character is not scaled.** A creature's size is a design fact its manifest
+declares; a person's is not, and 1.7 m with feet at the origin is already a person
+on a two-metre grid.
+
+### What is imported and not played
+
+Four turn-in-place clips, a throw, two stair loops and a fishing idle. They are
+named, imported and tested, and nothing asks for any of them: turning is still the
+continuous yaw it always was, the player is not drawn in battle, the overworld is
+one storey, and there is no rod. This is the same rule section 4 applies to a
+species' extras — the engine can play one by name, nothing plays one automatically
+— and it is written down so that an unused asset reads as a decision rather than
+as an omission.
 
 ## 12. The world's grass
 

@@ -95,10 +95,19 @@ static func _closest_on(map: VltWorldMap, from_cell: Vector2i) -> Found:
 	return Found.new(map.map_id, best.cell, best.facing)
 
 
+## Every rest point on a map, at any depth.
+##
+## Grouped or loose, for the reason `VltWorldMap` gives about warps and zones:
+## the editor draws one wherever it sits, so a camp tidied into a node has to
+## count. Direct children only meant a map could have a camp drawn in the
+## viewport and still report that a defeat there cannot recover.
 static func points_on(map: VltWorldMap) -> Array[VltRestPoint]:
 	var found: Array[VltRestPoint] = []
-	for child: Node in map.get_children():
-		var point: VltRestPoint = child as VltRestPoint
+	if map == null:
+		return found
+
+	for node: Node in map.find_children("*", "", true, false):
+		var point: VltRestPoint = node as VltRestPoint
 		if point != null:
 			found.append(point)
 	return found

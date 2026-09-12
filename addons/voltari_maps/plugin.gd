@@ -55,6 +55,11 @@ var _gizmos: VltMapGizmos = null
 var _dock: VltMapDock = null
 var _snap: Button = null
 var _views: MenuButton = null
+var _place: Button = null
+
+## How the next prop is turned and sized. The dock writes to it; the viewport
+## reads it (`VltPropBrush`).
+var _brush: VltPropBrush = VltPropBrush.new()
 
 ## What each map looked like when it was last looked at, and whether it has
 ## changed since the look before that.
@@ -139,11 +144,30 @@ func _enter_tree() -> void:
 	popup.id_pressed.connect(_on_view_toggled)
 	add_control_to_container(CONTAINER_SPATIAL_EDITOR_MENU, _views)
 
+	# Held down rather than a mode you enter and forget: while it is off, the
+	# viewport behaves exactly as it did, and painting a `GridMap` is untouched.
+	# That matters more than the convenience — this plugin consumes clicks when it
+	# is on, and a tool that quietly eats the engine's own gestures is worse than
+	# one that needs a button pressed.
+	_place = Button.new()
+	_place.text = "Place props"
+	_place.toggle_mode = true
+	_place.tooltip_text = ("Click the ground to place the palette's selected item as a prop.\n"
+		+ "Turn and size come from the Maps dock. Off, the viewport is the engine's own.")
+	add_control_to_container(CONTAINER_SPATIAL_EDITOR_MENU, _place)
+	if _dock != null:
+		_dock.brush_changed.connect(_on_brush_changed)
+		_on_brush_changed()
+
 	set_process(true)
 
 
 func _exit_tree() -> void:
 	set_process(false)
+	if _place != null:
+		remove_control_from_container(CONTAINER_SPATIAL_EDITOR_MENU, _place)
+		_place.queue_free()
+		_place = null
 	if _views != null:
 		remove_control_from_container(CONTAINER_SPATIAL_EDITOR_MENU, _views)
 		_views.queue_free()
@@ -541,3 +565,154 @@ static func _grid_editor() -> GridMapEditorPlugin:
 ## already looks when a button does nothing.
 func _say(what: String) -> void:
 	push_warning(what)
+
+
+# --- placing props ------------------------------------------------------------
+
+
+## Which objects this plugin will take viewport clicks for.
+##
+## The map and its layers, because those are what an author has selected while
+## building one — the palette lives on a `GridMap`, so that is what is selected
+## most of the time.
+##
+## Saying yes here does not take the gesture: `_forward_3d_gui_input` passes
+## everything straight through unless *Place props* is held down. Without that,
+## this plugin would be competing with the engine's own `GridMap` editor for
+## every click on a map.
+func _handles(object: Object) -> bool:
+	return object is VltWorldMap or object is GridMap
+
+
+func _forward_3d_gui_input(camera: Camera3D, event: InputEvent) -> int:
+	if _place == null or not _place.button_pressed:
+		return EditorPlugin.AFTER_GUI_INPUT_PASS
+
+	var click: InputEventMouseButton = event as InputEventMouseButton
+	if click == null or click.button_index != MOUSE_BUTTON_LEFT or not click.pressed:
+		return EditorPlugin.AFTER_GUI_INPUT_PASS
+
+	return (
+		EditorPlugin.AFTER_GUI_INPUT_STOP
+		if place_at(camera, click.position)
+		else EditorPlugin.AFTER_GUI_INPUT_PASS
+	)
+
+
+## Puts one prop where a ray through the viewport meets the map's ground.
+##
+## **The ground plane, not a collision shape.** The overworld has no physics by
+## design (spec 14, section 1), so there is nothing to raycast against — and there
+## should not be: a plane at the map's own floor height is exact, needs nothing
+## built, and cannot disagree with the grid about where the floor is.
+##
+## Returns whether anything was placed, so the caller knows whether the click was
+## used. A click that lands on nothing has to fall through, or the viewport stops
+## responding as soon as the camera looks at the sky.
+func place_at(camera: Camera3D, at: Vector2) -> bool:
+	var root: Node = EditorInterface.get_edited_scene_root()
+	if camera == null or root == null:
+		return false
+
+	var maps: Array[VltWorldMap] = _maps(root)
+	if maps.is_empty():
+		_say("Nothing here is a Voltari map, so there is no ground to place a prop on.")
+		return false
+	var map: VltWorldMap = maps[0]
+
+	var grid: GridMap = _brush_grid(map)
+	if grid == null or grid.mesh_library == null:
+		_say("Select a GridMap with a palette first — the prop is the item selected in it.")
+		return false
+
+	var item: int = _palette_item()
+	if item == GridMap.INVALID_CELL_ITEM:
+		_say("No item is selected in the GridMap palette, so there is nothing to place.")
+		return false
+
+	var mesh: Mesh = grid.mesh_library.get_item_mesh(item)
+	if mesh == null:
+		_say("The selected palette item has no model.")
+		return false
+
+	var where: Variant = VltMapPlacement.ground_under(map, camera, at)
+	if where == null:
+		return false
+
+	@warning_ignore("unsafe_cast")
+	var landed: Vector3 = where as Vector3
+	_add_prop(map, root, mesh, grid.mesh_library.get_item_name(item), _brush.next_at(landed))
+	return true
+
+
+## The palette the prop comes from: whichever `GridMap` the author is editing,
+## falling back to the map's own blocking layer.
+func _brush_grid(map: VltWorldMap) -> GridMap:
+	var editing: GridMapEditorPlugin = _grid_editor()
+	if editing != null:
+		var current: GridMap = editing.get_current_grid_map()
+		if current != null:
+			return current
+
+	for node: Node in EditorInterface.get_selection().get_selected_nodes():
+		var grid: GridMap = node as GridMap
+		if grid != null:
+			return grid
+	return map.blocking
+
+
+## The item selected in the engine's own palette.
+##
+## Read rather than mirrored in the dock. An author picking a model has already
+## said which one, with the tool they already use, and a second list would be a
+## second thing that can disagree — the argument sowing already makes for cells.
+static func _palette_item() -> int:
+	var editing: GridMapEditorPlugin = _grid_editor()
+	if editing == null:
+		return GridMap.INVALID_CELL_ITEM
+	return editing.get_selected_palette_item()
+
+
+## Builds the prop and hands it to the scene, undoably.
+##
+## Parented to the map rather than to a group node this would have to invent.
+## Grouping is an author's decision and the footprint walk reaches any depth, so
+## a `Props` node created behind their back would be a structure nobody asked for.
+func _add_prop(
+	map: VltWorldMap, root: Node, mesh: Mesh, item_name: String, at: Transform3D
+) -> void:
+	var prop: VltProp = VltProp.new()
+	# A palette name is a path — `Plants/Bush_1` — and a node name cannot hold a
+	# slash. The last part is what an author would call the thing anyway.
+	prop.name = item_name.get_file() if not item_name.is_empty() else "Prop"
+
+	var part: MeshInstance3D = MeshInstance3D.new()
+	part.name = "Model"
+	part.mesh = mesh
+	prop.add_child(part)
+	prop.transform = at
+
+	var undo: EditorUndoRedoManager = get_undo_redo()
+	undo.create_action("Place prop")
+	undo.add_do_method(map, "add_child", prop)
+	# Owners after the node is in the tree, and the child after its parent: a node
+	# whose owner is set while it is loose is not saved into the scene.
+	undo.add_do_method(prop, "set_owner", root)
+	undo.add_do_method(part, "set_owner", root)
+	undo.add_do_method(map, "forget_shapes")
+	undo.add_do_reference(prop)
+	undo.add_undo_method(map, "remove_child", prop)
+	undo.add_undo_method(map, "forget_shapes")
+	undo.commit_action()
+
+	map.update_gizmos()
+
+
+## The dock's numbers, taken as the brush's.
+func _on_brush_changed() -> void:
+	if _dock == null:
+		return
+	_brush.turn = _dock.turn_value()
+	_brush.turn_spread = _dock.turn_spread_value()
+	_brush.size = _dock.size_value()
+	_brush.size_spread = _dock.size_spread_value()

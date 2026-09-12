@@ -147,6 +147,40 @@ static func snapped_to_grid(map: VltWorldMap, local: Vector3) -> Vector3:
 	return Vector3(centre.x, local.y, centre.z)
 
 
+## Where a ray through the viewport meets a map's floor, in the map's own space,
+## or nothing when it never does.
+##
+## **A plane, not a collision shape.** The overworld has no physics by design
+## (spec 14, section 1), so there is nothing to raycast against — and there should
+## not be: a plane at the map's own floor height is exact, needs nothing built,
+## and cannot disagree with the grid about where the floor is.
+##
+## The answer's height is the floor rather than wherever the ray happened to
+## cross, which are the same number here and would stop being the same the day a
+## caller passes a plane of its own.
+##
+## `Variant` rather than a flag and an out-parameter, because a `Vector3` is a
+## value in GDScript and an out-parameter would be written and thrown away.
+## Nothing is the honest answer for a camera looking along the floor or away from
+## it, which is most of what happens while turning the view.
+static func ground_under(map: VltWorldMap, camera: Camera3D, at: Vector2) -> Variant:
+	if map == null or camera == null:
+		return null
+
+	var floor_y: float = centre_of(map, Vector2i.ZERO).y
+	var placed: Transform3D = map.global_transform
+	var hit: Variant = Plane(
+		placed.basis.y.normalized(), placed * Vector3(0.0, floor_y, 0.0)
+	).intersects_ray(camera.project_ray_origin(at), camera.project_ray_normal(at))
+
+	if hit == null:
+		return null
+
+	@warning_ignore("unsafe_cast")
+	var local: Vector3 = placed.affine_inverse() * (hit as Vector3)
+	return Vector3(local.x, floor_y, local.z)
+
+
 ## Which cell a point in the map's local space falls in.
 static func cell_at(map: VltWorldMap, local: Vector3) -> Vector2i:
 	if map == null or map.terrain == null:

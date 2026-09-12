@@ -235,3 +235,98 @@ func test_a_prop_already_on_its_cell_does_not_move() -> void:
 	var centre: Vector3 = VltMapPlacement.centre_of(map, Vector2i(2, 4))
 
 	assert_vector(VltMapPlacement.snapped_to_grid(map, centre)).is_equal(centre)
+
+
+# --- where a click lands -------------------------------------------------------
+#
+# The overworld has no physics, so there is nothing to raycast against and a plane
+# at the map's own floor is what a click means. These are about that plane being
+# the map's rather than the world's: a map somebody has moved or turned is the
+# case where an eyeballed answer looks right and is out by however far the map was
+# moved.
+
+
+func test_a_click_from_straight_above_lands_under_the_camera() -> void:
+	var map: VltWorldMap = _map_in_tree()
+	var camera: Camera3D = _looking_down(Vector3(3.0, 10.0, -4.0))
+
+	var where: Variant = VltMapPlacement.ground_under(map, camera, _middle(camera))
+	assert_object(where).is_not_null()
+
+	var landed: Vector3 = where
+	assert_float(landed.x).is_equal_approx(3.0, 0.05)
+	assert_float(landed.z).is_equal_approx(-4.0, 0.05)
+
+
+func test_a_click_lands_on_the_floor_not_where_the_ray_started() -> void:
+	var map: VltWorldMap = _map_in_tree()
+	var camera: Camera3D = _looking_down(Vector3(0.0, 27.0, 0.0))
+
+	var landed: Vector3 = VltMapPlacement.ground_under(map, camera, _middle(camera))
+	assert_float(landed.y).is_equal_approx(VltMapPlacement.centre_of(map, Vector2i.ZERO).y, 0.001)
+
+
+func test_a_click_along_the_floor_lands_nowhere() -> void:
+	# What happens while turning the camera, and the reason a miss has to fall
+	# through rather than be reported: the viewport would stop responding as soon
+	# as somebody looked at the horizon.
+	var map: VltWorldMap = _map_in_tree()
+	var camera: Camera3D = auto_free(Camera3D.new())
+	add_child(camera)
+	camera.position = Vector3(0.0, 5.0, 0.0)
+	camera.rotation = Vector3.ZERO
+
+	assert_object(VltMapPlacement.ground_under(map, camera, _middle(camera))).is_null()
+
+
+func test_a_click_on_a_moved_map_lands_in_the_map_s_own_space() -> void:
+	# The answer is used to place a child of the map, so it has to be in the map's
+	# coordinates. A map nudged twenty metres aside is where an answer in world
+	# space looks perfectly reasonable and is twenty metres out.
+	var map: VltWorldMap = _map_in_tree()
+	map.position = Vector3(20.0, 0.0, -8.0)
+	var camera: Camera3D = _looking_down(Vector3(23.0, 10.0, -12.0))
+
+	var landed: Vector3 = VltMapPlacement.ground_under(map, camera, _middle(camera))
+	assert_float(landed.x).is_equal_approx(3.0, 0.05)
+	assert_float(landed.z).is_equal_approx(-4.0, 0.05)
+
+
+func test_a_click_on_a_turned_map_lands_in_the_map_s_own_space() -> void:
+	var map: VltWorldMap = _map_in_tree()
+	map.rotation = Vector3(0.0, PI * 0.5, 0.0)
+	# A quarter turn about the vertical sends the map's +x to the world's -z, so a
+	# camera over world (0, ·, -5) is over the map's own (5, ·, 0).
+	var camera: Camera3D = _looking_down(Vector3(0.0, 10.0, -5.0))
+
+	var landed: Vector3 = VltMapPlacement.ground_under(map, camera, _middle(camera))
+	assert_float(landed.x).is_equal_approx(5.0, 0.05)
+	assert_float(landed.z).is_equal_approx(0.0, 0.05)
+
+
+func test_nothing_to_click_on_lands_nowhere() -> void:
+	var camera: Camera3D = _looking_down(Vector3.ZERO)
+	assert_object(VltMapPlacement.ground_under(null, camera, Vector2.ZERO)).is_null()
+	assert_object(VltMapPlacement.ground_under(_map_in_tree(), null, Vector2.ZERO)).is_null()
+
+
+## In the scene tree, unlike the fixture the tests above use: `global_transform`
+## is what a click is resolved against, and it means nothing for a loose node.
+func _map_in_tree() -> VltWorldMap:
+	var built: VltWorldMap = auto_free(VltFixtureMap.map("field", VltFixtureMap.filled(Vector2i(8, 8))))
+	add_child(built)
+	return built
+
+
+## A camera hanging over a spot, pointed straight down.
+func _looking_down(from: Vector3) -> Camera3D:
+	var camera: Camera3D = auto_free(Camera3D.new())
+	add_child(camera)
+	camera.position = from
+	camera.rotation = Vector3(-PI * 0.5, 0.0, 0.0)
+	return camera
+
+
+## The middle of what the camera sees, which is where "straight down" points.
+static func _middle(camera: Camera3D) -> Vector2:
+	return camera.get_viewport().get_visible_rect().size * 0.5

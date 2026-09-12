@@ -66,6 +66,16 @@ var _width: SpinBox = null
 var _height: SpinBox = null
 var _report: RichTextLabel = null
 
+## Emitted when any brush number changes, so whoever holds the brush can take
+## them. A signal rather than the dock reaching for the plugin: a panel knows
+## what it was typed into and nothing about who cares.
+signal brush_changed
+
+var _turn: SpinBox = null
+var _turn_spread: SpinBox = null
+var _size: SpinBox = null
+var _size_spread: SpinBox = null
+
 ## The problems the report is currently showing, in the order it shows them.
 ##
 ## What a click resolves against. The link carries an index and not a
@@ -111,6 +121,22 @@ func _init() -> void:
 	build.text = "Build tile library"
 	build.pressed.connect(_on_build_pressed)
 	add_child(build)
+
+	add_child(HSeparator.new())
+
+	# How a placed prop is turned and sized. The *what* is not here: it is the
+	# item selected in the GridMap palette, read when the click happens, so there
+	# is no second list of models to keep in step with the engine's own.
+	_turn = _brush_field("Turn (deg)", 0.0, -360.0, 360.0, 1.0)
+	_turn_spread = _brush_field("Turn, give or take", 0.0, 0.0, 360.0, 1.0)
+	_size = _brush_field("Size", 1.0, 0.01, 100.0, 0.05)
+	_size_spread = _brush_field("Size, give or take", 0.0, 0.0, 100.0, 0.05)
+
+	var hint: Label = Label.new()
+	hint.text = "Hold “Place props” in the 3D toolbar, then click the ground."
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.add_theme_font_size_override("font_size", 10)
+	add_child(hint)
 
 	_report = RichTextLabel.new()
 	_report.bbcode_enabled = true
@@ -168,6 +194,50 @@ func grain_field() -> LineEdit:
 func contact_field() -> LineEdit:
 	return _contact
 
+
+
+## The brush's numbers, reachable so a caller can read them without knowing which
+## widget holds which — the same reasoning as the fields above.
+func turn_value() -> float:
+	return _turn.value
+
+
+func turn_spread_value() -> float:
+	return _turn_spread.value
+
+
+func size_value() -> float:
+	return _size.value
+
+
+func size_spread_value() -> float:
+	return _size_spread.value
+
+
+## One brush number: a spinner rather than a text field, because every one of
+## these is bounded and a typo in a rotation is not worth discovering by placing
+## a prop sideways.
+func _brush_field(
+	label: String, value: float, least: float, most: float, step: float
+) -> SpinBox:
+	var row: Label = Label.new()
+	row.text = label
+	add_child(row)
+
+	var spin: SpinBox = SpinBox.new()
+	spin.min_value = least
+	spin.max_value = most
+	spin.step = step
+	spin.value = value
+	spin.allow_greater = false
+	spin.allow_lesser = false
+	spin.value_changed.connect(_on_brush_field_changed)
+	add_child(spin)
+	return spin
+
+
+func _on_brush_field_changed(_value: float) -> void:
+	brush_changed.emit()
 
 
 func _field(label: String, value: String) -> LineEdit:
